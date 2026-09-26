@@ -89,8 +89,11 @@ export const VEH_SHAPES = {
   } },
 };
 
+/** Sprite state for a vehicle: burnt-out wreck, driver shot (New art: empty seat), or fine. */
+export function vehicleState(v) { return v.dead ? 'wreck' : v.driverDown ? 'nodriver' : 'ok'; }
+
 const worldCache = new Map();
-/** 8-direction stacked sprite. dir 0..7 (N..NW); state: 'ok'|'wreck' */
+/** 8-direction stacked sprite. dir 0..7 (N..NW); state: 'ok'|'nodriver'|'wreck' (Classic draws 'nodriver' as 'ok') */
 export function vehicleSprite(type, dir, state = 'ok') {
   const np = Art.painter('vehicle', type);               // New art style, if this type has a redesign
   const key = (np ? 'new|' : '') + type + dir + state;

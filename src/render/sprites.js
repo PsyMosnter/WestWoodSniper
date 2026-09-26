@@ -3,6 +3,7 @@ import { PALETTES } from '../config/palette.js';
 import { Pix, makeCanvas } from './pixel.js';
 import { drawHumanoid, drawDeath, viewForDir, mirroredDir, OPERATIVE, HUSK, HAX, HAY } from './spriteData/humanoid.js';
 import { Art } from './artStyle.js';
+import { vehicleSprite } from './spriteData/vehicles.js';
 
 /**
  * Sprite compiler & cache (SPEC §4.5): builds canvases from palette-indexed data or procedural
@@ -77,18 +78,22 @@ export function markerLift(s, base) { return s?.top == null ? base : base + Math
  * Background sprite warm-up for the New art style: New frames are rendered on first use (a couple of
  * milliseconds each), so the mission queues the frames its units will need and draws a few per frame
  * instead of all at once when a squad starts running. Classic sprites need no warm-up.
- * @param {{type: string, poses: [string, number][]}[]} specs  unit types and the poses/frame counts they use
- * @returns {[string, string, number, number][]} queue of [type, pose, dir, frame]
+ * @param {{type: string, poses?: [string, number][], vehicle?: boolean}[]} specs  infantry types with the
+ *   poses/frame counts they use, and vehicle types (all eight facings)
+ * @returns {any[][]} queue of ['unit', type, pose, dir, frame] / ['vehicle', type, dir, state]
  */
 export function warmQueue(specs) {
   const q = [];
+  for (const { type, vehicle } of specs) {
+    if (vehicle && Art.painter('vehicle', type)) for (let d = 0; d < 8; d++) q.push(['vehicle', type, d, 'ok']);
+  }
   // the most common views first: every type's idle/walk before anyone's death animation
-  const maxPoses = Math.max(0, ...specs.map((s) => s.poses.length));
+  const maxPoses = Math.max(0, ...specs.map((s) => s.poses?.length || 0));
   for (let i = 0; i < maxPoses; i++) {
     for (const { type, poses } of specs) {
-      if (!Art.painter('unit', type) || !poses[i]) continue;
+      if (!poses?.[i] || !Art.painter('unit', type)) continue;
       const [pose, frames] = poses[i];
-      for (let f = 0; f < frames; f++) for (let d = 0; d < 8; d++) q.push([type, pose, d, f]);
+      for (let f = 0; f < frames; f++) for (let d = 0; d < 8; d++) q.push(['unit', type, pose, d, f]);
     }
   }
   return q;
@@ -97,8 +102,9 @@ export function warmQueue(specs) {
 export function warmStep(q, budgetMs) {
   const t0 = performance.now();
   while (q.length && performance.now() - t0 < budgetMs) {
-    const [type, pose, dir, frame] = q.shift();
-    if (Art.painter('unit', type)) unitSprite(type, pose, dir, frame);
+    const j = q.shift();
+    if (j[0] === 'vehicle') { if (Art.painter('vehicle', j[1])) vehicleSprite(j[1], j[2], j[3]); }
+    else if (Art.painter('unit', j[1])) unitSprite(j[1], j[2], j[3], j[4]);
   }
 }
 

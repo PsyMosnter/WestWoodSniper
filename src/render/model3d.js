@@ -326,8 +326,9 @@ function majority(vals, mats, n, m) {
 }
 
 /** Hit zones by id (index). 0 = none. Higher prio wins where the scope's assisted aim overlaps them. */
-export const ZONES = ['', 'head', 'torso', 'limb', 'grenadeBelt', 'fuelTank', 'rocketPod', 'radio', 'helmet', 'body'];
-export const ZONE_PRIO = [0, 5, 3, 1, 4, 4, 4, 4, 5, 3];
+export const ZONES = ['', 'head', 'torso', 'limb', 'grenadeBelt', 'fuelTank', 'rocketPod', 'radio', 'helmet', 'body',
+  'driver', 'jerrycan', 'tank', 'slit', 'turret', 'hull'];
+export const ZONE_PRIO = [0, 5, 3, 1, 4, 4, 4, 4, 5, 3, 5, 5, 4, 6, 2, 1];
 export const Z = Object.fromEntries(ZONES.map((n, i) => [n || 'none', i]));
 /** A part that never takes a hit itself (weapons): the shot passes on to whatever is behind it. */
 export const Z_PASS = 255;

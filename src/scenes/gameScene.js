@@ -29,6 +29,7 @@ import { dropshipSprite } from '../render/spriteData/vehicles.js';
 import { STRUCT_ZONES } from '../render/spriteData/structures.js';
 import '../render/spriteData/godUnits.js';
 import '../render/spriteData/newInfantry.js';
+import '../render/spriteData/newVehicles.js';
 import { FriendlySystem } from '../entities/friendly.js';
 import { Weather } from '../world/weather.js';
 import { NotConvoy } from '../missions/convoy.js';
@@ -145,6 +146,7 @@ export class GameScene {
       { type: 'operative', poses: [['crouch', 1], ['walk', 4], ['run', 4], ['prone', 1], ['crawl', 4], ['fire', 2], ['cover', 1], ['pistol', 4], ['idle', 1], ['dead', 4]] },
       ...[...types].map((type) => ({ type, poses: NOT_POSES })),
       ...[...new Set((this.world.friendlies || []).filter((f) => f.kind !== 'vehicle').map((f) => f.type))].map((type) => ({ type, poses: [['idle', 1], ['walk', 4], ['crouch', 1], ['prone', 1]] })),
+      ...[...new Set([...this.world.units, ...(this.world.friendlies || [])].filter((u) => u.kind === 'vehicle').map((u) => u.type))].map((type) => ({ type, vehicle: true })),
     ]);
     this.hud.say(this.fromCheckpoint ? 'Back at the checkpoint, WREN. Carry on.' : "WREN, OVERWATCH. You're on the ground.");
     this.world.events.on('toast', (t) => this.hud.toast(t.text, t.color));

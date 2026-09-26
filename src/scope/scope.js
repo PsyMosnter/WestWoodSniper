@@ -10,7 +10,7 @@ import { unitSprite, unitVariant, whiteOf } from '../render/sprites.js';
 import { Art } from '../render/artStyle.js';
 import { FogRenderer } from '../render/fogRenderer.js';
 import { scopeSprite, scopeView, resolveZone, magnifiedSprite, zoneAtMap } from './hitzones.js';
-import { vehicleScopeSprite, vehicleSprite } from '../render/spriteData/vehicles.js';
+import { vehicleScopeSprite, vehicleSprite, vehicleState } from '../render/spriteData/vehicles.js';
 import { swayCurve, swayAmplitude, dispersion } from './sway.js';
 import { canSee } from '../world/los.js';
 import { seesTarget, targetVisible, targetDist } from '../combat/targeting.js';
@@ -126,6 +126,10 @@ export class Scope {
     return w.units.filter((u) => !u.dead && !u.hidden && u.def.scope && fog.isVisible(u.tx, u.ty) && Math.abs(u.x - v.x) < R && Math.abs(u.y - v.y) < R + 1);
   }
   spriteFor(u) {
+    if (u.kind === 'vehicle' && Art.painter('vehicle', u.type)) {
+      const m = vehicleSprite(u.type, u.dir, vehicleState(u));
+      if (m.zoneMap) return magnifiedSprite(m, Z);
+    }
     if (u.kind !== 'vehicle' && Art.painter('unit', u.type)) {
       // New art style: the scope magnifies the unit's own map sprite (same pose, facing and frame)
       const { pose, frame } = u.pose();

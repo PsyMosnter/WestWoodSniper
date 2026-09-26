@@ -114,7 +114,7 @@ test('warm-up queue: nothing to do in Classic; in New the common frames come fir
   Art.setStyle('new');
   const q = warmQueue([{ type: 'husk', poses: [['idle', 1], ['dead', 4]] }, { type: 'lobber', poses: [['idle', 1]] }]);
   assert.equal(q.length, 8 + 32 + 8);
-  assert.deepEqual(q.slice(0, 16).map((j) => j[1]), Array(16).fill('idle'), 'both types idle before any death frame');
+  assert.deepEqual(q.slice(0, 16).map((j) => j[2]), Array(16).fill('idle'), 'both types idle before any death frame');
   warmStep(q, 1000);
   assert.equal(q.length, 0);
   assert.ok(unitSprite('husk', 'dead', 3, 2).zoneMap, 'frames are cached as New sprites');
@@ -149,6 +149,81 @@ test('New scope: a round on a head pixel of the magnified map sprite is a headsh
   s.shoot();
   assert.equal(u.dead, true, 'headshot kills');
   assert.equal(g.world.stats.headshots, 1);
+  Time.scale = 1;
+  Art.setStyle('classic');
+});
+
+// ------------------------------------------------------------------ vehicles
+import { renderVehicle, VEHICLE_TYPES } from '../src/render/spriteData/newVehicles.js';
+import { VehicleSystem } from '../src/entities/vehicle.js';
+
+function vzones(type, dir, state = 'ok') {
+  const r = renderVehicle(type, dir, state), c = {};
+  for (const z of r.zone) if (z) c[ZONES[z]] = (c[ZONES[z]] || 0) + 1;
+  return c;
+}
+
+test('every New vehicle renders inside its canvas, in all facings and states', () => {
+  for (const type of VEHICLE_TYPES) for (const state of ['ok', 'nodriver', 'wreck']) for (let d = 0; d < 8; d++) {
+    const { pix, w, h } = renderVehicle(type, d, state);
+    let edge = 0, body = 0;
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      if (!(pix.data[y * w + x] >>> 24)) continue;
+      body++;
+      if (x === 0 || y === 0 || x === w - 1 || y === h - 1) edge++;
+    }
+    assert.ok(body > 150, `${type} ${state} dir ${d} is visible`);
+    assert.equal(edge, 0, `${type} ${state} dir ${d} touches the canvas edge`);
+  }
+});
+
+test("vehicle weak spots: the Skitter's driver is big from every side, truck drivers hide from behind, tanks show their slit only head-on", () => {
+  for (let d = 0; d < 8; d++) assert.ok(vzones('skitter', d).driver >= 25, `skitter driver dir ${d}`);
+  assert.ok(vzones('skitter', AWAY).jerrycan > 10, 'jerrycans from behind');
+  assert.ok(!vzones('skitter', TOWARDS, 'nodriver').driver, 'shot driver: empty seat');
+  for (const t of ['hauler', 'fuelHauler']) {
+    for (const d of [TOWARDS, EAST, WEST]) assert.ok(vzones(t, d).driver > 5, `${t} driver dir ${d}`);
+    assert.ok(!vzones(t, AWAY).driver, `${t}: no driver from behind`);
+  }
+  for (const d of [AWAY, EAST, WEST]) assert.ok(vzones('fuelHauler', d).tank > 50, `fuel tank dir ${d}`);
+  for (const t of ['crawler', 'brute', 'juggernaut']) {
+    const s = vzones(t, TOWARDS).slit;
+    assert.ok(s > 0 && s <= 8, `${t}: a tiny slit head-on (${s})`);
+    for (const d of [AWAY, EAST, WEST]) assert.ok(!vzones(t, d).slit, `${t}: no slit from dir ${d}`);
+  }
+  for (const t of ['brute', 'juggernaut']) assert.ok(vzones(t, EAST).turret > 30);
+  for (let d = 0; d < 8; d++) assert.ok(!vzones('medTruck', d).driver, 'the GOD truck is not a target');
+});
+
+test('New scope: a round on the Skitter driver disables the buggy', () => {
+  Art.setStyle('new');
+  const w = 30, h = 20, row = (c) => c.repeat(w);
+  const data = {
+    id: 't', size: { w, h }, terrain: Array(h).fill(row('g')), elevation: Array(h).fill(row('0')), overlay: Array(h).fill(row('.')),
+    units: [{ id: 'v', type: 'skitter', x: 12, y: 10, facing: 'S', alertGroup: 'x', behaviour: { kind: 'sentry' } }],
+    paths: {}, areas: {}, alertGroups: {}, player: { x: 18, y: 10, facing: 'W', loadout: { rifle: 20 } },
+  };
+  const stub = { toast() {}, say() {}, dim: 0 };
+  const g = /** @type {any} */ ({ app: { params: new URLSearchParams() }, hud: stub, settings: {}, awareness: { state: 'hidden' }, cam: { shake() {} }, audio: null });
+  g.world = new World(data, { seed: 3 });
+  g.world.update(0.1);
+  g.combat = new CombatSystem(g);
+  g.vehicles = new VehicleSystem(g);
+  g.enemies = new EnemySystem(g);
+  g.scope = new Scope(g);
+  g.scope.D = 260;
+  const v = g.world.units[0], s = g.scope;
+  const spr = s.spriteFor(v);
+  assert.ok(spr.zoneMap, 'magnified New vehicle sprite');
+  let sx = 0, sy = 0, n = 0;
+  for (let i = 0; i < spr.zoneMap.length; i++) if (ZONES[spr.zoneMap[i]] === 'driver') { sx += i % spr.mapW + 0.5; sy += Math.floor(i / spr.mapW) + 0.5; n++; }
+  assert.ok(s.openOn(v));
+  s.openT = 1; s.sway = { x: 0, y: 0 };
+  s.aim = { x: v.x + (sx / n - spr.ax / 4) / 16, y: v.y + (sy / n - spr.ay / 4) / 16 };
+  s.shoot();
+  assert.equal(v.disabled, true, 'driver down');
+  assert.equal(v.driverDown, true);
+  assert.equal(s.spriteFor(v).zoneMap.some((z) => ZONES[z] === 'driver'), false, 'the seat is empty now');
   Time.scale = 1;
   Art.setStyle('classic');
 });

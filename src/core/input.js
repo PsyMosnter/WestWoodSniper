@@ -45,7 +45,7 @@ export class Input {
     window.addEventListener('keydown', (e) => {
       if (e.repeat) { if (!['KeyW','KeyA','KeyS','KeyD'].includes(e.code)) return; }
       this.keys.add(e.code);
-      if (['Space', 'Backquote', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Tab'].includes(e.code)) e.preventDefault();
+      if (['Space', 'Backquote', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Tab', 'F5', 'F9'].includes(e.code)) e.preventDefault();   // F5/F9: quick save/load, not reload
       this.handler?.onKeyDown?.(e.code, e);
       this._unlock();
     });

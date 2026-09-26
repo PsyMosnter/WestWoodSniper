@@ -118,9 +118,12 @@ export class GameScene {
     this.renderer.layers.overFog.push((ctx, r) => { this.noise.draw(ctx, r); this.tunnels.draw(ctx, r); this.strike.draw(ctx, r); this.takedown.draw(ctx, r); });
     this.gestures = new Gestures(this._gestureHandlers());
     this.resize(this.app.display.W, this.app.display.H);
-    const cp = this.params.checkpoint && this.app.checkpoint;
-    if (cp && cp.mission === this.missionId) { restore(this, cp.snap); this.fromCheckpoint = cp.key; }
-    else if (!this.params.checkpoint) this.app.checkpoint = null;   // a fresh attempt drops the old checkpoint
+    // the mission's latest save (autosave on objectives, QUICK SAVE, scripted checkpoints) stays loadable
+    // across attempts and browser sessions; a fresh start doesn't erase it
+    const saved = this.app.save.resume?.[this.missionId] || null;
+    if (!this.params.checkpoint) this.app.checkpoint = saved;
+    const cp = this.params.checkpoint && (this.app.checkpoint?.mission === this.missionId ? this.app.checkpoint : saved);
+    if (cp && cp.mission === this.missionId) { restore(this, cp.snap); this.fromCheckpoint = cp.key; this.app.checkpoint = cp; }
     const op = this.world.operative;
     const at = this.app.params.get('at');
     if (at) { const [ax, ay] = at.split(',').map(Number); const t = this.world.map.nearestWalkable(ax, ay, 6); if (t) { op.x = op.px = t.x + 0.5; op.y = op.py = t.y + 0.5; } }
@@ -139,6 +142,8 @@ export class GameScene {
     step();
   }
   _start() {
+    this.app.audio?.music?.('mission');
+    this.app.audio?.setIntensity?.(0);
     // New art style: pre-draw the frames this mission's infantry will use, a few per frame
     const NOT_POSES = [['idle', 1], ['walk', 4], ['run', 4], ['fire', 2], ['crouch', 1], ['dead', 4]];
     const types = new Set(this.world.units.filter((u) => u.def?.kind === 'infantry' || u.def?.kind === 'beast').map((u) => u.type));
@@ -148,7 +153,7 @@ export class GameScene {
       ...[...new Set((this.world.friendlies || []).filter((f) => f.kind !== 'vehicle').map((f) => f.type))].map((type) => ({ type, poses: [['idle', 1], ['walk', 4], ['crouch', 1], ['prone', 1]] })),
       ...[...new Set([...this.world.units, ...(this.world.friendlies || [])].filter((u) => u.kind === 'vehicle').map((u) => u.type))].map((type) => ({ type, vehicle: true })),
     ]);
-    this.hud.say(this.fromCheckpoint ? 'Back at the checkpoint, WREN. Carry on.' : "WREN, OVERWATCH. You're on the ground.");
+    this.hud.say(this.fromCheckpoint ? 'Picking up where you left off, WREN.' : "WREN, OVERWATCH. You're on the ground.");
     this.world.events.on('toast', (t) => this.hud.toast(t.text, t.color));
     this.world.events.on('runGunOff', () => this.hud.toast('RUN & GUN OFF'));
     this.world.events.on('opDead', () => {
@@ -156,6 +161,7 @@ export class GameScene {
       this.runner.lose('WREN is down. Mission failed.');
     });
     this.world.events.on('alert', (e) => {
+      if (e.level === 'alarm') this.audio?.play?.('alarm');
       if (e.level === 'alarm' && e.reason !== 'officer radio') {
         this.hud.say(this.enemies.alerts.hasBarracks(e.group) ? 'Alarm raised. Reinforcements incoming.' : 'Alarm raised. Get out of there.', true);
       }
@@ -167,7 +173,12 @@ export class GameScene {
         this.objectives.items.filter((o) => o.type === 'STEALTH').forEach((o) => this.objectives.fail(o.id));
       }
     });
-    this.world.events.on('objectiveDone', (o) => { this.hud.say('Objective complete.'); this.hud.toast('OBJECTIVE COMPLETE', '#7CFF7A'); this.hud.peekObjectives(4); });
+    this.world.events.on('objectiveDone', (o) => {
+      this.hud.say('Objective complete.'); this.hud.toast('OBJECTIVE COMPLETE', '#7CFF7A'); this.hud.peekObjectives(4);
+      this.audio?.play?.('objective');
+      // autosave on every objective (a beat later, once the runner has checked for the win)
+      this.pendingAutosave = { key: 'objective:' + (o?.id ?? ''), t: 0.6 };
+    });
     window.__game = this;
   }
   resize(W, H) {
@@ -195,6 +206,7 @@ export class GameScene {
         break;
       case 'centre': this.cam.follow = true; this.cam.pan = null; break;
       case 'pause': this.app.scenes.push('pause', { game: this }); break;
+      case 'quicksave': this.quickSave(); break;
       case 'medkit':
         if (op.medkits <= 0) { this.hud.toast('NO MEDKITS'); break; }
         if (op.hp >= op.maxHp) { this.hud.toast('HEALTH FULL', C.uiText); break; }
@@ -417,6 +429,8 @@ export class GameScene {
     else if (code === K.centre) this.cmd('centre');
     else if (code === K.pause && this.mode === 'designator') this.strike.toggleTargeting();   // Esc leaves targeting first
     else if (code === K.pause) this.cmd('pause');
+    else if (code === K.quickSave) this.quickSave();
+    else if (code === K.quickLoad) this.quickLoad();
     else if (code === K.medkit) this.cmd('medkit');
     else if (code === K.takedown) this.cmd('takedown');
     else if (code === K.debug) this.debug = !this.debug;
@@ -452,6 +466,11 @@ export class GameScene {
   frame(dt) {
     if (this.loading) return;
     if (this.warm?.length) warmStep(this.warm, 3);
+    // music follows the tension: calm when hidden, bass and arpeggio when suspicious, drums when spotted
+    const aw = this.awareness?.state || 'hidden';
+    if (aw !== this._lastAw) { if (aw === 'detected') this.audio?.play?.('spotted'); this._lastAw = aw; }
+    this.audio?.setIntensity?.(aw === 'detected' ? 1 : aw === 'suspicious' ? 0.5 : this.world.alerts?.anyAlarm ? 0.45 : 0);
+    if (this.pendingAutosave && (this.pendingAutosave.t -= dt) <= 0) { const k = this.pendingAutosave.key; this.pendingAutosave = null; this.saveCheckpoint(k); }
     this.gestures.update();
     // keyboard / edge panning (desktop)
     const inp = this.app.input, K = KEYS;
@@ -554,11 +573,35 @@ export class GameScene {
       drawText(ctx, t.label, ax, ay + 10, { font: '3x5', color: t.col, align: 'center', shadow: '#000' });
     }
   }
-  /** Mid-mission checkpoint (SPEC §17.8: M6 after the rescue, M7 once the shield is down) — this run only. */
-  saveCheckpoint(key) {
-    if (this.world.operative.dead || this.runner.ended) return;
-    this.app.checkpoint = { mission: this.missionId, key, snap: JSON.parse(JSON.stringify(snapshot(this))) };
-    this.hud.toast('CHECKPOINT', '#7CFF7A', 1.8);
+  /**
+   * Save the mission state (scripted checkpoints in M6/M7, every completed objective, QUICK SAVE) into
+   * the save file's slot for this mission. Returns why it couldn't, or null.
+   * @param {string} key @param {'auto'|'quick'} [kind]
+   */
+  saveCheckpoint(key, kind = 'auto') {
+    const op = this.world.operative;
+    if (op.dead || this.runner.ended) return 'not now';
+    if (kind === 'quick') {
+      if (this.scopeOpen || op.busy || this.tunnels?.transit) return 'busy';
+      if (this.awareness?.state === 'detected') return 'spotted';
+    }
+    const cp = { mission: this.missionId, key, kind, at: Date.now(), name: this.data.name, snap: JSON.parse(JSON.stringify(snapshot(this))) };
+    this.app.checkpoint = cp;
+    this.app.save.resume = this.app.save.resume || {};
+    this.app.save.resume[this.missionId] = cp;
+    this.app.persist?.();
+    this.hud.toast(kind === 'quick' ? 'GAME SAVED' : 'PROGRESS SAVED', '#7CFF7A', 1.6);
+    this.audio?.play?.('save');
+    return null;
+  }
+  quickSave() {
+    const why = this.saveCheckpoint('quick', 'quick');
+    if (why === 'spotted') this.hud.toast("CAN'T SAVE: THEY SEE YOU", C.uiAlert, 1.6);
+    else if (why) this.hud.toast("CAN'T SAVE NOW", C.uiAmber, 1.4);
+  }
+  quickLoad() {
+    if (this.app.checkpoint?.mission !== this.missionId) { this.hud.toast('NO SAVE YET', C.uiAmber, 1.4); return; }
+    this.app.scenes.go('game', { mission: this.missionId, checkpoint: true });
   }
   /** End of mission → debrief after a short beat. */
   endMission(won, reason = '') {

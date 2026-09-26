@@ -17,4 +17,6 @@ export const KEYS = {
   follow: 'KeyF',
   smoke: 'KeyK',
   takedown: 'KeyE',
+  quickSave: 'F5',
+  quickLoad: 'F9',
 };

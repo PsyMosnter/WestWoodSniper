@@ -15,6 +15,7 @@ import { O, T } from '../world/tiles.js';
 export class BriefingScene extends MenuBase {
   enter(params) {
     this.missionId = params.mission;
+    this.app.audio?.music?.('theme');
     this.t = 0;
     this.data = null;
     this.deploy = this.addButton('DEPLOY', () => this.app.scenes.go('game', { mission: this.missionId }), { color: C.uiAmber });

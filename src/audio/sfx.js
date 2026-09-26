@@ -1,9 +1,249 @@
 // @ts-check
-/** Placeholder audio facade — full procedural SFX arrive in Milestone 10. */
+/**
+ * Procedural audio (SPEC §16): every sound effect and all music are synthesised with Web Audio — no
+ * sample files. The context is created on the first user gesture (browser autoplay rules); before that,
+ * and in headless tests, every call is a silent no-op.
+ *
+ * SFX: play(name). Music: music('theme' | 'mission' | null) picks the track; setIntensity(0..1) makes
+ * the mission track build up (bass, arpeggio, drums) as the enemy becomes aware of WREN;
+ * sting('win' | 'fail') plays a short cue.
+ */
+
+const NOTE = (n) => 440 * Math.pow(2, (n - 69) / 12);   // MIDI note → Hz
+
+// chord progressions (MIDI roots and triads) — A minor, the 90s way
+const PROG = {
+  theme: [[57, 60, 64], [53, 57, 60], [48, 52, 55], [55, 59, 62]],      // Am F C G
+  mission: [[57, 60, 64], [53, 57, 60], [50, 53, 57], [52, 56, 59]],    // Am F Dm E
+};
+// theme lead melody: 16 steps per bar, 4 bars (null = rest)
+const LEAD = [
+  [76, null, null, 76, 74, null, 72, null, 74, null, null, null, 76, null, 79, null],
+  [77, null, null, 76, 74, null, 72, null, 69, null, null, null, 72, null, 74, null],
+  [76, null, null, 76, 79, null, 76, null, 74, null, 72, null, 71, null, 72, null],
+  [74, null, null, null, 71, null, 67, null, 69, null, null, null, null, null, null, null],
+];
+
 export class Audio {
-  constructor() { this.ctx = null; this.sfxVol = 0.8; this.musicVol = 0.6; }
-  unlock() {}
-  setVolumes(sfx, music) { this.sfxVol = sfx; this.musicVol = music; }
-  play() {}
-  click() {} tick() {} squelch() {}
+  constructor() {
+    /** @type {any} */ this.ctx = null;
+    this.sfxVol = 0.8; this.musicVol = 0.6;
+    this.want = null;          // track to play once unlocked
+    this.track = null;
+    this.intensity = 0; this.level = 0;
+    this.last = new Map();
+    this.timer = null;
+  }
+  unlock() {
+    if (this.ctx) { if (this.ctx.state === 'suspended') this.ctx.resume?.(); return; }
+    const AC = globalThis.AudioContext || /** @type {any} */ (globalThis).webkitAudioContext;
+    if (!AC) return;
+    try {
+      const c = this.ctx = new AC();
+      this.master = c.createGain(); this.master.gain.value = 0.9;
+      const comp = c.createDynamicsCompressor();
+      comp.threshold.value = -14; comp.ratio.value = 4;
+      this.master.connect(comp); comp.connect(c.destination);
+      this.sfxBus = c.createGain(); this.sfxBus.gain.value = this.sfxVol; this.sfxBus.connect(this.master);
+      this.musicBus = c.createGain(); this.musicBus.gain.value = this.musicVol * 0.55; this.musicBus.connect(this.master);
+      // outdoor echo for gunshots and blasts
+      this.echo = c.createDelay(1); this.echo.delayTime.value = 0.21;
+      const fb = c.createGain(); fb.gain.value = 0.28;
+      const lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 1600;
+      this.echo.connect(lp); lp.connect(fb); fb.connect(this.echo); lp.connect(this.sfxBus);
+      // a second of white noise, reused by every noisy sound
+      const buf = c.createBuffer(1, c.sampleRate, c.sampleRate), d = buf.getChannelData(0);
+      for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+      this.noiseBuf = buf;
+      if (this.want) this.music(this.want);
+    } catch (e) { this.ctx = null; }
+  }
+  setVolumes(sfx, music) {
+    this.sfxVol = sfx; this.musicVol = music;
+    if (!this.ctx) return;
+    const t = this.ctx.currentTime;
+    this.sfxBus.gain.setTargetAtTime(sfx, t, 0.05);
+    this.musicBus.gain.setTargetAtTime(music * 0.55, t, 0.05);
+  }
+
+  // ---------------------------------------------------------------- synthesis primitives
+  /** oscillator voice with a pitch glide and a percussive envelope */
+  tone(type, f0, f1, t, dur, vol, dest = this.sfxBus, attack = 0.004) {
+    const c = this.ctx, o = c.createOscillator(), g = c.createGain();
+    o.type = type;
+    o.frequency.setValueAtTime(Math.max(1, f0), t);
+    if (f1 !== f0) o.frequency.exponentialRampToValueAtTime(Math.max(1, f1), t + dur);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.linearRampToValueAtTime(vol, t + attack);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g); g.connect(dest);
+    o.start(t); o.stop(t + dur + 0.05);
+    return g;
+  }
+  /** filtered noise burst with a sweeping cutoff */
+  noise(t, dur, vol, type, f0, f1, q = 0.8, dest = this.sfxBus, attack = 0.003) {
+    const c = this.ctx, s = c.createBufferSource(), f = c.createBiquadFilter(), g = c.createGain();
+    s.buffer = this.noiseBuf; s.loop = true;
+    f.type = type; f.Q.value = q;
+    f.frequency.setValueAtTime(f0, t);
+    if (f1 !== f0) f.frequency.exponentialRampToValueAtTime(Math.max(20, f1), t + dur);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.linearRampToValueAtTime(vol, t + attack);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    s.connect(f); f.connect(g); g.connect(dest);
+    s.start(t, Math.random() * 0.5); s.stop(t + dur + 0.05);
+    return g;
+  }
+  click(freq = 1400, vol = 0.08) { if (!this.ctx) return; this.tone('square', freq, freq, this.ctx.currentTime, 0.025, vol * this.sfxVolume()); }
+  tick() { this.click(2200, 0.05); }
+  squelch() { this.play('squelch'); }
+  sfxVolume() { return 1; }
+
+  // ---------------------------------------------------------------- sound effects
+  /** @param {string} name */
+  play(name) {
+    const c = this.ctx;
+    if (!c) return;
+    const now = c.currentTime;
+    if (now - (this.last.get(name) ?? -1) < 0.035) return;     // no machine-gun stacking of the same sound
+    this.last.set(name, now);
+    const f = SFX[name];
+    if (f) { try { f.call(this, now); } catch (e) { /* never let audio break the game */ } }
+  }
+
+  // ---------------------------------------------------------------- music
+  /** @param {string|null} name */
+  music(name) {
+    this.want = name;
+    if (!this.ctx) return;
+    if (this.track?.name === name) return;
+    const c = this.ctx;
+    if (this.track) {
+      const old = this.track;
+      old.gain.gain.setTargetAtTime(0.0001, c.currentTime, 0.4);
+      setTimeout(() => { try { old.gain.disconnect(); } catch (e) { /* gone */ } }, 2500);
+    }
+    this.track = null;
+    if (!name) return;
+    const gain = c.createGain(); gain.gain.value = 0.0001; gain.connect(this.musicBus);
+    gain.gain.setTargetAtTime(1, c.currentTime + 0.2, 0.6);
+    this.track = { name, gain, step: 0, next: c.currentTime + 0.15, bpm: name === 'theme' ? 104 : 88 };
+    if (!this.timer) this.timer = setInterval(() => this._schedule(), 25);
+  }
+  setIntensity(x) { this.intensity = Math.max(0, Math.min(1, x)); }
+  sting(name) {
+    const c = this.ctx;
+    if (!c) return;
+    const t = c.currentTime + 0.05, bus = this.musicBus;
+    if (name === 'win') {
+      [60, 64, 67, 72, 76].forEach((n, i) => this.tone('square', NOTE(n), NOTE(n), t + i * 0.11, 0.5, 0.07, bus));
+      for (const n of [48, 60, 64, 67]) this.tone('triangle', NOTE(n), NOTE(n), t + 0.55, 1.6, 0.08, bus, 0.05);
+    } else if (name === 'fail') {
+      [64, 60, 57, 52].forEach((n, i) => this.tone('triangle', NOTE(n), NOTE(n) * 0.97, t + i * 0.22, 0.6, 0.09, bus));
+      this.noise(t + 0.9, 1.4, 0.05, 'bandpass', 1800, 900, 1.5, bus);
+    }
+  }
+  _schedule() {
+    const c = this.ctx, tr = this.track;
+    if (!c || !tr) return;
+    while (tr.next < c.currentTime + 0.12) {
+      this.level += (this.intensity - this.level) * 0.08;
+      this._step(tr, tr.step, tr.next);
+      tr.next += 60 / tr.bpm / 4;                 // 16th notes
+      tr.step++;
+    }
+  }
+  /** one 16th-note step of the current track */
+  _step(tr, step, t) {
+    const out = tr.gain, s16 = step % 16, bar = Math.floor(step / 16);
+    const theme = tr.name === 'theme';
+    const prog = PROG[theme ? 'theme' : 'mission'];
+    const chord = prog[Math.floor(bar / (theme ? 1 : 2)) % prog.length];
+    const L = theme ? 1 : this.level;
+    const spb = 60 / tr.bpm;
+    // pad: the chord, swelling in at the start of each chord
+    if (s16 === 0 && (theme || bar % 2 === 0)) {
+      const len = spb * 4 * (theme ? 1 : 2);
+      for (const n of chord) this.tone('triangle', NOTE(n), NOTE(n), t, len, theme ? 0.045 : 0.05, out, len * 0.35);
+    }
+    // bass: whole notes when calm, driving 8ths when tense (and in the theme)
+    const root = NOTE(chord[0] - 24);
+    if (theme || L > 0.35) { if (s16 % 2 === 0) this._bass(root * (s16 === 6 || s16 === 14 ? 1.5 : 1), t, spb * 0.45, 0.11, out); }
+    else if (s16 === 0 && bar % 2 === 0) this._bass(root, t, spb * 7, 0.09, out);
+    // arpeggio (tension)
+    if (!theme && L > 0.3 && s16 % 2 === 1) {
+      const n = chord[(s16 >> 1) % 3] + 12;
+      this.tone('square', NOTE(n), NOTE(n), t, spb * 0.2, 0.025 * Math.min(1, (L - 0.3) * 2), out);
+    }
+    // drums: in the theme, and when WREN is spotted
+    if (theme || L > 0.6) {
+      const dv = theme ? 1 : Math.min(1, (L - 0.6) * 2.5);
+      if (s16 === 0 || s16 === 8 || s16 === 10) this._kick(t, 0.5 * dv, out);
+      if (s16 === 4 || s16 === 12) this.noise(t, 0.16, 0.16 * dv, 'bandpass', 1800, 1200, 0.7, out);
+      if (s16 % 2 === 0) this.noise(t, 0.04, 0.05 * dv, 'highpass', 7000, 7000, 0.7, out);
+    } else if (s16 === 0 && bar % 4 === 3) {
+      // calm: a lone, distant ping every few bars — somebody out there is listening
+      this.tone('sine', NOTE(88), NOTE(88), t, 1.4, 0.03, out);
+    }
+    // the theme's lead line
+    if (theme && bar % 8 >= 4) {
+      const n = LEAD[bar % 4][s16];
+      if (n) this.tone('square', NOTE(n), NOTE(n), t, spb * 0.45, 0.045, out);
+    }
+  }
+  _bass(f, t, dur, vol, out) {
+    const c = this.ctx, o = c.createOscillator(), fl = c.createBiquadFilter(), g = c.createGain();
+    o.type = 'sawtooth'; o.frequency.value = f;
+    fl.type = 'lowpass'; fl.frequency.setValueAtTime(900, t); fl.frequency.exponentialRampToValueAtTime(160, t + dur);
+    g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(vol, t + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(fl); fl.connect(g); g.connect(out);
+    o.start(t); o.stop(t + dur + 0.05);
+  }
+  _kick(t, vol, out) { this.tone('sine', 140, 38, t, 0.28, vol, out, 0.002); }
 }
+
+/** @type {Record<string, (this: Audio, t: number) => void>} */
+const SFX = {
+  // WREN's rifle: a sharp crack, a heavy thump and the echo off the hills
+  rifle(t) {
+    this.noise(t, 0.05, 0.9, 'highpass', 2500, 2500);
+    const body = this.noise(t, 0.45, 0.8, 'lowpass', 5000, 500);
+    body.connect(this.echo);
+    this.tone('sine', 120, 40, t, 0.3, 0.9);
+  },
+  pistol(t) { this.noise(t, 0.14, 0.55, 'lowpass', 5000, 1200); this.tone('sine', 190, 70, t, 0.12, 0.4); },
+  enemyShot(t) { this.tone('sawtooth', 1400, 260, t, 0.13, 0.12); this.noise(t, 0.09, 0.22, 'bandpass', 2400, 1400, 1.2); },
+  bolt(t) { this.tone('square', 1900, 1500, t, 0.03, 0.12); this.tone('square', 1300, 1100, t + 0.15, 0.04, 0.14); this.noise(t + 0.15, 0.05, 0.1, 'highpass', 4000, 4000); },
+  reload(t) { for (let i = 0; i < 3; i++) this.tone('square', 1600 - i * 250, 1300 - i * 250, t + i * 0.22, 0.03, 0.1); },
+  reloadDone(t) { this.tone('square', 1800, 1800, t, 0.03, 0.12); this.tone('square', 2400, 2400, t + 0.07, 0.03, 0.1); },
+  dry(t) { this.tone('square', 900, 700, t, 0.03, 0.1); },
+  scopeIn(t) { this.noise(t, 0.28, 0.18, 'bandpass', 400, 1800, 1.5); this.tone('square', 2600, 2600, t + 0.26, 0.02, 0.06); },
+  scopeOut(t) { this.noise(t, 0.22, 0.14, 'bandpass', 1800, 400, 1.5); },
+  headshot(t) { this.tone('sine', 1760, 1700, t + 0.05, 0.4, 0.16); this.tone('triangle', 2640, 2600, t + 0.05, 0.25, 0.06); },
+  explosion(t) {
+    const b = this.noise(t, 1.5, 1.0, 'lowpass', 1400, 90);
+    b.connect(this.echo);
+    this.tone('sine', 72, 26, t, 1.1, 1.0, this.sfxBus, 0.005);
+    this.noise(t + 0.05, 0.5, 0.18, 'bandpass', 3000, 1500, 1);
+  },
+  nuke(t) {
+    this.noise(t, 4.5, 1.1, 'lowpass', 900, 50, 0.7, this.sfxBus, 0.05);
+    this.tone('sine', 48, 22, t, 3.5, 1.0, this.sfxBus, 0.05);
+    this.noise(t + 0.3, 3.0, 0.2, 'bandpass', 600, 200, 0.8);
+  },
+  rocket(t) { this.noise(t, 0.9, 0.45, 'bandpass', 700, 3200, 1.2); this.tone('sawtooth', 220, 90, t, 0.4, 0.08); },
+  throw(t) { this.noise(t, 0.22, 0.2, 'bandpass', 500, 1600, 1); },
+  plant(t) { this.tone('square', 1000, 1000, t, 0.06, 0.1); this.tone('square', 1000, 1000, t + 0.14, 0.06, 0.1); },
+  beep(t) { this.tone('square', 880, 880, t, 0.08, 0.1); },
+  whistle(t) { this.tone('sine', 1500, 480, t, 1.3, 0.14, this.sfxBus, 0.1); },
+  laser(t) { this.tone('sine', 620, 640, t, 0.45, 0.08, this.sfxBus, 0.03); this.tone('sine', 1240, 1250, t, 0.45, 0.03, this.sfxBus, 0.03); },
+  pickup(t) { [660, 880, 1320].forEach((f, i) => this.tone('square', f, f, t + i * 0.06, 0.07, 0.08)); },
+  gasp(t) { this.noise(t, 0.55, 0.28, 'bandpass', 900, 600, 1.2, this.sfxBus, 0.15); },
+  splash(t) { this.noise(t, 0.4, 0.3, 'lowpass', 2600, 300); },
+  squelch(t) { this.noise(t, 0.12, 0.14, 'bandpass', 2200, 2000, 2.5); this.tone('square', 1500, 1500, t + 0.1, 0.02, 0.04); },
+  objective(t) { [72, 76, 79, 84].forEach((n, i) => this.tone('triangle', NOTE(n), NOTE(n), t + i * 0.08, 0.3, 0.12)); },
+  save(t) { this.tone('square', 1200, 1200, t, 0.05, 0.07); this.tone('square', 1600, 1600, t + 0.08, 0.07, 0.07); },
+  alarm(t) { for (let i = 0; i < 3; i++) { this.tone('sawtooth', 520, 820, t + i * 0.5, 0.25, 0.1); this.tone('sawtooth', 820, 520, t + i * 0.5 + 0.25, 0.25, 0.1); } },
+  spotted(t) { this.tone('square', 220, 220, t, 0.35, 0.1); this.tone('square', 233, 233, t, 0.35, 0.1); this.noise(t, 0.2, 0.12, 'highpass', 3000, 3000); },
+  takedown(t) { this.noise(t, 0.12, 0.25, 'lowpass', 1800, 400); this.tone('sine', 160, 60, t, 0.15, 0.3); },
+};

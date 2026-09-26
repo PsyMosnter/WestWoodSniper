@@ -31,6 +31,7 @@ export class Hud {
     b({ id: 'designator', icon: 'designator', label: 'STRIKE', onPress: () => game.cmd('designator') });
     b({ id: 'centre', icon: 'centre', label: '', onPress: () => game.cmd('centre') });
     b({ id: 'pause', icon: 'pause', label: '', onPress: () => game.cmd('pause') });
+    b({ id: 'save', icon: 'save', label: '', onPress: () => game.cmd('quicksave') });
     b({ id: 'convoy', icon: 'convoy', label: 'ADVANCE', onPress: () => game.cmd('convoy') });
     b({ id: 'follow', icon: 'follow', label: 'FOLLOW', onPress: () => game.cmd('followAll') });
     b({ id: 'smoke', icon: 'smoke', label: 'SMOKE', onPress: () => game.cmd('smoke') });
@@ -56,6 +57,7 @@ export class Hud {
     const sb = Math.min(B, Math.floor((mmW + 2 - g) / 2));   // full-size touch targets, as wide as the minimap allows
     bs.centre.place(W - m - sb, rowY, sb, sb);
     bs.pause.place(W - m - 2 * sb - g, rowY, sb, sb);
+    bs.save.place(W - m - 3 * sb - 2 * g, rowY, sb, sb);
     // action cluster bottom corner (right-handed: bottom-right)
     const X = (i) => lefty ? L + m + i * (B + g) : W - m - (i + 1) * (B + g) + g;
     const y1 = H - m - B, y2 = y1 - B - g, y3 = y2 - B - g;

@@ -128,6 +128,8 @@ export class CutsceneScene {
     this.done = false;
     this.reduced = !!this.app.settings?.reducedMotion;
     this.failedLine = FAILED_LINES[Math.floor(Math.random() * FAILED_LINES.length)];
+    if (p.id === 'failed') { this.app.audio?.music?.(null); this.app.audio?.sting?.('fail'); }
+    else this.app.audio?.music?.('theme');
     this.shake = 0;
     for (const s of this.cut.shots) preload(s);
     const save = this.app.save;

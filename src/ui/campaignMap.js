@@ -22,6 +22,7 @@ const NODES = [
 /** Campaign map (SPEC §17.3 #2): 7 nodes, dotted route, locked greyed, stars & medals. */
 export class CampaignScene extends MenuBase {
   enter(p = {}) {
+    this.app.audio?.music?.('theme');
     this.t = 0;
     const save = this.app.save;
     const focusIdx = p.focus ? MISSION_ORDER.indexOf(p.focus) : -1;

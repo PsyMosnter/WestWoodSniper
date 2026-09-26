@@ -1,10 +1,25 @@
 // @ts-check
 /**
- * Mid-mission checkpoints (SPEC §20 M9; Missions 6 & 7): a compact snapshot of the mission state
- * taken at a scripted moment, restored on "RETRY FROM CHECKPOINT" onto a freshly loaded mission.
- * Kept in memory for the session (a checkpoint is for the current attempt, not the save file).
+ * Mid-mission saves: a compact snapshot of the mission state, restored onto a freshly loaded mission.
+ * Taken automatically at scripted checkpoints (M6, M7) and whenever an objective is completed, and by
+ * QUICK SAVE; kept in the save file (localStorage, one slot per mission), so "LOAD SAVE" works after a
+ * death and CONTINUE on the title screen resumes a mission after the browser was closed.
  */
 
+/** Run-length encode a 0/1 byte array ("seen" fog) as "count,count,…" starting with a run of zeros. */
+export function rle(a) {
+  const out = [];
+  let v = 0, n = 0;
+  for (let i = 0; i < a.length; i++) { const x = a[i] ? 1 : 0; if (x === v) n++; else { out.push(n); v = x; n = 1; } }
+  out.push(n);
+  return out.join(',');
+}
+export function unrle(s, len) {
+  const a = new Uint8Array(len);
+  let i = 0, v = 0;
+  for (const part of s.split(',')) { const n = +part; if (v) a.fill(1, i, Math.min(len, i + n)); i += n; v ^= 1; }
+  return a;
+}
 const pick = (o, keys) => Object.fromEntries(keys.filter((k) => o[k] !== undefined).map((k) => [k, o[k]]));
 const clone = (v) => JSON.parse(JSON.stringify(v ?? null));
 
@@ -27,7 +42,7 @@ export function snapshot(game) {
     flags: clone(game.runner.flags),
     fired: game.runner.triggers.map((t) => t.fired),
     alerts: [...w.alerts.groups.values()].map((g) => pick(g, ['id', 'level', 't', 'reinforced', 'commsDown', 'alarmCount'])),
-    seen: Array.from(w.fog.seen),
+    seen: rle(w.fog.seen),
     craters: clone(game.strike?.craters || []),
     fallout: clone(game.strike?.fallout || []),
     scene: clone(pick(game, ['countdown', 'intelMarked'])),
@@ -90,7 +105,7 @@ export function restore(game, snap) {
   Object.assign(game.runner.flags, snap.flags || {});
   game.runner.triggers.forEach((t, i) => { t.fired = !!snap.fired[i]; });
   for (const sg of snap.alerts) Object.assign(w.alerts.group(sg.id), sg);
-  w.fog.seen.set(snap.seen);
+  w.fog.seen.set(typeof snap.seen === 'string' ? unrle(snap.seen, w.fog.seen.length) : snap.seen);
   for (const c of snap.craters || []) game.strike?.crater(c.x, c.y);
   if (game.strike) game.strike.fallout = snap.fallout || [];
   Object.assign(game, snap.scene || {});

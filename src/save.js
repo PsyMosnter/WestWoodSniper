@@ -23,6 +23,8 @@ export function loadSave() {
     settings,
     /** cutscenes already watched (they play in full once, then only from the replay buttons) */
     seenCuts: d.seenCuts && typeof d.seenCuts === 'object' ? d.seenCuts : {},
+    /** mid-mission saves, one per mission: { mission, key, kind: 'auto'|'quick', at, name, snap } */
+    resume: d.resume && typeof d.resume === 'object' ? d.resume : {},
   };
 }
 

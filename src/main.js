@@ -43,7 +43,13 @@ const app = {
     if (this.hasScene('campaign')) this.scenes.go('campaign', {});
     else this.scenes.go('briefing', { mission: 'm1' });
   },
-  continueCampaign() { this.startCampaign(); },
+  /** CONTINUE: resume the most recent mid-mission save if there is one, else the campaign map. */
+  continueCampaign() {
+    const saves = Object.values(this.save.resume || {}).filter((s) => s?.mission && this.missionExists(s.mission));
+    const last = saves.sort((a, b) => (b.at || 0) - (a.at || 0))[0];
+    if (last) { this.checkpoint = last; this.scenes.go('game', { mission: last.mission, checkpoint: true }); }
+    else this.startCampaign();
+  },
   /** cutscenes off for debug/automated runs (?nocut=1 or ?debug=1) */
   cutsOn() { return params.get('nocut') !== '1' && !this.debug; },
   /**

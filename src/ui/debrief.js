@@ -17,6 +17,7 @@ export const MISSION_ORDER = ['m1', 'm2', 'm3', 'm4', 'm5', 'm6', 'm7'];
 /** Debrief (SPEC §17.3 #5): result, stars, medals, stats, Continue. Saves progress. */
 export class DebriefScene extends MenuBase {
   enter(p) {
+    if (p.won) { this.app.audio?.sting?.('win'); this.app.audio?.music?.('theme'); } else this.app.audio?.music?.(null);
     this.p = p;
     this.t = 0;
     const save = this.app.save;
@@ -32,8 +33,12 @@ export class DebriefScene extends MenuBase {
       writeSave(save);
     }
     const next = MISSION_ORDER[MISSION_ORDER.indexOf(p.mission) + 1];
-    if (p.won) this.app.checkpoint = null;
-    // M6/M7: a failed run can pick up from the mid-mission checkpoint (SPEC §17.8)
+    if (p.won) {
+      // a finished mission needs no mid-mission save any more
+      this.app.checkpoint = null;
+      if (this.app.save.resume?.[p.mission]) { delete this.app.save.resume[p.mission]; this.app.persist?.(); }
+    }
+    // a failed run can pick up from the mission's last save (objective autosave or QUICK SAVE)
     const cp = !p.won && this.app.checkpoint?.mission === p.mission;
     this.cont = this.addButton(p.won ? 'CONTINUE' : 'RETRY', () => {
       if (!p.won) this.app.scenes.go('game', { mission: p.mission });
@@ -42,7 +47,7 @@ export class DebriefScene extends MenuBase {
       else this.app.scenes.go('title', {});
     }, { color: C.uiAmber });
     this.quit = this.addButton(p.won ? 'REPLAY' : 'QUIT', () => p.won ? this.app.scenes.go('briefing', { mission: p.mission }) : this.app.scenes.go(this.app.hasScene('campaign') ? 'campaign' : 'title', {}));
-    this.cp = cp ? this.addButton('CHECKPOINT', () => this.app.scenes.go('game', { mission: p.mission, checkpoint: true }), { color: C.uiAmber }) : null;
+    this.cp = cp ? this.addButton('LOAD SAVE', () => this.app.scenes.go('game', { mission: p.mission, checkpoint: true }), { color: C.uiAmber }) : null;
     if (this.cp) this.cont.text = 'RESTART';
   }
   resize(W, H) {

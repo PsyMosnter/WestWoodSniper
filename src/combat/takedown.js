@@ -51,6 +51,7 @@ export class Takedown {
     g.engage?.cancel?.();
     g.combat.kill(u, { by: 'knife', source: 'player', dir: a });
     w.noise(u.x, u.y, BALANCE.noise.takedown, 'takedown', op);
+    g.audio?.play?.('takedown');
     w.stats.takedowns = (w.stats.takedowns || 0) + 1;
     g.hud?.toast('SILENT TAKEDOWN', C.uiText, 1.2);
     return true;

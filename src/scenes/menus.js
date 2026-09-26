@@ -78,7 +78,8 @@ export class PauseScene extends MenuBase {
     this.showObj = false;
     this.addButton('RESUME', () => this.app.scenes.pop());
     this.addButton('RESTART', () => { this.app.scenes.go('game', { mission: this.game.missionId }); });
-    if (this.app.checkpoint?.mission === this.game.missionId) this.addButton('LAST CHECKPOINT', () => { this.app.scenes.go('game', { mission: this.game.missionId, checkpoint: true }); });
+    this.addButton('QUICK SAVE', () => { this.app.scenes.pop(); this.game.quickSave(); });
+    if (this.app.checkpoint?.mission === this.game.missionId) this.addButton('LOAD SAVE', () => { this.app.scenes.go('game', { mission: this.game.missionId, checkpoint: true }); });
     this.addButton('OBJECTIVES', () => { this.showObj = !this.showObj; });
     this.addButton('SETTINGS', () => this.app.scenes.push('settings', {}));
     this.addButton('QUIT TO MAP', () => this.app.scenes.go(this.app.hasScene('campaign') ? 'campaign' : 'title', {}));
@@ -120,9 +121,10 @@ export class TitleScene extends MenuBase {
   enter() {
     this.t = 0;
     this.bg = null;
+    this.app.audio?.music?.('theme');
     this.addButton('START', () => this.app.playCut('intro', () => this.app.startCampaign(), true));
     this.cont = this.addButton('CONTINUE', () => this.app.continueCampaign());
-    this.cont.enabled = this.app.save.unlocked > 1;
+    this.cont.enabled = this.app.save.unlocked > 1 || Object.keys(this.app.save.resume || {}).length > 0;
     this.addButton('SETTINGS', () => this.app.scenes.push('settings', {}));
     this.addButton('CREDITS', () => this.app.scenes.push('credits', {}));
     this.addButton('INTRO', () => this.app.playCut('intro', () => this.app.scenes.go('title', {})));

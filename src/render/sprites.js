@@ -2,6 +2,7 @@
 import { PALETTES } from '../config/palette.js';
 import { Pix, makeCanvas } from './pixel.js';
 import { drawHumanoid, drawDeath, viewForDir, mirroredDir, OPERATIVE, HUSK, HAX, HAY } from './spriteData/humanoid.js';
+import { Art } from './artStyle.js';
 
 /**
  * Sprite compiler & cache (SPEC §4.5): builds canvases from palette-indexed data or procedural
@@ -32,13 +33,16 @@ export function registerUnitDef(type, def) { UNIT_DEFS[type] = def; }
  * @returns {Sprite}
  */
 export function unitSprite(type, pose, dir, frame = 0, variant = '') {
-  const key = `${type}|${pose}|${dir}|${frame}|${variant}`;
+  const np = Art.painter('unit', type);                  // New art style, if this type has a redesign
+  const key = `${np ? 'new|' : ''}${type}|${pose}|${dir}|${frame}|${variant}`;
   let s = cache.get(key);
   if (s) return s;
   const png = pngCache.get(key);
   if (png) return png;
   const def = UNIT_DEFS[type] || UNIT_DEFS.operative;
-  if (def.custom) {
+  if (np) {
+    s = np(pose, dir, frame, variant);
+  } else if (def.custom) {
     s = def.custom(pose, dir, frame, variant);
   } else {
     const pal = PALETTES[def.pal];

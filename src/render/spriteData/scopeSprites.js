@@ -1,5 +1,6 @@
 // @ts-check
 import { Pix } from '../pixel.js';
+import { Art } from '../artStyle.js';
 
 /**
  * Scope close-up sprites (SPEC §4.5, §10.3): ~40×64 px for infantry, 4 views (front, back, left, right;
@@ -254,9 +255,11 @@ const cache = new Map();
  * @returns {{canvas: HTMLCanvasElement, zones: {name:string,x:number,y:number,w:number,h:number,prio:number}[], w:number, h:number, ax:number, ay:number}}
  */
 export function scopeSprite(type, view) {
-  const key = type + view;
+  const np = Art.painter('scopeUnit', type);
+  const key = (np ? 'new|' : '') + type + view;
   let s = cache.get(key);
   if (s) return s;
+  if (np) { s = np(view); cache.set(key, s); return s; }
   const baseView = view === 'left' ? 'right' : view;
   const r = type === 'sniffer' ? snifferScope(baseView) : notHumanoid(/** @type {any} */ (baseView), type);
   let pix = r.pix, zones = r.zones;

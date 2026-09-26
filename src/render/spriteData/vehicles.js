@@ -1,5 +1,6 @@
 // @ts-check
 import { Pix, pack, shade } from '../pixel.js';
+import { Art } from '../artStyle.js';
 
 /**
  * Vehicle sprites (SPEC §4.5, §12.2).
@@ -91,9 +92,11 @@ export const VEH_SHAPES = {
 const worldCache = new Map();
 /** 8-direction stacked sprite. dir 0..7 (N..NW); state: 'ok'|'wreck' */
 export function vehicleSprite(type, dir, state = 'ok') {
-  const key = type + dir + state;
+  const np = Art.painter('vehicle', type);               // New art style, if this type has a redesign
+  const key = (np ? 'new|' : '') + type + dir + state;
   let s = worldCache.get(key);
   if (s) return s;
+  if (np) { s = np(dir, state); worldCache.set(key, s); return s; }
   const sh = VEH_SHAPES[type] || VEH_SHAPES.skitter;
   const S = Math.ceil(Math.max(sh.L, sh.W) * 1.25) + 4;
   const Hs = S + sh.H + 2;
@@ -220,9 +223,11 @@ function scopeVehicle(type, view) {
 
 const scopeCache = new Map();
 export function vehicleScopeSprite(type, view) {
-  const key = type + view;
+  const np = Art.painter('scopeVehicle', type);
+  const key = (np ? 'new|' : '') + type + view;
   let s = scopeCache.get(key);
   if (s) return s;
+  if (np) { s = np(view); scopeCache.set(key, s); return s; }
   const base = view === 'left' ? 'right' : view;
   const r = scopeVehicle(type, base);
   let pix = r.pix, zones = r.zones;

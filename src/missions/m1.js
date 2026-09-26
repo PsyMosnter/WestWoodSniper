@@ -13,7 +13,7 @@ const triggers = [
   { when: { type: 'custom', fn: 'enemySeen' }, do: [tut('cones', 'Reading vision cones', 'NOT troops see inside a dotted cone. The ? meter fills while one sees you; at ! you are detected. Stay out of cones, stay low, stay in cover.'), { type: 'say', text: 'Contact. Watch their cones.' }] },
   { when: { type: 'enterArea', area: 'tut_knoll' }, do: [tut('highground', 'High ground', "From the hill you'll see them. They won't see you. Up here your rifle also reaches one tile further per level.")] },
   { when: { type: 'enterArea', area: 'tut_ford' }, do: [{ type: 'say', text: 'Lone sentry at the ford. Take him quietly.' }] },
-  { when: { type: 'custom', fn: 'fordSentryVisible' }, do: [tut('scope', 'First shot', 'Tap the sentry: WREN picks a firing spot, crouches and opens the scope. Drag to aim, hold BREATH to steady, FIRE. Headshots kill instantly.')] },
+  { when: { type: 'custom', fn: 'fordSentryVisible' }, do: [tut('scope', 'First shot', 'Tap the sentry: WREN picks a firing spot, crouches and opens the scope. Drag to aim and hold BREATH to steady; lift your finger to fire (click, or FIRE, with a mouse). Pinch or release on ✕ to lower the rifle. Headshots kill instantly.')] },
   { when: { type: 'unitDead', id: 'ford1' }, do: [{ type: 'say', text: 'Target down.' }] },
   // the noise lesson comes with the first rifle shot (a silent takedown makes none)
   { when: { type: 'custom', fn: 'firedRifle' }, do: [tut('noise', 'Noise', 'Every rifle shot carries 12 tiles — the ring shows how far. Anyone inside it comes looking: relocate, or hunker and let them pass. Running and wading are noisy too: watch the NOISE meter, bottom left.')] },

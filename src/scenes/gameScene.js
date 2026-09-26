@@ -5,6 +5,7 @@ import { Gestures } from '../core/input.js';
 import { Renderer, ellipse } from '../render/renderer.js';
 import { Hud } from '../ui/hud.js';
 import { Time } from '../core/time.js';
+import { coverKind } from '../render/terrainCover.js';
 import { BALANCE } from '../config/balance.js';
 import { KEYS } from '../config/keys.js';
 import { C } from '../config/palette.js';
@@ -207,6 +208,7 @@ export class GameScene {
       case 'centre': this.cam.follow = true; this.cam.pan = null; break;
       case 'pause': this.app.scenes.push('pause', { game: this }); break;
       case 'quicksave': this.quickSave(); break;
+      case 'zoom': this._zoom(this.cam.zoom === 2 ? 1 : 2); this.hud.toast(this.cam.zoom === 2 ? 'ZOOM 2×' : 'ZOOM 1×', C.uiText, 0.8); break;
       case 'medkit':
         if (op.medkits <= 0) { this.hud.toast('NO MEDKITS'); break; }
         if (op.hp >= op.maxHp) { this.hud.toast('HEALTH FULL', C.uiText); break; }
@@ -262,20 +264,12 @@ export class GameScene {
     if (this.tunnels.transit) return;                     // WREN is underground
     if (this.onTapWorld && this.onTapWorld(t, info)) return;
     if (this.mode === 'designator') { this.strike.tapTarget(t.x, t.y); return; }
-    // C4 targeting mode / tapping a C4-able target
-    const c4t = this.c4.targetAt(t.x, t.y) || this.structureTargetNear(t.fx, t.fy);
+    // C4 button mode: the next tap picks the target
+    const c4t = this.c4TargetAt(sx, sy, t);
     if (this.mode === 'c4') {
       this.mode = 'normal';
       if (c4t) { this.c4.plant(c4t); return; }
       this.hud.toast('NOT A C4 TARGET', C.uiGrey);
-      return;
-    }
-    if (c4t && op.c4 > 0 && !this.unitAt(sx, sy)) {
-      if (this.c4.pending && this.c4.pending.name === c4t.name && Math.hypot(this.c4.pending.x - c4t.x, this.c4.pending.y - c4t.y) < 0.5) this.c4.confirm();
-      else {
-        this.c4.propose(c4t); this.hud.toast('PLANT C4? TAP AGAIN OR PRESS PLANT', C.uiAmber, 2);
-        if (c4t.s && STRUCT_ZONES[c4t.s.type]) this.runner.showTutorial('structs', 'Buildings', 'Tap a building to plant C4. To shoot it instead — its gunner, searchlight or tanks — long-press it to open the scope.');
-      }
       return;
     }
     // GOD friendlies: tap a follower to toggle FOLLOW/HOLD; tap a captive to go and free them
@@ -292,13 +286,14 @@ export class GameScene {
       return;
     }
     const unit = this.unitAt(sx, sy);
-    // a building with snipeable parts and no C4 to plant (or not C4-able): tap aims the rifle at it
+    // a tap on any enemy — soldier, vehicle or building — brings up the scope (long-press plants C4)
     const st = !unit && this.structureAt(t.fx, t.fy);
-    if (st && STRUCT_ZONES[st.type] && (op.c4 <= 0 || !st.def.c4)) {
+    if (st && STRUCT_ZONES[st.type]) {
       this.engage.engage(this.structureTarget(st), { force: true });
+      if (st.def.c4 && op.c4 > 0) this.runner.showTutorial('structs', 'Buildings', 'A tap on a building opens the scope on its weak points — gunners, searchlights, dishes, coolant tanks. To blow it up instead, long-press it: WREN walks over and plants C4.', st);
       return;
     }
-    if (c4t && op.c4 <= 0 && !unit) this.runner.showTutorial('structs', 'Buildings', 'No C4 left. Long-press a building to aim at its weak points with the rifle — gunners, searchlights, dishes, coolant tanks.');
+    if (st && c4t && op.c4 > 0) { this.hud.toast('LONG-PRESS TO PLANT C4', C.uiAmber, 1.6); return; }
     if (unit && !this.takedown.blocker(unit)) { this.takedown.perform(unit); return; }   // within reach & unaware: silent
     if (unit) {
       this.engage.engage(unit, { force: !!info?.shift });
@@ -346,15 +341,23 @@ export class GameScene {
   /** Visible living enemy under a screen point (generous touch slop). */
   unitAt(sx, sy) {
     const w = this.world, z = this.cam.zoom;
-    let best = null, bd = 18;
+    let best = null, bd = 1;
     for (const u of w.units) {
       if (u.dead || u.hidden || u.kind === 'structure' || !w.fog.isVisible(u.tx, u.ty)) continue;
       const p = this.cam.tileToScreen(u.x, u.y);
-      const lift = u.type === 'guardTower' ? 26 : u.kind === 'vehicle' ? 4 : 6;
-      const d = Math.hypot(sx - p.x, (sy - (p.y - lift * z)) * 0.8);
+      const veh = u.kind === 'vehicle';
+      // generous targets: a vehicle anywhere on its body, a soldier anywhere on the figure
+      const lift = u.type === 'guardTower' ? 26 : veh ? 7 : 9, reach = u.type === 'guardTower' ? 18 : veh ? 11 * z + 10 : 6 * z + 10;
+      const d = Math.hypot(sx - p.x, (sy - (p.y - lift * z)) * 0.8) / reach;
       if (d < bd) { bd = d; best = u; }
     }
     return best;
+  }
+  /** A C4 target under a screen point: a building, a disabled vehicle, a bridge. */
+  c4TargetAt(sx, sy, t) {
+    const u = this.unitAt(sx, sy);
+    if (u && u.kind === 'vehicle' && u.disabled && !u.dead) return { kind: 'vehicle', v: u, x: u.x, y: u.y, name: u.name };
+    return this.c4.targetAt(t.x, t.y) || this.structureTargetNear(t.fx, t.fy);
   }
   hitIndicator(x, y) {
     const op = this.world.operative;
@@ -374,6 +377,13 @@ export class GameScene {
     if (this.tunnels.transit) return;
     if (this.mode === 'designator') { this.strike.tapTarget(t.x, t.y); return; }
     if (this.onLongPressWorld && this.onLongPressWorld(t)) return;
+    // long-press a building or a disabled vehicle: plant C4 there
+    const c4t = this.c4TargetAt(sx, sy, t);
+    if (c4t && this.world.operative.c4 > 0) {
+      if (this.c4.plant(c4t) !== false) { this.hud.toast('PLANTING C4', C.uiAmber, 1.4); this.renderer.addMarker(c4t.x, c4t.y, 'tap', C.uiAmber); }
+      this.app.vibrate?.(20);
+      return;
+    }
     const unit = this.unitAt(sx, sy);
     if (unit) { this.engage.engage(unit, { force: true }); this.app.vibrate?.(15); return; }
     // long-press a structure: scope its snipeable parts (dish, coolant cell, siren, fuel barrels…)
@@ -390,11 +400,8 @@ export class GameScene {
   onPointerDown(p) {
     if (this.loading) return;
     if (this.scope.open) { this.scope.down(p); return; }
-    const tr = this.tutRect;
-    if (this.runner?.tutorial && tr && p.x >= tr.x && p.y >= tr.y && p.x < tr.x + tr.w && p.y < tr.y + tr.h) {
-      if (tr.collapsed) this.runner.tutorial.t = 0.2; else this.runner.dismissTutorial();   // banner → expand again
-      return;
-    }
+    // an open tip is modal: a tap anywhere closes it (after a moment, so a stray tap doesn't skip it)
+    if (this.runner?.tutorial) { if (this.runner.tutorial.t > 0.35) this.runner.dismissTutorial(); return; }
     if (this.hud.down(p)) return;
     if (this.overlayDown && this.overlayDown(p)) return;
     p.owner = 'world';
@@ -440,6 +447,9 @@ export class GameScene {
   // ---------------------------------------------------------------- loop
   update(dt) {
     if (this.loading) return;
+    // an open tip pauses the game until it's tapped away
+    const tip = this.runner?.tutorial;
+    if (tip && !this.scopeOpen) { tip.t += dt; return; }
     this.world.update(dt);
     this.structures.update(dt);
     this.enemies.update(dt);
@@ -453,6 +463,12 @@ export class GameScene {
     this.strike.update(dt);
     this.tunnels.update(dt);
     this.noise.update(dt);
+    // spotted and they're closing in from several sides: time for RUN & GUN
+    if (!this._runGunTip && this.awareness?.state === 'detected' && !this.world.operative.runGun) {
+      const op = this.world.operative;
+      const near = this.world.units.filter((u) => !u.dead && !u.hidden && u.state === 'combat' && u.def?.kind === 'infantry' && Math.hypot(u.x - op.x, u.y - op.y) < 9).length;
+      if (near >= 2) { this._runGunTip = true; this.runner.showTutorial('runGun', 'Run & Gun', "They're closing in. Press R&GUN: WREN lowers the rifle and fights on the move with the pistol — fast and loud, but it keeps you alive. Break line of sight, then find cover.", { button: 'runGun' }); }
+    }
     if (!this._takedownTip && this.takedown.target()) { this._takedownTip = true; this.runner.showTutorial('takedown', 'Silent takedown', 'Within reach and they haven\'t seen you: press TAKEDOWN (or tap them). No ammo, barely a sound — but the body stays where it falls, and anyone watching sees it happen.'); }
     this.trails.update(dt);
     this.combat.update(dt);
@@ -611,43 +627,114 @@ export class GameScene {
     this.endT = won ? 1.2 : 1.8;
     this.pendingDebrief = payload;
   }
+  /**
+   * What a tip is about, so it can be drawn over it: resolves the runner's `at` (or a default for the
+   * tip's key) to 'op', a unit/structure reference, a tile point, or a HUD button.
+   */
+  tipAnchor(key, at) {
+    const w = this.world, op = w.operative;
+    const near = (list) => list.sort((a, b) => Math.hypot(a.x - op.x, a.y - op.y) - Math.hypot(b.x - op.x, b.y - op.y))[0] || null;
+    const area = (name) => { const a = this.data.areas?.[name]; return a ? { x: a.x + a.w / 2, y: a.y + a.h / 2 } : null; };
+    if (at) {
+      if (at.area) return area(at.area) || 'op';
+      if (at.x !== undefined || at.button || at === 'op') return at;
+      return { ref: at };                        // a unit or structure: follow it
+    }
+    switch (key) {
+      case 'grass': {
+        const m = w.map, cands = [];
+        for (let y = op.ty - 8; y <= op.ty + 8; y++) for (let x = op.tx - 8; x <= op.tx + 8; x++) if (coverKind(m, x, y) === 'grass') cands.push({ x: x + 0.5, y: y + 0.5 });
+        return near(cands) || 'op';
+      }
+      case 'cones': case 'scope': {
+        const u = near(w.units.filter((q) => !q.dead && !q.hidden && q.def?.kind === 'infantry' && !q.def.emplacement && w.fog.isVisible(q.tx, q.ty)));
+        return u ? { ref: u } : 'op';
+      }
+      case 'highground': return area('tut_knoll') || 'op';
+      case 'observe': { const o = this.objectives.items.find((q) => q.type === 'OBSERVE' && !q.done && !q.hidden && q.area); return (o && area(o.area)) || 'op'; }
+      case 'bodies': { const c = w.corpses.filter((q) => q.discovered).at(-1); return c ? { x: c.x, y: c.y } : 'op'; }
+      case 'c4': { const s = near(w.structures.filter((q) => !q.dead && q.def.c4)); return s ? { ref: s } : 'op'; }
+      case 'convoy': { const f = (w.friendlies || []).find((q) => q.kind === 'vehicle' && !q.dead); return f ? { ref: f } : 'op'; }
+      case 'vrask': { const u = w.units.find((q) => q.type === 'vrask' && !q.dead); return u ? { ref: u } : 'op'; }
+      case 'designator': return { button: 'designator' };
+      default: return 'op';
+    }
+  }
+  /** Screen position of a tip's anchor (and whether it's a HUD button). */
+  _tipPoint(a) {
+    const op = this.world.operative;
+    if (!a) return null;
+    if (a.button) { const b = this.hud.buttons[a.button]; return b && b.visible !== false ? { x: b.x + b.w / 2, y: b.y + b.h / 2, r: Math.max(b.w, b.h) / 2 + 4, button: true } : null; }
+    let x, y, lift = 8;
+    if (a === 'op') { x = op.x; y = op.y; }
+    else if (a.ref) {
+      const q = a.ref;
+      if (q.w && q.h && q.def?.Hb !== undefined) { x = q.x + q.w / 2; y = q.y + q.h / 2; lift = q.def.Hb / 2 || 8; }   // structure footprint
+      else { x = q.x; y = q.y; lift = q.kind === 'vehicle' ? 8 : 10; }
+    } else { x = a.x; y = a.y; lift = 2; }
+    const p = this.cam.tileToScreen(x, y);
+    return { x: p.x, y: p.y - lift * this.cam.zoom, r: 16 * this.cam.zoom, wx: x, wy: y };
+  }
+  onTipOpened(t) {
+    this.dragging = false;
+    this.engage?.cancel?.();
+    // bring what the tip is about into view
+    const p = this._tipPoint(t.at);
+    const { W, H } = this.app.display;
+    if (p && !p.button && (p.x < 40 || p.x > W - 40 || p.y < 50 || p.y > H - 50)) {
+      t.follow = this.cam.follow;
+      this.cam.follow = false;
+      this.cam.centreOn(p.wx, p.wy);
+    }
+  }
+  onTipClosed(t) {
+    if (t && t.follow !== undefined) { this.cam.follow = t.follow; if (t.follow) this.cam.centreOn(this.world.operative.x, this.world.operative.y); }
+  }
+  /** An open tip: the game is paused, the screen dims except around what the tip is about. */
   _drawTutorial(ctx) {
     const tut = this.runner?.tutorial;
     this.tutRect = null;
     if (!tut || this.scopeOpen) return;
-    const W = this.app.display.W;
-    const mm = this.hud.minimap;
-    const left = this.hud.L + 8, right = mm.x - 8;
-    const k = Math.min(1, tut.t * 5);
-    // after a few seconds — or as soon as an enemy is on to WREN — the tip folds into a one-line banner
-    const threat = this.awareness?.state && this.awareness.state !== 'hidden';
-    tut.collapsed = tut.t > 6 || (threat && tut.t > 2.5);
-    if (tut.collapsed) {
-      const more = this.runner.tutQueue.length;
-      const label = `TIP · ${(tut.title || '').toUpperCase()}${more ? `  +${more}` : ''}  ▸`;
-      const pw = Math.min(right - left, measureText(label, { font: '3x5' }) + 16), ph = 13;
-      const px = Math.max(left, Math.round(W / 2 - pw / 2)), py = this.hud.T + 2;
-      panel(ctx, px, py, pw, ph, { alpha: 0.9, fill: '#141A15' });
-      ctx.fillStyle = C.uiAmber; ctx.fillRect(px, py, 2, ph);
-      drawText(ctx, label, px + 7, py + 4, { font: '3x5', color: C.uiAmber });
-      this.tutRect = { x: px, y: py, w: pw, h: ph, collapsed: true };
-      return;
-    }
-    const pw = Math.min(300, right - left);
+    const { W, H } = this.app.display;
+    const k = Math.min(1, tut.t * 6);
+    const p = this._tipPoint(tut.at);
+    this.hud.objPeek = 0; this.hud.objOpen = false;
+    // dim everything but a spotlight on the subject
+    ctx.save();
+    ctx.globalAlpha = 0.5 * k;
+    ctx.fillStyle = '#05070A';
+    ctx.beginPath();
+    ctx.rect(0, 0, W, H);
+    if (p) ctx.arc(p.x, p.y, p.r + 8, 0, Math.PI * 2, true);
+    ctx.fill('evenodd');
+    ctx.restore();
+    const pw = Math.min(250, W - 24);
     const lines = wrapText(tut.text, pw - 14);
-    const ph = 18 + lines.length * 9 + 10;
-    this.hud.objPeek = 0; this.hud.objOpen = false; // collapse objectives while a tip is up
-    const px = Math.max(left, Math.min(right - pw, Math.round(W / 2 - pw / 2))), py = this.hud.T + 20;
+    const ph = 18 + lines.length * 9 + 12;
+    let px = Math.round(W / 2 - pw / 2), py = this.hud.T + 20;
+    if (p) {
+      // above the subject if there's room, else below it; never off-screen
+      px = Math.round(Math.max(8, Math.min(W - pw - 8, p.x - pw / 2)));
+      py = p.y - p.r - 14 - ph >= 8 ? Math.round(p.y - p.r - 14 - ph) : Math.round(Math.min(H - ph - 8, p.y + p.r + 14));
+      if (p.button) py = Math.round(Math.max(8, p.y - p.r - 14 - ph));
+      // pointer from the box to the subject, and a pulsing ring around it
+      const pulse = 2 + Math.round(Math.sin(Time.realTime * 6) * 2);
+      ctx.strokeStyle = C.uiAmber; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.arc(Math.round(p.x), Math.round(p.y), p.r + pulse, 0, Math.PI * 2); ctx.stroke();
+      const bx = Math.max(px + 10, Math.min(px + pw - 10, p.x)), by = py < p.y ? py + ph : py;
+      const ang = Math.atan2(p.y - by, p.x - bx), ex = p.x - Math.cos(ang) * (p.r + pulse), ey = p.y - Math.sin(ang) * (p.r + pulse);
+      ctx.beginPath(); ctx.moveTo(bx, by); ctx.lineTo(ex, ey); ctx.stroke();
+      ctx.fillStyle = C.uiAmber; ctx.fillRect(Math.round(ex) - 1, Math.round(ey) - 1, 3, 3);
+    }
     ctx.globalAlpha = k;
-    panel(ctx, px, py, pw, ph, { alpha: 0.94, fill: '#141A15' });
+    panel(ctx, px, py, pw, ph, { alpha: 0.96, fill: '#141A15' });
     ctx.fillStyle = C.uiAmber; ctx.fillRect(px, py, 3, ph);
     drawText(ctx, 'OVERWATCH TIP · ' + (tut.title || '').toUpperCase(), px + 8, py + 5, { color: C.uiAmber, font: '3x5' });
     lines.forEach((l, i) => drawText(ctx, l, px + 8, py + 15 + i * 9, { color: C.uiText }));
     const more = this.runner.tutQueue.length;
-    drawText(ctx, (more ? `+${more} MORE · ` : '') + 'TAP TO DISMISS', px + pw - 6, py + ph - 8, { font: '3x5', color: C.uiGrey, align: 'right' });
+    drawText(ctx, 'PAUSED · ' + (more ? `+${more} MORE · ` : '') + 'TAP TO CONTINUE', px + pw - 6, py + ph - 9, { font: '3x5', color: C.uiGrey, align: 'right' });
     ctx.globalAlpha = 1;
     this.tutRect = { x: px, y: py, w: pw, h: ph };
-    if (tut.t > 16) this.runner.dismissTutorial();
   }
   _drawDropship(ctx, r) {
     const ex = this.runner?.extract;

@@ -439,7 +439,7 @@ export class EnemySystem {
   /** Kill witnesses (DECISIONS.md: the spec's "§9.5" search logic). */
   onKill(v, cause) {
     const w = this.world;
-    const radius = cause.by === 'rifle' ? BALANCE.noise.rifle : cause.by === 'pistol' ? BALANCE.noise.pistol : BALANCE.noise.explosion;
+    const radius = cause.by === 'rifle' ? BALANCE.noise.rifle : cause.by === 'pistol' ? BALANCE.noise.pistol : cause.by === 'knife' ? BALANCE.noise.takedown : BALANCE.noise.explosion;
     let witnessed = false;
     for (const u of w.units) {
       if (u.dead || u === v || u.kind === 'emplacement' || u.kind === 'turret' || u.state === 'combat') continue;

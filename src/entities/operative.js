@@ -6,7 +6,7 @@ const S = BALANCE.stances;
 
 /**
  * The Operative "WREN" (SPEC §6). Positions are in tiles (float); (x, y) is the ground point.
- * Stances: walk, run (moving) · crouch, cover, hunker (stationary).
+ * Stances: walk, run (moving) · crouch, cover, hunker (stationary; low-crawls when ordered to move).
  */
 export class Operative {
   constructor(world, spec) {
@@ -51,6 +51,8 @@ export class Operative {
   get moving() { return this.path.length > 0 && !this.blockingTrans; }
   get blockingTrans() { return !!this.trans && (this.trans.from === 'hunker' || this.trans.to === 'hunker'); }
   get isStill() { return !this.moving; }
+  /** Low-crawling: moving while staying flat (hunker stance, crawl mode). */
+  get crawling() { return this.moving && this.mode === 'crawl'; }
   get hunkered() { return this.stance === 'hunker' && !this.trans; }
   get inScopeStance() { return !this.moving && !this.trans && (this.stance === 'crouch' || this.stance === 'cover' || this.stance === 'hunker'); }
 
@@ -63,7 +65,7 @@ export class Operative {
       }
       return S[st]?.vis ?? 1;
     };
-    let v = f(this.stance);
+    let v = this.crawling ? S.crawl.vis : f(this.stance);
     if (this.trans) v = Math.max(f(this.trans.from), f(this.trans.to));
     return v * (this.exposureT > 0 ? this.exposure : 1);
   }
@@ -83,8 +85,9 @@ export class Operative {
   }
 
   /**
-   * Walk/run to a tile. Instant response; hunker exits first (0.7 s).
-   * @param {'walk'|'run'} mode
+   * Walk/run to a tile. Instant response; hunker exits first (0.7 s) — except a 'crawl' order, which
+   * keeps WREN flat and low-crawls there (from any other stance a crawl order is a normal walk).
+   * @param {'walk'|'run'|'crawl'} mode
    */
   orderMove(tx, ty, mode = 'walk', onArrive = null) {
     if (this.dead) return false;
@@ -92,7 +95,28 @@ export class Operative {
     const m = this.world.map;
     const goal = this.world.resolveGoal(this.tx, this.ty, tx, ty);
     if (!goal) return false;
-    if (this.stance === 'hunker' || (this.trans && this.trans.to === 'hunker')) {
+    const goingFlat = !!this.trans && this.trans.to === 'hunker';
+    if (mode === 'crawl' && (this.stance === 'hunker' || goingFlat)) {
+      if (goingFlat) {
+        // still getting down: crawl as soon as WREN is flat
+        this.pendingMove = { tx: goal.x, ty: goal.y, mode, onArrive };
+        const tr = this.trans, then = tr.then;
+        tr.then = () => { then?.(); this._consumePending(); };
+        return true;
+      }
+      if (this.trans) return false;                     // getting up: ignore
+      const path = this.world.pf.find(this.tx, this.ty, goal.x, goal.y, { partial: true });
+      if (!path) return false;
+      this.path = this.world.smoothPath(this.x, this.y, path);
+      this.mode = 'crawl';
+      this.dest = goal;
+      this.onArrive = onArrive;
+      this.coverFrom = null;
+      if (!this.path.length) this._arrive();
+      return true;
+    }
+    if (mode === 'crawl') mode = 'walk';
+    if (this.stance === 'hunker' || goingFlat) {
       this.pendingMove = { tx: goal.x, ty: goal.y, mode, onArrive };
       if (!this.trans || this.trans.to === 'hunker') this.startTrans('crouch', S.hunker.exit, () => this._consumePending());
       return true;
@@ -113,9 +137,15 @@ export class Operative {
     const p = this.pendingMove; this.pendingMove = null;
     if (p) this.orderMove(p.tx, p.ty, p.mode, p.onArrive);
   }
-  /** Upgrade a just-issued walk to a run (double tap). */
+  /** Upgrade a just-issued walk to a run (double tap). From a crawl, WREN gets up first (0.7 s). */
   upgradeRun() {
     if (this.pendingMove) { this.pendingMove.mode = 'run'; return; }
+    if (this.mode === 'crawl' && this.path.length && this.dest) {
+      const d = this.dest, cb = this.onArrive;
+      this.path = []; this.onArrive = null;
+      this.orderMove(d.x, d.y, 'run', cb);
+      return;
+    }
     if (this.path.length) { this.mode = 'run'; this.stance = 'run'; }
   }
   stop() {
@@ -124,9 +154,12 @@ export class Operative {
   }
   _arrive(callback = true) {
     this.path = [];
-    this.stance = 'crouch';
-    this.startTrans('crouch', S.crouchAnim);
-    this.trans.from = this.mode;
+    if (this.mode === 'crawl') this.stance = 'hunker';   // a crawl ends flat
+    else {
+      this.stance = 'crouch';
+      this.startTrans('crouch', S.crouchAnim);
+      this.trans.from = this.mode;
+    }
     const cb = this.onArrive; this.onArrive = null;
     if (callback && cb) cb();
   }
@@ -134,6 +167,7 @@ export class Operative {
   toggleHunker() {
     if (this.dead) return;
     if (this.stance === 'hunker' || (this.trans && this.trans.to === 'hunker')) {
+      this.path = []; this.pendingMove = null; this.onArrive = null;   // stops a crawl where it is
       this.startTrans('crouch', S.hunker.exit, () => { this.stance = 'crouch'; });
       return 'off';
     }
@@ -210,7 +244,7 @@ export class Operative {
   _move(dt) {
     const m = this.world.map;
     const tileCost = m.cost[m.idx(this.tx, this.ty)];
-    const base = this.mode === 'run' ? S.run.speed : S.walk.speed;
+    const base = this.mode === 'run' ? S.run.speed : this.mode === 'crawl' ? S.crawl.speed : S.walk.speed;
     const speed = base / Math.max(0.5, Math.min(3, tileCost === Infinity ? 1 : tileCost));
     let budget = speed * dt;
     while (budget > 0 && this.path.length) {
@@ -233,7 +267,7 @@ export class Operative {
       const td = TERRAIN[m.terrain[m.idx(this.tx, this.ty)]];
       let r = 0;
       if (this.mode === 'run') r = BALANCE.noise.run;
-      if (td.noise) r = Math.max(r, td.noise);
+      if (td.noise) r = Math.max(r, td.noise * (this.mode === 'crawl' ? S.crawl.noiseMult : 1));
       if (r > 0) this.world.noise(this.x, this.y, r, 'step');
       if (td.tracks) this.world.events.emit('track', { x: this.x, y: this.y, a: this.angle });
     }
@@ -245,8 +279,10 @@ export class Operative {
     let pose = 'crouch', frame = 0;
     const st = this.trans ? this.trans.to : this.stance;
     if (this.dead) return { pose: 'dead', frame: 3 };
+    if (this.busy?.kind === 'takedown') return { pose: 'crouch', frame: 0 };   // up off the ground for the takedown
     if (this.moving) {
-      if (this.mode === 'run') { pose = 'run'; frame = Math.floor(this.animT * 7) & 3; }
+      if (this.mode === 'crawl') { pose = 'prone'; frame = Math.floor(this.animT * 4) & 3; }
+      else if (this.mode === 'run') { pose = 'run'; frame = Math.floor(this.animT * 7) & 3; }
       else { pose = this.runGun ? 'pistol' : 'walk'; frame = Math.floor(this.animT * 5) & 3; }
     } else if (this.trans) {
       const k = this.trans.t / this.trans.dur;

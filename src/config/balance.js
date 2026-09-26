@@ -53,6 +53,8 @@ export const BALANCE = {
     crouch: { speed: 0, vis: 0.6, sway: 1.0, range: 8 },
     cover:  { speed: 0, vis: 0.45, visUncovered: 0.6, sway: 0.8, range: 8, coverAbsorb: 0.5 },
     hunker: { speed: 0, vis: 0.25, sway: 0.4, range: 10, enter: 1.0, exit: 0.7, hitMult: 0.5 },
+    // low crawl (playtest): tap the ground while hunkered — very slow, still flat, nearly silent
+    crawl:  { speed: 0.45, vis: 0.35, noiseMult: 0.5 },
     crouchAnim: 0.2,
     proneAnim: 1.0,
     coverSearchRadius: 3,
@@ -89,7 +91,7 @@ export const BALANCE = {
 
   noise: {
     run: 2.5, shallowWater: 3, snow: 1, swamp: 2,
-    pistol: 7, rifle: 12, explosion: 16, c4: 20,
+    pistol: 7, rifle: 12, explosion: 16, c4: 20, takedown: 1.5,
     rifleOffset: [2, 4], otherOffset: 1,
   },
 
@@ -224,6 +226,13 @@ export const BALANCE = {
     falloutRadius: 5, falloutTime: 60, falloutDps: 4,
     revealRadius: 12, revealTime: 10,
     hardenedMult: 0.25,
+  },
+
+  // silent takedown (playtest): an unaware infantry target within reach, no ammo, barely a sound
+  takedown: {
+    reach: 1.4,           // tiles
+    time: 0.6,            // s WREN is busy
+    awareDet: 0.5,        // a target whose meter on WREN is at/above this (while seeing him) can't be surprised
   },
 
   tunnel: {

@@ -129,5 +129,9 @@ test('tutorial prompts queue instead of replacing each other, and are only "seen
   assert.equal(r.tutorialSeen.has('a'), false);
   assert.equal(r.tutorial.key, 'b');
   r.update(3.1);
-  assert.equal(r.tutorialSeen.has('b'), true);
+  assert.equal(r.tutorial.key, 'b', 'a tip stays up (the game is paused) until it is tapped away');
+  r.tutorial.t = 1.2;   // the paused game keeps the tip's clock
+  r.dismissTutorial();
+  assert.equal(r.tutorialSeen.has('b'), true, 'read, then closed: seen');
+  assert.equal(r.tutorial, null);
 });

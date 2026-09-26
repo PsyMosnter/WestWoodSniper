@@ -62,7 +62,7 @@ export class MissionRunner {
     const g = this.game, w = this.world, hud = g.hud;
     switch (a.type) {
       case 'say': hud.say(a.text, !!a.prio); break;
-      case 'tutorial': this.showTutorial(a.key, a.title, a.text); break;
+      case 'tutorial': this.showTutorial(a.key, a.title, a.text, a.at); break;
       case 'setObjective': { const o = g.objectives.get(a.id); if (o) Object.assign(o, a.set || {}); break; }
       case 'revealObjective': g.objectives.reveal(a.id); break;
       case 'completeObjective': g.objectives.complete(a.id); break;
@@ -90,25 +90,29 @@ export class MissionRunner {
       for (const a of t.do) this.act(a);
     }
     this.custom.update?.(this, dt);
-    const tut = this.tutorial;
-    if (tut && !this.game.scopeOpen) {
-      tut.t += dt;
-      if (tut.t >= 3) this._markSeen(tut.key);           // only counts as seen once it was up long enough to read
-      if (tut.t >= 18) this.dismissTutorial();
-    }
-    if (!this.tutorial && this.tutQueue.length && !this.game.scopeOpen) { this.tutorial = this.tutQueue.shift(); this.game.audio?.play?.('squelch'); }
+    // (an open tip pauses the game — GameScene.update — until it is tapped away)
+    if (!this.tutorial && this.tutQueue.length && !this.game.scopeOpen) { this.tutorial = this.tutQueue.shift(); this._opened(this.tutorial); }
     this._extraction(dt);
     // STEALTH objective completes at the end if no alarm (checked in win); fails on alarm (game scene)
   }
 
   // ---------------------------------------------------------------- tutorial prompts
-  showTutorial(key, title, text) {
+  /**
+   * Queue a tip. `at` says what it is about (drawn over it, the camera brings it into view):
+   * 'op' | a unit | a structure | {x, y} tiles | {area: name} | {button: hudButtonId}; when omitted
+   * the game picks one for the tip's key (GameScene.tipAnchor).
+   */
+  showTutorial(key, title, text, at) {
     if (this.tutorialSeen.has(key) || this.game.settings.tutorials === false) return;
     if (this.tutorial?.key === key || this.tutQueue.some((q) => q.key === key)) return;
-    const t = { key, title, text, t: 0 };
+    const t = { key, title, text, t: 0, at: this.game.tipAnchor ? this.game.tipAnchor(key, at) : null };
     if (this.tutorial) { this.tutQueue.push(t); return; }
     this.tutorial = t;
+    this._opened(t);
+  }
+  _opened(t) {
     this.game.audio?.play?.('squelch');
+    this.game.onTipOpened?.(t);
   }
   _markSeen(key) {
     if (this.tutorialSeen.has(key)) return;
@@ -119,10 +123,11 @@ export class MissionRunner {
   }
   dismissTutorial() {
     const t = this.tutorial;
-    if (t && t.t >= 1) this._markSeen(t.key);
+    if (t && t.t >= 0.6) this._markSeen(t.key);
     this.tutorial = null;
+    this.game.onTipClosed?.(t);
     const next = this.tutQueue.shift();
-    if (next) { this.tutorial = next; this.game.audio?.play?.('squelch'); }
+    if (next) { this.tutorial = next; this._opened(next); }
   }
 
   // ---------------------------------------------------------------- extraction (SPEC §15.4)

@@ -32,6 +32,7 @@ export class Hud {
     b({ id: 'centre', icon: 'centre', label: '', onPress: () => game.cmd('centre') });
     b({ id: 'pause', icon: 'pause', label: '', onPress: () => game.cmd('pause') });
     b({ id: 'save', icon: 'save', label: '', onPress: () => game.cmd('quicksave') });
+    b({ id: 'zoom', icon: 'zoom', label: '', onPress: () => game.cmd('zoom') });
     b({ id: 'convoy', icon: 'convoy', label: 'ADVANCE', onPress: () => game.cmd('convoy') });
     b({ id: 'follow', icon: 'follow', label: 'FOLLOW', onPress: () => game.cmd('followAll') });
     b({ id: 'smoke', icon: 'smoke', label: 'SMOKE', onPress: () => game.cmd('smoke') });
@@ -58,6 +59,7 @@ export class Hud {
     bs.centre.place(W - m - sb, rowY, sb, sb);
     bs.pause.place(W - m - 2 * sb - g, rowY, sb, sb);
     bs.save.place(W - m - 3 * sb - 2 * g, rowY, sb, sb);
+    bs.zoom.place(W - m - 4 * sb - 3 * g, rowY, sb, sb);
     // action cluster bottom corner (right-handed: bottom-right)
     const X = (i) => lefty ? L + m + i * (B + g) : W - m - (i + 1) * (B + g) + g;
     const y1 = H - m - B, y2 = y1 - B - g, y3 = y2 - B - g;

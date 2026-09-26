@@ -394,6 +394,9 @@ export class Scope {
       if (b.hit(p.x, p.y)) { b.pressed = true; this.active.set(p.id, b); if (b.enabled) b.onPress?.(); return true; }
     }
     if (p.button === 2) { this.close('exit'); return true; }
+    // a second finger on the lens (not on a button) is a pinch: lower the rifle when it lifts
+    const aiming = [...this.active.entries()].filter(([, v]) => v === 'aim' || v === 'pinch');
+    if (aiming.length) { for (const [id] of aiming) this.active.set(id, 'pinch'); this.active.set(p.id, 'pinch'); return true; }
     this.active.set(p.id, 'aim');
     this.game.app.input.mouse.scopeLast = { x: p.x, y: p.y };
     return true;
@@ -411,9 +414,14 @@ export class Scope {
   up(p) {
     const a = this.active.get(p.id);
     this.active.delete(p.id);
+    if (a === 'pinch') { if (this.open) this.close('exit'); for (const [id, v] of this.active) if (v === 'pinch') this.active.delete(id); return true; }
     if (a && a !== 'aim') { a.pressed = false; a.onRelease?.(); }
-    // desktop: a click (no drag) anywhere in the scope fires
-    if (a === 'aim' && p.type === 'mouse' && Math.hypot(p.x - p.startX, p.y - p.startY) < 3 && performance.now() - p.t0 < 350) this.shoot();
+    if (a === 'aim') {
+      const touch = p.type === 'touch' || p.type === 'pen';
+      if (touch && this.exit.hit(p.x, p.y)) { this.close('exit'); return true; }   // slid onto ✕: cancel
+      // touch: lifting the aiming finger takes the shot; mouse: a click (no drag) fires
+      if (touch || (Math.hypot(p.x - p.startX, p.y - p.startY) < 3 && performance.now() - p.t0 < 350)) this.shoot();
+    }
     return true;
   }
   hover(x, y) {

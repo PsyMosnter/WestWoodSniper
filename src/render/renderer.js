@@ -1,7 +1,7 @@
 // @ts-check
 import { TerrainRenderer } from './terrainRenderer.js';
 import { FogRenderer } from './fogRenderer.js';
-import { unitSprite, whiteOf, tintOf } from './sprites.js';
+import { unitSprite, whiteOf, tintOf, markerLift } from './sprites.js';
 import { TILE } from '../core/camera.js';
 import { Time } from '../core/time.js';
 import { hash2 } from '../core/rng.js';
@@ -94,7 +94,7 @@ export class Renderer {
     // progress bar for timed actions (planting C4, medkit, freeing a captive)
     if (!op.dead && !op.hidden && op.busy && op.busy.dur > 0 && op.busy.kind !== 'takedown' && this._opCx !== undefined) {
       const k = Math.min(1, op.busy.t / op.busy.dur);
-      const bx = this._opCx - 10, by = this._opCy - 26 * z;
+      const bx = this._opCx - 10, by = this._opCy - markerLift(this._opSprite, 26) * z;
       ctx.fillStyle = '#07090A'; ctx.fillRect(bx - 1, by - 1, 22, 5);
       ctx.fillStyle = '#26302A'; ctx.fillRect(bx, by, 20, 3);
       ctx.fillStyle = op.busy.kind === 'plant' ? '#FFB23A' : '#7CFF7A'; ctx.fillRect(bx, by, Math.round(20 * k), 3);
@@ -102,7 +102,7 @@ export class Renderer {
     // locator chevron above WREN (always on top of fog/trees)
     if (!op.dead && !op.hidden && this._opCx !== undefined) {
       const bob = Math.round(Math.sin(Time.realTime * 5) * 1);
-      const hx = this._opCx, hy = this._opCy - 19 * z + bob;
+      const hx = this._opCx, hy = this._opCy - markerLift(this._opSprite, 19) * z + bob;
       ctx.fillStyle = '#07090A';
       ctx.fillRect(hx - 3 * z, hy - z, 7 * z, z); ctx.fillRect(hx - 2 * z, hy, 5 * z, z); ctx.fillRect(hx - z, hy + z, 3 * z, z); ctx.fillRect(hx, hy + 2 * z, z, z);
       ctx.fillStyle = '#9CFF8A';
@@ -125,6 +125,7 @@ export class Renderer {
   _drawOperative(ctx, op, x, y) {
     const { pose, frame } = op.pose();
     const s = unitSprite('operative', pose, op.facing, frame);
+    this._opSprite = s;
     const z = this.cam.zoom;
     const X = Math.round(this.sx(x) - s.ax * z), Y = Math.round(this.sy(y) - s.ay * z);
     const m = this.world.map, cover = coverKind(m, op.tx, op.ty);

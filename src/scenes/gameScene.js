@@ -19,7 +19,7 @@ import { CombatSystem } from '../combat/system.js';
 import { Scope } from '../scope/scope.js';
 import { Engage } from '../combat/engage.js';
 import { installUnitRendering } from '../render/unitRenderer.js';
-import { unitSprite } from '../render/sprites.js';
+import { unitSprite, warmQueue, warmStep } from '../render/sprites.js';
 import { StructureSystem } from '../entities/structure.js';
 import { VehicleSystem } from '../entities/vehicle.js';
 import { PropSystem } from '../entities/props.js';
@@ -28,6 +28,7 @@ import { MissionRunner } from '../missions/runner.js';
 import { dropshipSprite } from '../render/spriteData/vehicles.js';
 import { STRUCT_ZONES } from '../render/spriteData/structures.js';
 import '../render/spriteData/godUnits.js';
+import '../render/spriteData/newInfantry.js';
 import { FriendlySystem } from '../entities/friendly.js';
 import { Weather } from '../world/weather.js';
 import { NotConvoy } from '../missions/convoy.js';
@@ -137,6 +138,14 @@ export class GameScene {
     step();
   }
   _start() {
+    // New art style: pre-draw the frames this mission's infantry will use, a few per frame
+    const NOT_POSES = [['idle', 1], ['walk', 4], ['run', 4], ['fire', 2], ['crouch', 1], ['dead', 4]];
+    const types = new Set(this.world.units.filter((u) => u.def?.kind === 'infantry' || u.def?.kind === 'beast').map((u) => u.type));
+    this.warm = warmQueue([
+      { type: 'operative', poses: [['crouch', 1], ['walk', 4], ['run', 4], ['prone', 4], ['fire', 2], ['cover', 1], ['pistol', 4], ['idle', 1]] },
+      ...[...types].map((type) => ({ type, poses: NOT_POSES })),
+      ...[...new Set((this.world.friendlies || []).filter((f) => f.kind !== 'vehicle').map((f) => f.type))].map((type) => ({ type, poses: [['idle', 1], ['walk', 4], ['crouch', 1], ['prone', 1]] })),
+    ]);
     this.hud.say(this.fromCheckpoint ? 'Back at the checkpoint, WREN. Carry on.' : "WREN, OVERWATCH. You're on the ground.");
     this.world.events.on('toast', (t) => this.hud.toast(t.text, t.color));
     this.world.events.on('runGunOff', () => this.hud.toast('RUN & GUN OFF'));
@@ -440,6 +449,7 @@ export class GameScene {
   }
   frame(dt) {
     if (this.loading) return;
+    if (this.warm?.length) warmStep(this.warm, 3);
     this.gestures.update();
     // keyboard / edge panning (desktop)
     const inp = this.app.input, K = KEYS;

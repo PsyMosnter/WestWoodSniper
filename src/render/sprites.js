@@ -60,6 +60,47 @@ export function unitSprite(type, pose, dir, frame = 0, variant = '') {
   return s;
 }
 
+/** Sprite variant for a unit's current state (Overseer Vrask once his helmet has been shot off). */
+export function unitVariant(u) { return u.def?.helmet && !u.helmet ? 'nohelm' : ''; }
+
+/** Height (sprite px) of a Classic figure's head above its feet — overhead markers were placed for it. */
+const CLASSIC_TOP = 14;
+/**
+ * How far above the ground (sprite px) an overhead marker goes: `base` was tuned for Classic figures;
+ * taller New figures (which report `top`, the height of their highest pixel) push it up by the difference.
+ * @param {{top?: number}|null|undefined} s @param {number} base
+ */
+export function markerLift(s, base) { return s?.top == null ? base : base + Math.max(0, s.top - CLASSIC_TOP); }
+
+/**
+ * Background sprite warm-up for the New art style: New frames are rendered on first use (a couple of
+ * milliseconds each), so the mission queues the frames its units will need and draws a few per frame
+ * instead of all at once when a squad starts running. Classic sprites need no warm-up.
+ * @param {{type: string, poses: [string, number][]}[]} specs  unit types and the poses/frame counts they use
+ * @returns {[string, string, number, number][]} queue of [type, pose, dir, frame]
+ */
+export function warmQueue(specs) {
+  const q = [];
+  // the most common views first: every type's idle/walk before anyone's death animation
+  const maxPoses = Math.max(0, ...specs.map((s) => s.poses.length));
+  for (let i = 0; i < maxPoses; i++) {
+    for (const { type, poses } of specs) {
+      if (!Art.painter('unit', type) || !poses[i]) continue;
+      const [pose, frames] = poses[i];
+      for (let f = 0; f < frames; f++) for (let d = 0; d < 8; d++) q.push([type, pose, d, f]);
+    }
+  }
+  return q;
+}
+/** Render queued frames until `budgetMs` is spent. */
+export function warmStep(q, budgetMs) {
+  const t0 = performance.now();
+  while (q.length && performance.now() - t0 < budgetMs) {
+    const [type, pose, dir, frame] = q.shift();
+    if (Art.painter('unit', type)) unitSprite(type, pose, dir, frame);
+  }
+}
+
 /** Generic cached sprite from a builder returning {pix, ax, ay}. */
 export function sprite(key, builder) {
   let s = cache.get(key);

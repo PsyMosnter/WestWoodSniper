@@ -6,9 +6,10 @@ import { TILE } from '../core/camera.js';
 import { makeCanvas, Pix } from '../render/pixel.js';
 import { drawText, measureText } from '../render/font.js';
 import { Button } from '../ui/widgets.js';
-import { unitSprite, whiteOf } from '../render/sprites.js';
+import { unitSprite, unitVariant, whiteOf } from '../render/sprites.js';
+import { Art } from '../render/artStyle.js';
 import { FogRenderer } from '../render/fogRenderer.js';
-import { scopeSprite, scopeView, resolveZone } from './hitzones.js';
+import { scopeSprite, scopeView, resolveZone, magnifiedSprite, zoneAtMap } from './hitzones.js';
 import { vehicleScopeSprite, vehicleSprite } from '../render/spriteData/vehicles.js';
 import { swayCurve, swayAmplitude, dispersion } from './sway.js';
 import { canSee } from '../world/los.js';
@@ -125,6 +126,12 @@ export class Scope {
     return w.units.filter((u) => !u.dead && !u.hidden && u.def.scope && fog.isVisible(u.tx, u.ty) && Math.abs(u.x - v.x) < R && Math.abs(u.y - v.y) < R + 1);
   }
   spriteFor(u) {
+    if (u.kind !== 'vehicle' && Art.painter('unit', u.type)) {
+      // New art style: the scope magnifies the unit's own map sprite (same pose, facing and frame)
+      const { pose, frame } = u.pose();
+      const m = unitSprite(u.type, pose, u.dir, frame, unitVariant(u));
+      if (m.zoneMap) return magnifiedSprite(m, Z);
+    }
     const op = this.world.operative;
     const view = scopeView(u.angle, Math.atan2(op.y - u.y, op.x - u.x));
     return u.kind === 'vehicle' ? vehicleScopeSprite(u.type, view) : scopeSprite(u.def.scope, view);
@@ -199,7 +206,7 @@ export class Scope {
       const left = u.x * TILE - s.ax / Z, top = u.y * TILE - s.ay / Z;
       const lx = (ix - left) * Z, ly = (iy - top) * Z;
       if (lx < -4 || ly < -4 || lx > s.w + 4 || ly > s.h + 4) continue;
-      const z = resolveZone(s.zones, lx, ly, mult);
+      const z = s.zoneMap ? zoneAtMap(s, lx, ly, mult) : resolveZone(s.zones, lx, ly, mult);
       if (!z) continue;
       if (!best || z.prio > best.zone.prio || (z.prio === best.zone.prio && u.y > best.unit.y)) best = { unit: u, zone: z };
     }
@@ -483,8 +490,9 @@ export class Scope {
     for (let i = 0; i < 6; i++) { ctx.fillStyle = i < lv ? (i > 3 ? C.uiAlert : i > 1 ? C.uiAmber : C.uiText) : '#26302A'; ctx.fillRect(sx + i * 4, sy + 7, 3, 3); }
     // target label
     if (t && !t.dead) {
-      const view = scopeView(t.angle, Math.atan2(op.y - t.y, op.x - t.x));
-      drawText(ctx, `${t.name.toUpperCase()} · ${view.toUpperCase()}`, cx, cy - D / 2 + 12, { font: '3x5', color: C.uiAmber, align: 'center', shadow: '#000' });
+      // Classic close-ups name the side you see; a magnified New sprite is simply what the map shows
+      const view = this.spriteFor(t).zoneMap ? '' : ' · ' + scopeView(t.angle, Math.atan2(op.y - t.y, op.x - t.x)).toUpperCase();
+      drawText(ctx, `${t.name.toUpperCase()}${view}`, cx, cy - D / 2 + 12, { font: '3x5', color: C.uiAmber, align: 'center', shadow: '#000' });
     }
     // buttons & ammo
     for (const bt of [this.fire, this.breath, this.exit]) { ctx.fillStyle = '#0D0F0E'; ctx.fillRect(bt.x - 2, bt.y - 2, bt.w + 4, bt.h + 4); bt.draw(ctx); }
@@ -527,7 +535,7 @@ export class Scope {
       while (ui < units.length && units[ui].ty <= y) {
         const u = units[ui++];
         const X = (u.px + (u.x - u.px) * Time.alpha) * TILE, Y = (u.py + (u.y - u.py) * Time.alpha) * TILE;
-        if (u.dead && u.def.scope) {
+        if (u.dead && u.def.scope && !this.spriteFor(u).zoneMap) {
           // the close-up topples over (rotates about its feet, real time) instead of swapping sprites
           const s = this.spriteFor(u);
           if (!this.topple.has(u)) this.topple.set(u, 0);
@@ -550,16 +558,16 @@ export class Scope {
         }
         if (u.dead || !u.def.scope) {
           const { pose, frame } = u.pose();
-          const s = unitSprite(u.type, pose, u.dir, frame);
+          const s = unitSprite(u.type, pose, u.dir, frame, unitVariant(u));
           b.drawImage(s.canvas, Math.round((X - s.ax - scam.left) * Z), Math.round((Y - s.ay - scam.top) * Z), s.w * Z, s.h * Z);
           continue;
         }
         const s = this.spriteFor(u);
-        const bob = u.moving ? Math.round(Math.sin(u.animT * 10) * 1) : 0;
+        const bob = u.moving && !s.zoneMap ? Math.round(Math.sin(u.animT * 10) * 1) : 0;   // magnified sprites have real walk frames
         // stagger: the close-up shudders when hit
         const jit = u.staggerT > 0 ? Math.round(Math.sin(Time.realTime * 70) * 2) : 0;
         const sx = Math.round((X - scam.left) * Z - s.ax) + jit, sy = Math.round((Y - scam.top) * Z - s.ay) + bob;
-        b.drawImage(u.flashT > 0 ? whiteOf(s.canvas) : s.canvas, sx, sy);
+        b.drawImage(u.flashT > 0 ? whiteOf(s.canvas) : s.canvas, sx, sy, s.w, s.h);
         if (u.tag) drawText(b, u.tag.text, sx + s.w / 2, sy - 8, { font: '3x5', color: u.tag.text === 'WOUNDED' ? C.uiAmber : '#FFFFFF', align: 'center', shadow: '#000' });
       }
       // the Operative is never inside his own scope view unless targets are adjacent — skip

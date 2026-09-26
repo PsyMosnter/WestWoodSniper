@@ -79,6 +79,10 @@ Format: date · milestone · decision · reason.
 - **M7 recon intel** marks the jammers, shield, Spire and power plant on the minimap (blinking dots until actually seen); every known, powered jammer shows its 14-tile coverage as violet hatching on the minimap. The "stealth through the breach" secondary fails on any Alarm while the breach objective is active.
 - The scope view stays daylight-bright at night (the lens is the one place you can read targets); darkness is a world-view layer only.
 
+## Hosting
+
+- **Cloudflare Workers (static assets)**: `wrangler.jsonc` in the repo; `npx wrangler deploy` runs `node tools/build-site.js`, which copies only `index.html`, `icon.svg`, `manifest.webmanifest` and `src/` into `dist/` (git-ignored), and only `dist/` is uploaded. Without a committed config, Wrangler's auto-setup served the repo root and tried to upload `node_modules/` (its own 128 MiB `workerd` binary → "Asset too large"); an allow-list also keeps tests, tools and docs off the site, and a separate folder stops `wrangler dev` from reload-looping on its own `.wrangler/` state. Still no bundling and no runtime dependencies; `npm run serve` keeps serving the source tree directly.
+
 ## Changelog
 - **M9**: strategic strike wired into the game (targeting, jammer overlay, 6 s channel, 8 s inbound with a danger ring, impact, crater, fallout, mushroom cloud); night/dusk lighting with light pools and searchlight beams (instant detection); culvert tunnel with its Sniffer; M6 shift-change clock; hardened Spire; mid-mission checkpoints with CHECKPOINT on the debrief/pause; Missions 5–7 unlocked. Fixes: Dijkstra field hang (M5), damage-over-time rounding, double hardened multiplier, per-group alarm counting, emplacement blindness. Tests for all of it (75 green).
 - **M8**: Missions 2–4 playable: GOD friendlies (rescue, follow/hold, hide), medical-truck convoy with ADVANCE/HOLD, NOT convoy with mounted riders and the Vrask inspection/bunker logic, enemies targeting friendlies, snow tracks & blizzards, blown bridges, ESCORT/RESCUE/CUSTOM objectives; tests for friendlies, convoys, weather.

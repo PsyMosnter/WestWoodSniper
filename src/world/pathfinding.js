@@ -115,19 +115,25 @@ export class Pathfinder {
   field(sx, sy, maxCost = 60, opts = {}) {
     const m = this.map, w = m.w, N = w * m.h;
     const dist = new Float32Array(N).fill(Infinity);
+    // settled tiles are final: without this, a stale duplicate pop re-relaxes its neighbours, and
+    // because `dist` rounds to float32 (sometimes upward) those re-pushes cascade without end
+    const done = new Uint8Array(N);
     const heap = new Heap(512);
     const s = sy * w + sx;
     dist[s] = 0; heap.push(s, 0);
     const veh = !!opts.veh;
     while (heap.size) {
       const cur = heap.pop();
+      if (done[cur]) continue;
+      done[cur] = 1;
       const d = dist[cur];
       const cx = cur % w, cy = (cur / w) | 0;
       for (let k = 0; k < 8; k++) {
         const nx = cx + NB[k][0], ny = cy + NB[k][1];
         if (!m.canStep(cx, cy, nx, ny, veh)) continue;
         const ni = ny * w + nx;
-        const nd = d + this._stepCost(cur, ni, veh, NB[k][2]);
+        if (done[ni]) continue;
+        const nd = Math.fround(d + this._stepCost(cur, ni, veh, NB[k][2]));
         if (nd < dist[ni] && nd <= maxCost) { dist[ni] = nd; heap.push(ni, nd); }
       }
     }

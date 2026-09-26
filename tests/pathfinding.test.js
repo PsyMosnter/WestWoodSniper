@@ -48,3 +48,21 @@ test('no diagonal corner cutting past obstacles', () => {
   const m = makeMap({ overlay: ['.o', 'o.'] });
   assert.equal(new Pathfinder(m).find(0, 0, 1, 1, { partial: false }), null);
 });
+
+test('distance field settles each tile once and matches A* costs (Mission 5 used to hang it)', { timeout: 10000 }, async () => {
+  const { GameMap } = await import('../src/world/map.js');
+  const data = (await import('../src/missions/data/m5.js')).default;
+  const m = new GameMap(data);
+  const pf = new Pathfinder(m);
+  const { x, y } = data.player;
+  const field = pf.field(x, y, 400);
+  const reached = [];
+  for (let i = 0; i < field.length; i++) if (field[i] < Infinity) reached.push(i);
+  assert.ok(reached.length > 5000, `reached ${reached.length}`);
+  for (let k = 0; k < 20; k++) {
+    const i = reached[Math.floor((k + 0.5) * reached.length / 20)];
+    const tx = i % m.w, ty = Math.floor(i / m.w);
+    assert.ok(pf.find(x, y, tx, ty, { partial: false }), `A* reaches (${tx},${ty})`);
+    assert.ok(Math.abs(pf.lastCost(i) - field[i]) < 0.05, `(${tx},${ty}) field ${field[i]} vs A* ${pf.lastCost(i)}`);
+  }
+});

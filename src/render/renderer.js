@@ -6,6 +6,7 @@ import { TILE } from '../core/camera.js';
 import { Time } from '../core/time.js';
 import { hash2 } from '../core/rng.js';
 import { T, O } from '../world/tiles.js';
+import { coverKind, drawCovered } from './terrainCover.js';
 
 /**
  * World renderer (SPEC §4.3 draw order): terrain → decals → cliff faces (baked) →
@@ -126,15 +127,13 @@ export class Renderer {
     const s = unitSprite('operative', pose, op.facing, frame);
     const z = this.cam.zoom;
     const X = Math.round(this.sx(x) - s.ax * z), Y = Math.round(this.sy(y) - s.ay * z);
-    ctx.fillStyle = 'rgba(0,0,0,0.28)'; ctx.fillRect(Math.round(this.sx(x)) - 3 * z, Math.round(this.sy(y)), 7 * z, z);
+    const m = this.world.map, cover = coverKind(m, op.tx, op.ty);
+    if (cover !== 'water') { ctx.fillStyle = 'rgba(0,0,0,0.28)'; ctx.fillRect(Math.round(this.sx(x)) - 3 * z, Math.round(this.sy(y)), 7 * z, z); }
     const flash = op.flashT > 0 && (Math.floor(Time.realTime * 30) & 1) === 0;
-    ctx.drawImage(flash ? whiteOf(s.canvas) : s.canvas, X, Y, s.w * z, s.h * z);
-    // tall grass hides the legs a little
-    const m = this.world.map;
-    if (m.terrain[op.ty * m.w + op.tx] === T.tallgrass && !op.moving) {
-      ctx.fillStyle = 'rgba(111,145,64,0.55)';
-      for (let i = -4; i <= 4; i += 2) ctx.fillRect(Math.round(this.sx(x)) + i * z, Math.round(this.sy(y)) - 3 * z, z, 3 * z);
-    }
+    const img = flash ? whiteOf(s.canvas) : s.canvas;
+    // tall grass / shallow water hide the lower half (harder to see — SPEC §7.1 concealment)
+    if (cover) drawCovered(ctx, z, img, s, X, Y, cover, m.biome, 7, op.moving);
+    else ctx.drawImage(img, X, Y, s.w * z, s.h * z);
   }
 
   _groundUI(ctx, alpha) {

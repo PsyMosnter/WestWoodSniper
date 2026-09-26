@@ -73,6 +73,8 @@ export function fillRate(obs, target, dist, vis, world) {
   let stance = target.visibilityFactor ? target.visibilityFactor(obs) : (target.stanceFactor ?? 1);
   if (vehicleObs && hunkered) return 0;                  // vehicles & turrets can't see a hunkered target
   let terrain = m.conceal[m.idx(tx, ty)];
+  // waist-deep in shallow water and not moving: harder to pick out (wading itself splashes — §8.2 noise)
+  if (m.terrain[m.idx(tx, ty)] === T.shallow && !target.moving) terrain = Math.min(terrain, D.waterStill);
   if (obs.def?.smell && dist <= D.sniffer.smellDist) {
     terrain = 1;                                          // smell ignores concealment…
     if (hunkered) stance = Math.max(stance, BALANCE.stances.crouch.vis); // …and hunker

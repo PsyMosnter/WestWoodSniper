@@ -77,6 +77,7 @@ export const BALANCE = {
     detected: 1.0,
     instantDist: 1.2,
     tallGrassMaxDist: 3,
+    waterStill: 0.75,     // concealment when still (incl. crouched) in shallow water: only head & shoulders show
     light: { day: 1.0, dusk: 0.85, night: 0.6, lit: 1.0 },
     proximityFalloff: 0.7,
     suspiciousFill: 1.3,

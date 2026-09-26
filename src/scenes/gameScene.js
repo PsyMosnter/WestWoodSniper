@@ -38,6 +38,7 @@ import { StrikeSystem } from '../strike/strike.js';
 import { TunnelSystem } from '../world/tunnels.js';
 import { snapshot, restore } from '../missions/checkpoint.js';
 import { NoiseIndicator } from '../ui/noise.js';
+import { TerrainTrails } from '../render/terrainCover.js';
 
 /**
  * The in-mission scene: world simulation, camera, input → commands, renderer and HUD.
@@ -90,6 +91,7 @@ export class GameScene {
     this.strike = new StrikeSystem(this);                // laser designator (SPEC §14)
     this.tunnels = new TunnelSystem(this);               // culverts (M6) — hides their guards
     this.noise = new NoiseIndicator(this);               // noise rings + HUD meter (how far a sound carries)
+    this.trails = new TerrainTrails(this);               // WREN's fading trail through tall grass / shallow water
     this.scope = new Scope(this);
     this.engage = new Engage(this);
     this.hitMarks = [];
@@ -101,6 +103,7 @@ export class GameScene {
     this.renderer.layers.sorted.push((push, r) => this.props.sortedLayer(push, r));
     this.renderer.layers.sorted.push((push, r) => this.friendlies.sortedLayer(push, r));
     this.renderer.layers.ground.push((ctx, r) => this.weather.drawTracks(ctx, r));
+    this.renderer.layers.ground.push((ctx, r) => this.trails.draw(ctx, r));
     this.renderer.layers.effects.push((ctx, r) => this.combat.draw(ctx, r));
     this.renderer.layers.overFog.push((ctx, r) => this.c4.draw(ctx, r));
     this.renderer.layers.overFog.push((ctx, r) => { this.runner.drawLZ(ctx, r); if (r._lzLabel) drawText(ctx, 'LZ', r._lzLabel.x, r._lzLabel.y, { font: '3x5', color: '#7CFF7A', align: 'center' }); r._lzLabel = null; });
@@ -417,6 +420,7 @@ export class GameScene {
     this.strike.update(dt);
     this.tunnels.update(dt);
     this.noise.update(dt);
+    this.trails.update(dt);
     this.combat.update(dt);
     this.engage.update(dt);
     this.objectives.update(dt);

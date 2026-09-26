@@ -19,6 +19,10 @@ export class BriefingScene extends MenuBase {
     this.data = null;
     this.deploy = this.addButton('DEPLOY', () => this.app.scenes.go('game', { mission: this.missionId }), { color: C.uiAmber });
     this.back = this.addButton('BACK', () => this.app.scenes.go(this.app.hasScene('campaign') ? 'campaign' : 'title', {}));
+    // the mission's intro cutscene plays the first time; SCENE replays it
+    const toBriefing = () => this.app.scenes.go('briefing', { mission: this.missionId, fromCut: true });
+    this.scene = this.addButton('SCENE', () => this.app.playCut(this.missionId, toBriefing));
+    this.cutPending = !params.fromCut && this.app.cutsOn?.() && !this.app.save.seenCuts?.[this.missionId];
     this.skip = false;
     this._load();
   }
@@ -31,8 +35,12 @@ export class BriefingScene extends MenuBase {
     const B = Math.max(26, this.app.display.buttonSize);
     this.deploy.place(W - 8 - 110, H - 8 - B, 110, B);
     this.back.place(W - 8 - 110 - 6 - 80, H - 8 - B, 80, B);
+    this.scene.place(W - 8 - 110 - 6 - 80 - 6 - 70, H - 8 - B, 70, B);
   }
-  frame(dt) { this.t += dt; }
+  frame(dt) {
+    if (this.cutPending) { this.cutPending = false; this.app.playCut(this.missionId, () => this.app.scenes.go('briefing', { mission: this.missionId, fromCut: true })); return; }
+    this.t += dt;
+  }
   onBackgroundDown() { this.t += 100; } // tap to finish the typewriter
   onKeyDown(code) { if (code === 'Enter' || code === 'Space') this.app.scenes.go('game', { mission: this.missionId }); if (code === 'Escape') this.back.onPress(); }
   render(ctx) {

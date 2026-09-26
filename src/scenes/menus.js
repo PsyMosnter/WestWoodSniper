@@ -120,11 +120,12 @@ export class TitleScene extends MenuBase {
   enter() {
     this.t = 0;
     this.bg = null;
-    this.addButton('START', () => this.app.startCampaign());
+    this.addButton('START', () => this.app.playCut('intro', () => this.app.startCampaign(), true));
     this.cont = this.addButton('CONTINUE', () => this.app.continueCampaign());
     this.cont.enabled = this.app.save.unlocked > 1;
     this.addButton('SETTINGS', () => this.app.scenes.push('settings', {}));
     this.addButton('CREDITS', () => this.app.scenes.push('credits', {}));
+    this.addButton('INTRO', () => this.app.playCut('intro', () => this.app.scenes.go('title', {})));
     this._makeBg();
   }
   async _makeBg() {
@@ -147,10 +148,11 @@ export class TitleScene extends MenuBase {
     // 2×2 grid so every button is ≥ 44 CSS px on phones
     const bw = 116, bh = Math.max(26, this.app.display.buttonSize), g = 4;
     const y0 = Math.round(Math.min(H * 0.58, H - 2 * bh - g - 18));
-    this.buttons.forEach((b, i) => b.place(Math.round(W / 2 - bw - g / 2 + (i % 2) * (bw + g)), y0 + Math.floor(i / 2) * (bh + g), bw, bh));
+    const n = this.buttons.length;
+    this.buttons.forEach((b, i) => b.place(i === n - 1 && n % 2 ? Math.round(W / 2 - bw / 2) : Math.round(W / 2 - bw - g / 2 + (i % 2) * (bw + g)), y0 + Math.floor(i / 2) * (bh + g), bw, bh));
   }
   frame(dt) { this.t += dt; }
-  onKeyDown(code) { if (code === 'Enter' || code === 'Space') this.app.startCampaign(); }
+  onKeyDown(code) { if (code === 'Enter' || code === 'Space') this.app.playCut('intro', () => this.app.startCampaign(), true); }
   render(ctx) {
     const { W, H } = this.app.display;
     ctx.fillStyle = '#07090A'; ctx.fillRect(0, 0, W, H);

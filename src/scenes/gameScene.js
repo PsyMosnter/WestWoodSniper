@@ -469,7 +469,18 @@ export class GameScene {
     if (kx || ky) this.cam.panBy(kx * BALANCE.input.keyPanSpeed * dt, ky * BALANCE.input.keyPanSpeed * dt);
     this.frameDt = dt;
     this.lastRealDt = dt;
-    if (this.pendingDebrief) { this.endT -= dt; if (this.endT <= 0) { const p = this.pendingDebrief; this.pendingDebrief = null; this.app.scenes.go('debrief', p); return; } }
+    if (this.pendingDebrief) {
+      this.endT -= dt;
+      if (this.endT <= 0) {
+        const p = this.pendingDebrief; this.pendingDebrief = null;
+        const debrief = () => this.app.scenes.go('debrief', p);
+        // story beats: "signal lost" on a failure, the ending after the last mission
+        if (!p.won) this.app.playCut('failed', debrief);
+        else if (this.missionId === 'm7') this.app.playCut('ending', debrief);
+        else debrief();
+        return;
+      }
+    }
     this.hud.update(dt);
     this.scope.update(dt);
     for (const h of this.hitMarks) h.t -= dt;

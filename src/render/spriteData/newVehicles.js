@@ -212,9 +212,10 @@ function build(type, dir, state) {
 export const VEHICLE_TYPES = ['skitter', 'hauler', 'fuelHauler', 'crawler', 'brute', 'juggernaut', 'medTruck'];
 
 /** Render one vehicle facing `dir` (0 N … 7 NW); state 'ok' | 'wreck'. */
-export function renderVehicle(type, dir, state = 'ok') {
-  const { pix, zone, top } = rasterize(build(type, dir, state), { w: VW, h: VH, ax: VAX, ay: VAY, outline: OUT, scale: MODEL_SCALE });
-  return { pix, zone, top, ax: VAX, ay: VAY, w: VW, h: VH };
+export function renderVehicle(type, dir, state = 'ok', zoom = 1) {
+  const k = zoom;   // > 1: a big close-up for cutscenes
+  const { pix, zone, top } = rasterize(build(type, dir, state), { w: VW * k, h: VH * k, ax: VAX * k, ay: VAY * k, outline: OUT, scale: MODEL_SCALE * k, ss: k > 1 ? 2 : 4 });
+  return { pix, zone, top, ax: VAX * k, ay: VAY * k, w: VW * k, h: VH * k };
 }
 
 for (const type of VEHICLE_TYPES) {

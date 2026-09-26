@@ -149,7 +149,7 @@ export function build() {
       { id: 'truck1', type: 'medTruck', x: 11, y: 34, convoy: true, slot: 0 },
       { id: 'truck2', type: 'medTruck', x: 7, y: 34, convoy: true, slot: 1 },
       { id: 'truck3', type: 'medTruck', x: 3, y: 34, convoy: true, slot: 2 },
-      { id: 'pilot', type: 'pilot', x: 57, y: 69, captive: false, downed: true, name: 'Lt. Idris Kane' },
+      { id: 'pilot', type: 'pilot', x: 57, y: 69, captive: false, downed: true, name: 'Lt. Idris Vale' },
     ],
     paths: PATHS,
     areas: {

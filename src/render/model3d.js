@@ -21,7 +21,7 @@ const LIGHT = norm([-0.55, -0.05, 0.84]);         // towards the light: from the
 const VIEW = [0, CE, SEL];                        // towards the camera (soft fill light)
 const AMB = 0.26, KEY = 0.56, FILL = 0.24;
 
-const SS = 4;                   // supersampling per axis
+const SS_DEFAULT = 4;           // supersampling per axis (big cutscene renders use fewer)
 const EDGE_DEPTH = 1.6;         // same part folding over itself
 const PART_DEPTH = 0.02;        // another part in front
 const SOFT_DEPTH = 2.2;         // how far behind a soft part (arm) a shot still counts for what it hits
@@ -180,7 +180,7 @@ function normalAt(p, t, ox, oy, oz, out) {
 /**
  * Ray-cast a model into a w×h sprite whose ground anchor (world origin) sits at pixel (ax, ay).
  * @param {Model} model
- * @param {{w: number, h: number, ax: number, ay: number, outline: string, scale?: number, soft?: number}} o
+ * @param {{w: number, h: number, ax: number, ay: number, outline: string, scale?: number, soft?: number, ss?: number}} o
  *   scale: pixels per model unit; soft: a zone a shot passes through into whatever lies just behind it
  *   (an arm held across the chest still counts as a chest hit)
  * @returns {{pix: Pix, zone: Uint8Array, depth: Float32Array, top: number}} top: first opaque row
@@ -189,7 +189,7 @@ export function rasterize(model, o) {
   const { w, h, ax, ay } = o;
   const sc = o.scale || 1, inv = 1 / sc;
   const soft = o.soft ?? -1;
-  const N = SS * SS;
+  const SS = o.ss || SS_DEFAULT, N = SS * SS;
   const prims = model.prims.map(compile);
   /** @type {Material[]} */
   const mats = [];

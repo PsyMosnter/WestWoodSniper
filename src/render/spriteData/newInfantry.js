@@ -618,13 +618,15 @@ export const INFANTRY = {
  * Render one frame. variant 'nohelm' drops Vrask's helmet once it has been shot off.
  * @returns {{pix: import('../pixel.js').Pix, zone: Uint8Array, ax: number, ay: number, w: number, h: number}}
  */
-export function renderInfantry(type, pose, dir, frame = 0, variant = '') {
+export function renderInfantry(type, pose, dir, frame = 0, variant = '', zoom = 1) {
   let T = INFANTRY[type] || INFANTRY.husk;
   if (variant === 'nohelm' && T.gear?.includes('helmet')) T = { ...T, gear: T.gear.filter((x) => x !== 'helmet') };
   const model = build(T, pose, dir, frame);
   const lying = pose === 'prone' || pose === 'crawl' || (pose === 'dead' && frame >= 2);
-  const w = lying ? LW : NW, h = lying ? LH : NH, ax = lying ? LAX : NAX, ay = lying ? LAY : NAY;
-  const { pix, zone, top } = rasterize(model, { w, h, ax, ay, outline: T.out, scale: MODEL_SCALE, soft: Z.limb });
+  // zoom > 1: a big close-up of the same figure (cutscenes), rendered at zoom× the map resolution
+  const k = zoom;
+  const w = (lying ? LW : NW) * k, h = (lying ? LH : NH) * k, ax = (lying ? LAX : NAX) * k, ay = (lying ? LAY : NAY) * k;
+  const { pix, zone, top } = rasterize(model, { w, h, ax, ay, outline: T.out, scale: MODEL_SCALE * k, soft: Z.limb, ss: k > 1 ? 2 : 4 });
   return { pix, zone, top, ax, ay, w, h };
 }
 

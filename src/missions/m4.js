@@ -20,7 +20,7 @@ const triggers = [
   { when: { type: 'custom', fn: 'tooManyTrucksLost' }, do: [{ type: 'lose', reason: 'Two trucks lost. The convoy failed.' }] },
 ];
 
-export default { ...data, triggers, intel: '~50 NOT. 3 Launchers + a Warden on the north rim (checkpoint 1); a roadblock Brute and a parked Fuel Hauler (checkpoint 2); a Lobber nest over the riverbed detour (checkpoint 3); a Crawler counter-attack at Fort Dawn\'s gate. Launchers only shoot at trucks within 7 tiles.', custom: {
+export default { ...data, lightFade: 600, triggers, intel: '~50 NOT. 3 Launchers + a Warden on the north rim (checkpoint 1); a roadblock Brute and a parked Fuel Hauler (checkpoint 2); a Lobber nest over the riverbed detour (checkpoint 3); a Crawler counter-attack at Fort Dawn\'s gate. Launchers only shoot at trucks within 7 tiles.', custom: {
   convoyAt(r, c) { return (r.game.convoy?.checkpoint ?? 0) >= c.arg && !r.game.convoy?.moving; },
   tooManyTrucksLost(r) { return r.world.friendlies.filter((f) => f.type === 'medTruck' && f.dead).length >= 2; },
   counterattack(r) {

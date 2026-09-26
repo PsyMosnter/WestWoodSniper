@@ -27,13 +27,15 @@ const app = {
   debug: params.get('debug') === '1',
   save: loadSave(),
   /** @type {any} */ settings: null,
+  /** mid-mission checkpoint for the current run: { mission, key, snap } (memory only, SPEC §17.8) */
+  /** @type {any} */ checkpoint: null,
   display: new Display(canvas),
   /** @type {Input} */ input: /** @type {any} */ (null),
   /** @type {SceneManager} */ scenes: /** @type {any} */ (null),
   audio: new Audio(),
   hasScene(name) { return this.scenes.registry.has(name); },
   /** missions with content so far */
-  available: ['m1', 'm2', 'm3', 'm4'],
+  available: ['m1', 'm2', 'm3', 'm4', 'm5', 'm6', 'm7'],
   missionExists(id) { return this.available.includes(id); },
   startCampaign() {
     if (this.hasScene('campaign')) this.scenes.go('campaign', {});

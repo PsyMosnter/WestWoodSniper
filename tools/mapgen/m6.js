@@ -112,7 +112,7 @@ export function build() {
   g.ellipse((TX0 + TX1) / 2, (TY0 + TY1) / 2, (TX1 - TX0) / 2 + 6, (TY1 - TY0) / 2 + 6, { e: 1 }, 0.1, 71);
   g.each((x, y, c) => { if (c.e === 1) g.set(x, y, { t: fbm(x * 0.3, y * 0.3, 9) > 0.62 ? 'p' : 'g', o: c.o === 'F' ? '.' : c.o }); });
   for (let x = TX0; x <= TX1; x++) { if (Math.abs(x - 51.5) > 2) g.set(x, TY0, { o: 'v' }); if (Math.abs(x - 51.5) > 2) g.set(x, TY1, { o: 'v' }); }
-  for (let y = TY0; y <= TY1; y++) { if (Math.abs(y - 62) > 0) g.set(TX0, y, { o: 'v' }); g.set(TX1, y, { o: 'v' }); }
+  for (let y = TY0; y <= TY1; y++) { g.set(TX0, y, { o: 'v' }); g.set(TX1, y, { o: 'v' }); }   // solid: the culvert is the way under
   // ruined houses: broken wall squares with rubble inside (hard LOS blockers everywhere)
   const houses = [[24, 42], [34, 40], [62, 40], [70, 42], [22, 50], [80, 50], [34, 52], [66, 52], [22, 66], [80, 64], [36, 74], [62, 76], [24, 76], [72, 82], [40, 82], [56, 48]];
   for (const [hx, hy] of houses) {

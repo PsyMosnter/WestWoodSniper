@@ -28,6 +28,9 @@ export function snapshot(game) {
     fired: game.runner.triggers.map((t) => t.fired),
     alerts: [...w.alerts.groups.values()].map((g) => pick(g, ['id', 'level', 't', 'reinforced', 'commsDown', 'alarmCount'])),
     seen: Array.from(w.fog.seen),
+    craters: clone(game.strike?.craters || []),
+    fallout: clone(game.strike?.fallout || []),
+    scene: clone(pick(game, ['countdown', 'intelMarked'])),
   };
 }
 
@@ -88,6 +91,9 @@ export function restore(game, snap) {
   game.runner.triggers.forEach((t, i) => { t.fired = !!snap.fired[i]; });
   for (const sg of snap.alerts) Object.assign(w.alerts.group(sg.id), sg);
   w.fog.seen.set(snap.seen);
+  for (const c of snap.craters || []) game.strike?.crater(c.x, c.y);
+  if (game.strike) game.strike.fallout = snap.fallout || [];
+  Object.assign(game, snap.scene || {});
   w.lkp = null;
   game.cam?.centreOn?.(op.x, op.y);
 }

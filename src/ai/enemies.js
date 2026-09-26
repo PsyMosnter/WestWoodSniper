@@ -324,15 +324,19 @@ export class EnemySystem {
     if (u.dead) return;
     u.stateT += dt;
     if (u.flashT > 0) u.flashT -= dt;
+    if (u.blindT > 0) u.blindT = Math.max(0, u.blindT - dt);   // strike flash wears off (power loss re-sets it every frame)
     if (u.tag && (u.tag.t -= dt) <= 0) u.tag = null;
     u.percT -= dt;
     const op = this.world.operative;
     if (u.percT <= 0) {
       u.percT += 0.1;
+      const gone = op.dead || op.hidden || u.blindT > 0;          // down, underground/aboard, or flash-blinded
       const r = canObserve(u, op, this.world);
-      u.seesOp = r.visible && !op.dead && !(u.blindT > 0);
+      // at night a tower's own searchlight on WREN is instant detection (SPEC §8.1)
+      const inBeam = !gone && !!this.game.lighting?.beamOn(u, op.x, op.y);
+      u.seesOp = !gone && (r.visible || inBeam);
       if (u.seesOp) {
-        if (instantDetect(u, op, r.dist, this.world)) u.det = 1;
+        if (inBeam || instantDetect(u, op, r.dist, this.world)) u.det = 1;
         else u.det = Math.min(1, u.det + fillRate(u, op, r.dist, r.vis, this.world) * 0.1);
         u.lastKnown = { x: op.x, y: op.y };
         if (u.det >= 1 && u.state !== 'combat') this.enterCombat(u);

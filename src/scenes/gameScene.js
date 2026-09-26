@@ -33,6 +33,10 @@ import { Weather } from '../world/weather.js';
 import { NotConvoy } from '../missions/convoy.js';
 import { wrapText, measureText } from '../render/font.js';
 import { Particles } from '../render/particles.js';
+import { Lighting } from '../render/lighting.js';
+import { StrikeSystem } from '../strike/strike.js';
+import { TunnelSystem } from '../world/tunnels.js';
+import { snapshot, restore } from '../missions/checkpoint.js';
 
 /**
  * The in-mission scene: world simulation, camera, input → commands, renderer and HUD.
@@ -81,6 +85,9 @@ export class GameScene {
     const routes = [...new Set(this.world.units.filter((u) => u.behaviour?.kind === 'convoy').map((u) => u.behaviour.path))];
     this.notConvoys = routes.map((p) => new NotConvoy(this, p));
     this.c4 = new C4System(this);
+    this.lighting = new Lighting(this);                  // night/dusk darkness, light pools, searchlights (answers world.isLit)
+    this.strike = new StrikeSystem(this);                // laser designator (SPEC §14)
+    this.tunnels = new TunnelSystem(this);               // culverts (M6) — hides their guards
     this.scope = new Scope(this);
     this.engage = new Engage(this);
     this.hitMarks = [];
@@ -97,8 +104,14 @@ export class GameScene {
     this.renderer.layers.overFog.push((ctx, r) => { this.runner.drawLZ(ctx, r); if (r._lzLabel) drawText(ctx, 'LZ', r._lzLabel.x, r._lzLabel.y, { font: '3x5', color: '#7CFF7A', align: 'center' }); r._lzLabel = null; });
     this.renderer.layers.overFog.push((ctx, r) => this._drawDropship(ctx, r));
     this.renderer.layers.effects.push((ctx, r) => this._drawSmoke(ctx, r));
+    // darkness goes over the sprites but under muzzle flashes, tracers and explosions
+    this.renderer.layers.effects.unshift((ctx, r) => this.lighting.draw(ctx, r));
+    this.renderer.layers.overFog.push((ctx, r) => { this.tunnels.draw(ctx, r); this.strike.draw(ctx, r); });
     this.gestures = new Gestures(this._gestureHandlers());
     this.resize(this.app.display.W, this.app.display.H);
+    const cp = this.params.checkpoint && this.app.checkpoint;
+    if (cp && cp.mission === this.missionId) { restore(this, cp.snap); this.fromCheckpoint = cp.key; }
+    else if (!this.params.checkpoint) this.app.checkpoint = null;   // a fresh attempt drops the old checkpoint
     const op = this.world.operative;
     const at = this.app.params.get('at');
     if (at) { const [ax, ay] = at.split(',').map(Number); const t = this.world.map.nearestWalkable(ax, ay, 6); if (t) { op.x = op.px = t.x + 0.5; op.y = op.py = t.y + 0.5; } }
@@ -117,7 +130,7 @@ export class GameScene {
     step();
   }
   _start() {
-    this.hud.say("WREN, OVERWATCH. You're on the ground.");
+    this.hud.say(this.fromCheckpoint ? 'Back at the checkpoint, WREN. Carry on.' : "WREN, OVERWATCH. You're on the ground.");
     this.world.events.on('toast', (t) => this.hud.toast(t.text, t.color));
     this.world.events.on('runGunOff', () => this.hud.toast('RUN & GUN OFF'));
     this.world.events.on('opDead', () => {
@@ -128,7 +141,13 @@ export class GameScene {
       if (e.level === 'alarm' && e.reason !== 'officer radio') {
         this.hud.say(this.enemies.alerts.hasBarracks(e.group) ? 'Alarm raised. Reinforcements incoming.' : 'Alarm raised. Get out of there.', true);
       }
-      if (e.level === 'alarm') { this.world.stats.alarms++; this.objectives.items.filter((o) => o.type === 'STEALTH').forEach((o) => this.objectives.fail(o.id)); }
+      if (e.level === 'alarm') {
+        // a map-wide alarm (strike inbound, the Spire falling) raises every group at once: count it once
+        const key = `${e.reason}@${this.world.time}`;
+        if (key !== this._lastAlarmKey) this.world.stats.alarms++;
+        this._lastAlarmKey = key;
+        this.objectives.items.filter((o) => o.type === 'STEALTH').forEach((o) => this.objectives.fail(o.id));
+      }
     });
     this.world.events.on('objectiveDone', (o) => { this.hud.say('Objective complete.'); this.hud.toast('OBJECTIVE COMPLETE', '#7CFF7A'); this.hud.peekObjectives(4); });
     window.__game = this;
@@ -166,6 +185,7 @@ export class GameScene {
         break;
       case 'c4':
         if (op.c4 <= 0) { this.hud.toast('NO C4 LEFT'); break; }
+        if (this.strike.state === 'targeting') this.strike.state = 'idle';
         this.mode = this.mode === 'c4' ? 'normal' : 'c4';
         if (this.mode === 'c4') this.hud.toast('TAP A BUILDING, DISABLED VEHICLE OR BRIDGE', C.uiAmber, 2.2);
         break;
@@ -178,6 +198,7 @@ export class GameScene {
         this.world.noise(op.x, op.y, 3, 'smoke');
         break;
       case 'detonate': this.c4.detonateRemote(); break;
+      case 'designator': this.strike.toggleTargeting(); break;
       case 'convoy': this.convoy?.toggle(); break;
       case 'followAll': this.friendlies.toggleAll(); break;
       default:
@@ -207,7 +228,9 @@ export class GameScene {
     const t = this.worldTile(sx, sy);
     if (!this.world.map.inb(t.x, t.y)) return;
     const op = this.world.operative;
+    if (this.tunnels.transit) return;                     // WREN is underground
     if (this.onTapWorld && this.onTapWorld(t, info)) return;
+    if (this.mode === 'designator') { this.strike.tapTarget(t.x, t.y); return; }
     // C4 targeting mode / tapping a C4-able target
     const c4t = this.c4.targetAt(t.x, t.y) || this.structureTargetNear(t.fx, t.fy);
     if (this.mode === 'c4') {
@@ -253,6 +276,7 @@ export class GameScene {
     }
     this.lastTapUnit = null;
     this.engage.cancel();
+    if (this.tunnels.tap(t.x, t.y)) { this.renderer.addMarker(t.x + 0.5, t.y + 0.5, 'tap', '#7CFF7A'); return; }
     const ok = op.orderMove(t.x, t.y, 'walk');
     if (ok) {
       this.renderer.addMarker(t.x + 0.5, t.y + 0.5, 'tap', '#7CFF7A');
@@ -304,6 +328,7 @@ export class GameScene {
   }
   _doubleTap(sx, sy) {
     const op = this.world.operative;
+    if (this.tunnels.transit || this.mode === 'designator') return;
     if (this.onDoubleTapWorld && this.onDoubleTapWorld(this.worldTile(sx, sy))) return;
     op.upgradeRun();
     const t = this.worldTile(sx, sy);
@@ -311,6 +336,8 @@ export class GameScene {
   }
   _longPress(sx, sy) {
     const t = this.worldTile(sx, sy);
+    if (this.tunnels.transit) return;
+    if (this.mode === 'designator') { this.strike.tapTarget(t.x, t.y); return; }
     if (this.onLongPressWorld && this.onLongPressWorld(t)) return;
     const unit = this.unitAt(sx, sy);
     if (unit) { this.engage.engage(unit, { force: true }); this.app.vibrate?.(15); return; }
@@ -365,6 +392,7 @@ export class GameScene {
     else if (code === K.c4) this.cmd('c4');
     else if (code === K.designator) this.cmd('designator');
     else if (code === K.centre) this.cmd('centre');
+    else if (code === K.pause && this.mode === 'designator') this.strike.toggleTargeting();   // Esc leaves targeting first
     else if (code === K.pause) this.cmd('pause');
     else if (code === K.medkit) this.cmd('medkit');
     else if (code === K.debug) this.debug = !this.debug;
@@ -384,6 +412,8 @@ export class GameScene {
     this.weather.update(dt);
     this.props.update(dt);
     this.c4.update(dt);
+    this.strike.update(dt);
+    this.tunnels.update(dt);
     this.combat.update(dt);
     this.engage.update(dt);
     this.objectives.update(dt);
@@ -428,6 +458,7 @@ export class GameScene {
     this.frameDt = 0;
     this.renderer.draw(ctx, alpha);
     this.weather.drawOverlay(ctx, D.W, D.H);
+    this.strike.drawScreen(ctx, D.W, D.H);
     if (this.infoRing) {
       if (this.infoRing.hold >= 0) { this.infoRing.hold -= this.lastRealDt || 0.016; if (this.infoRing.hold <= 0) this.infoRing = null; }
       if (this.infoRing) this._drawInfoRing(ctx);
@@ -483,6 +514,12 @@ export class GameScene {
       }
       drawText(ctx, t.label, ax, ay + 10, { font: '3x5', color: t.col, align: 'center', shadow: '#000' });
     }
+  }
+  /** Mid-mission checkpoint (SPEC §17.8: M6 after the rescue, M7 once the shield is down) — this run only. */
+  saveCheckpoint(key) {
+    if (this.world.operative.dead || this.runner.ended) return;
+    this.app.checkpoint = { mission: this.missionId, key, snap: JSON.parse(JSON.stringify(snapshot(this))) };
+    this.hud.toast('CHECKPOINT', '#7CFF7A', 1.8);
   }
   /** End of mission → debrief after a short beat. */
   endMission(won, reason = '') {
@@ -587,6 +624,13 @@ export class GameScene {
       if (a) out.push({ kind: 'area', x: a.x, y: a.y, w: a.w, h: a.h, color: o.primary ? C.uiAmber : '#C8A060' });
     }
     if (w.lkp) out.push({ kind: 'dot', x: w.lkp.x, y: w.lkp.y, color: '#B8C0B8', size: 2 });
+    // jammer coverage (known jammers) + recon intel (M7 phase 1 marks the jammers, shield and Spire)
+    const intel = ['jammer', 'shieldGenerator', 'hiveSpire', 'powerPlant'];
+    for (const st of w.structures) {
+      if (st.dead || !(st.seen || (this.intelMarked && intel.includes(st.type)))) continue;
+      if (st.type === 'jammer' && !st.st.unpowered) out.push({ kind: 'hatch', x: st.cx, y: st.cy, r: BALANCE.strike.jammerRadius, color: 'rgba(155,90,224,0.7)' });
+      if (!st.seen) out.push({ kind: 'dot', x: st.cx, y: st.cy, color: (Math.floor(Time.realTime * 2) & 1) ? '#C9A0FF' : '#FFFFFF', size: 3 });
+    }
     return out;
   }
   /** Resume following when WREN is about to leave the view (panned planning view is kept otherwise). */

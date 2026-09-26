@@ -19,6 +19,8 @@ export class Lighting {
     this.mode = d.time === 'night' ? 'night' : d.time === 'dusk' ? 'dusk' : null;
     this.dark = this.mode === 'night' ? 0.64 : this.mode === 'dusk' ? 0.26 : 0;
     this.tone = this.mode === 'night' ? [8, 12, 30] : [40, 18, 30];
+    /** seconds over which the dark deepens from daylight (M4: "day, fading to dusk over the mission") */
+    this.fade = d.lightFade || 0;
     const m = w.map;
     /** static light pools: data lights + lava (every few tiles) */
     this.pools = (d.lights || []).map((l) => ({ x: l.x + 0.5, y: l.y + 0.5, r: l.r || 3, warm: l.color || '#FFB45A', flicker: true }));
@@ -58,6 +60,13 @@ export class Lighting {
     while (a < -Math.PI) a += 2 * Math.PI;
     return Math.abs(a) <= b.half;
   }
+  /** Is point (x, y) inside tower gunner `u`'s own working searchlight beam, with LOS from the lamp? */
+  beamOn(u, x, y) {
+    const b = this.beams().find((q) => q.u === u);
+    if (!b || !this.inBeam(b, x, y)) return false;
+    const m = this.world.map, bx = Math.floor(b.x), by = Math.floor(b.y);
+    return canSee(m, bx, by, Math.floor(x), Math.floor(y), { elevO: m.elevAt(bx, by) + 1 });
+  }
   isLit(tx, ty) {
     if (!this.mode) return false;
     const m = this.world.map;
@@ -71,13 +80,15 @@ export class Lighting {
   /** Draw the darkness layer with light holes (called between the sprites and the effects). */
   draw(ctx, r) {
     if (!this.mode) return;
+    const dark = this.dark * (this.fade ? Math.min(1, this.world.time / this.fade) : 1);
+    if (dark < 0.01) return;
     const cam = r.cam, z = cam.zoom;
     const W = Math.ceil(cam.viewW), H = Math.ceil(cam.viewH);
     if (!this.canvas || this.canvas.width !== W || this.canvas.height !== H) { this.canvas = makeCanvas(W, H); this.cx = /** @type {CanvasRenderingContext2D} */ (this.canvas.getContext('2d')); }
     const c = this.cx;
     c.globalCompositeOperation = 'source-over';
     c.clearRect(0, 0, W, H);
-    c.fillStyle = `rgba(${this.tone[0]},${this.tone[1]},${this.tone[2]},${this.dark})`;
+    c.fillStyle = `rgba(${this.tone[0]},${this.tone[1]},${this.tone[2]},${dark.toFixed(3)})`;
     c.fillRect(0, 0, W, H);
     c.globalCompositeOperation = 'destination-out';
     const t = performance.now() / 1000;

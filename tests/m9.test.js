@@ -163,3 +163,102 @@ test('checkpoint: snapshot → fresh mission → restore brings back deaths, rub
   assert.equal(g2.objectives.get('o1').done, true);
   assert.equal(g2.world.operative.x, 30.5);
 });
+
+test('night: a tower\'s own searchlight on WREN is instant detection; with the lens shot out it is not', () => {
+  const mk = (lightDead) => {
+    // 9 tiles south of the tower: outside its night vision (10 × 0.65) but inside the 10-tile beam
+    const g = setup({ time: 'night', px: 20, py: 19, structures: [{ id: 'tw', type: 'guardTower', x: 20, y: 10, alertGroup: 'a', facing: 'S' }] });
+    if (lightDead) g.world.structures[0].st = { ...g.world.structures[0].st, lightDead: true };
+    g.world.operative.stance = 'crouch';
+    const gunner = g.world.units.find((u) => u.id === 'tw:gunner');
+    gunner.percT = 0;
+    tick(g, 0.1);
+    return gunner;
+  };
+  const lit = mk(false), dark = mk(true);
+  assert.equal(lit.det, 1);
+  assert.equal(lit.state, 'combat');
+  assert.equal(dark.det, 0);
+});
+
+test('tower gunners do not see WREN while he is hidden (in a culvert, aboard the dropship)', () => {
+  const g = setup({ px: 20, py: 14, structures: [{ id: 'tw', type: 'guardTower', x: 20, y: 10, alertGroup: 'a', facing: 'S' }] });
+  const gunner = g.world.units.find((u) => u.id === 'tw:gunner');
+  g.world.operative.hidden = true;
+  tick(g, 1);
+  assert.equal(gunner.seesOp, false);
+  assert.equal(gunner.det, 0);
+  g.world.operative.hidden = false;
+  let saw = false;
+  tick(g, 6, () => { saw ||= gunner.seesOp; });          // one full sweep of the tower
+  assert.equal(saw, true, 'control: in plain sight he is seen');
+});
+
+test('culvert guard: going through while it lives costs a bite and extra time; it dies unseen', () => {
+  const g = setup({
+    px: 10, py: 10,
+    units: [{ id: 'cv1', type: 'sniffer', x: 20, y: 10, alertGroup: 'c' }],
+    tunnels: [{ id: 'cv', a: { x: 10, y: 10 }, b: { x: 30, y: 10 }, time: 4, guard: 'cv1' }],
+  });
+  const guard = g.world.units.find((u) => u.id === 'cv1'), op = g.world.operative, hp0 = op.hp;
+  assert.equal(guard.hidden, true, 'the guard lives in the dark, not on the map');
+  g.tunnels.enter(g.tunnels.endAt(10, 10));
+  tick(g, 4.2);
+  assert.equal(op.hidden, true, 'the scuffle takes longer than a clear run');
+  assert.equal(guard.dead, true);
+  assert.equal(op.hp, hp0 - BALANCE.tunnel.guardDamage);
+  tick(g, BALANCE.tunnel.guardFight);
+  assert.equal(op.hidden, false);
+  assert.ok(Math.abs(op.x - 30.5) < 0.1);
+  assert.equal(g.world.stats.kills, 1);
+  assert.equal(g.world.corpses.length, 0, 'no body for patrols to find');
+});
+
+test('strike: a hardened structure takes a quarter of its max HP (the multiplier is applied once)', () => {
+  const g = setup({ px: 2, py: 38, structures: [{ id: 'sp', type: 'hiveSpire', x: 30, y: 18, alertGroup: 'g', hardened: true }] });
+  const sp = g.world.structures[0];
+  g.strike.target = { x: sp.cx, y: sp.cy };
+  g.strike.impact();
+  assert.equal(sp.dead, false);
+  assert.ok(Math.abs(sp.hp - sp.maxHp * (1 - BALANCE.strike.hardenedMult)) < 1, `hp ${sp.hp} of ${sp.maxHp}`);
+  sp.hardened = false;
+  g.strike.target = { x: sp.cx, y: sp.cy };
+  g.strike.impact();
+  assert.equal(sp.dead, true, 'unshielded, one strike destroys it');
+});
+
+test('strike fallout hurts 4 HP a second (damage over time is not rounded up every tick)', () => {
+  const g = setup({ px: 20, py: 20 });
+  const op = g.world.operative, hp0 = op.hp;
+  g.strike.fallout.push({ x: 20.5, y: 20.5, t: 60 });
+  tick(g, 5);
+  const lost = hp0 - op.hp;
+  assert.ok(lost >= 19 && lost <= 21, `lost ${lost} HP in 5 s`);
+});
+
+test('checkpoint: strike craters and the mission clock survive a restore', async () => {
+  const { MissionRunner } = await import('../src/missions/runner.js');
+  const { Objectives } = await import('../src/missions/objectives.js');
+  const { snapshot, restore } = await import('../src/missions/checkpoint.js');
+  const mk = () => { const g = setup({}); g.objectives = new Objectives(g, []); g.runner = new MissionRunner(g); return g; };
+  const g1 = mk();
+  g1.strike.crater(30.5, 20.5);
+  g1.countdown = { label: 'SHIFT CHANGE', until: 75 };
+  const snap = JSON.parse(JSON.stringify(snapshot(g1)));
+  const g2 = mk();
+  assert.equal(g2.world.map.walkable(30, 20), true);
+  restore(g2, snap);
+  assert.equal(g2.world.map.walkable(30, 20), false, 'crater centre is impassable again');
+  assert.deepEqual(g2.countdown, { label: 'SHIFT CHANGE', until: 75 });
+});
+
+test('strike flash blinds a tower gunner for 5 s, then it sees again', () => {
+  const g = setup({ px: 2, py: 38, structures: [{ id: 'tw', type: 'guardTower', x: 40, y: 20, alertGroup: 'g', facing: 'W' }] });
+  const gunner = g.world.units.find((u) => u.id === 'tw:gunner');
+  g.strike.target = { x: 30.5, y: 20.5 };            // 10 tiles away: inside the flash radius, outside the blast
+  g.strike.impact();
+  assert.equal(gunner.dead, false);
+  assert.ok(gunner.blindT > 0, 'flash-blinded');
+  tick(g, BALANCE.strike.blindTime + 0.2);
+  assert.equal(gunner.blindT, 0, 'the flash wears off');
+});

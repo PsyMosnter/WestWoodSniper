@@ -18,6 +18,13 @@ const triggers = [
 ];
 
 export default { ...data, triggers, intel: '~90 NOT: 3 Juggernauts and 4 gun turrets in the caldera, barracks and vehicle bays on the terrace, three jammers (the NE power plant feeds North & East). Shielded, the Spire shrugs off 75% of a strike. A supply cache in the north-east holds a third strike.', custom: {
+  init(r) {
+    // secondary "stealth through the breach": any Alarm while phase 3 (the breach) is active spoils it
+    r.world.events.on('alert', (e) => {
+      const b1 = r.game.objectives.get('b1');
+      if (e.level === 'alarm' && b1 && !b1.hidden && !b1.done) r.flags.alarmBeforeBreach = true;
+    });
+  },
   jammerDown(r, o) { const j = r.world.structures.find((s) => s.id === (o.arg || o)); return !!j && (j.dead || !!j.st.unpowered); },
   cacheFound(r) { return !!r.flags['pickup:designator']; },
   stealthBreach(r) { return r.game.objectives.get('b1')?.done && !r.flags.alarmBeforeBreach; },

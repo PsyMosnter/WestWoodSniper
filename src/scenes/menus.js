@@ -78,6 +78,7 @@ export class PauseScene extends MenuBase {
     this.showObj = false;
     this.addButton('RESUME', () => this.app.scenes.pop());
     this.addButton('RESTART', () => { this.app.scenes.go('game', { mission: this.game.missionId }); });
+    if (this.app.checkpoint?.mission === this.game.missionId) this.addButton('LAST CHECKPOINT', () => { this.app.scenes.go('game', { mission: this.game.missionId, checkpoint: true }); });
     this.addButton('OBJECTIVES', () => { this.showObj = !this.showObj; });
     this.addButton('SETTINGS', () => this.app.scenes.push('settings', {}));
     this.addButton('QUIT TO MAP', () => this.app.scenes.go(this.app.hasScene('campaign') ? 'campaign' : 'title', {}));

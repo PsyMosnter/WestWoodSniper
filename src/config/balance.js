@@ -225,6 +225,11 @@ export const BALANCE = {
     hardenedMult: 0.25,
   },
 
+  tunnel: {
+    guardFight: 2,        // extra seconds underground when a guard is inside (M6 culvert Sniffer)
+    guardDamage: 18,      // the one bite it gets in before WREN deals with it
+  },
+
   friendly: {
     followMin: 1, followMax: 3,
     freeTime: 2,

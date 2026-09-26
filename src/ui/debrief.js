@@ -32,6 +32,9 @@ export class DebriefScene extends MenuBase {
       writeSave(save);
     }
     const next = MISSION_ORDER[MISSION_ORDER.indexOf(p.mission) + 1];
+    if (p.won) this.app.checkpoint = null;
+    // M6/M7: a failed run can pick up from the mid-mission checkpoint (SPEC §17.8)
+    const cp = !p.won && this.app.checkpoint?.mission === p.mission;
     this.cont = this.addButton(p.won ? 'CONTINUE' : 'RETRY', () => {
       if (!p.won) this.app.scenes.go('game', { mission: p.mission });
       else if (this.app.hasScene('campaign')) this.app.scenes.go('campaign', { focus: next });
@@ -39,16 +42,20 @@ export class DebriefScene extends MenuBase {
       else this.app.scenes.go('title', {});
     }, { color: C.uiAmber });
     this.quit = this.addButton(p.won ? 'REPLAY' : 'QUIT', () => p.won ? this.app.scenes.go('briefing', { mission: p.mission }) : this.app.scenes.go(this.app.hasScene('campaign') ? 'campaign' : 'title', {}));
+    this.cp = cp ? this.addButton('CHECKPOINT', () => this.app.scenes.go('game', { mission: p.mission, checkpoint: true }), { color: C.uiAmber }) : null;
+    if (this.cp) this.cont.text = 'RESTART';
   }
   resize(W, H) {
     const B = Math.max(26, this.app.display.buttonSize);
     // centred (the scope's FIRE button lives bottom-right — a late tap must not hit RETRY)
-    this.cont.place(Math.round(W / 2 + 4), H - 10 - B, 120, B);
-    this.quit.place(Math.round(W / 2 - 4 - 100), H - 10 - B, 100, B);
+    const row = [this.quit, this.cont, this.cp].filter(Boolean), bw = row.length > 2 ? 100 : 120, g = 8;
+    const total = row.reduce((s, b) => s + (b === this.quit ? 100 : bw), 0) + g * (row.length - 1);
+    let x = Math.round(W / 2 - total / 2);
+    for (const b of row) { const w = b === this.quit ? 100 : bw; b.place(x, H - 10 - B, w, B); x += w + g; }
   }
   onPointerDown(p) { if (this.t < 1.1) return; super.onPointerDown(p); }
   frame(dt) { this.t += dt; }
-  onKeyDown(code) { if (code === 'Enter' || code === 'Space') this.cont.onPress(); }
+  onKeyDown(code) { if (code === 'Enter' || code === 'Space') (this.cp || this.cont).onPress(); }
   render(ctx) {
     const { W, H } = this.app.display, p = this.p, s = p.stats;
     ctx.fillStyle = '#0B0E0C'; ctx.fillRect(0, 0, W, H);
@@ -82,7 +89,7 @@ export class DebriefScene extends MenuBase {
       drawText(ctx, m.toUpperCase(), mx + 18, y, { color: got ? C.uiText : '#3E4A40' });
       drawText(ctx, MEDAL_TEXT[m], mx + 18, y + 8, { font: '3x5', color: got ? C.uiTextD : '#2E3A30' });
     });
-    if (!p.won && p.reason) drawText(ctx, p.reason.toUpperCase(), 16, H - 34, { color: C.uiAlert, font: '3x5' });
+    if (!p.won && p.reason) drawText(ctx, p.reason.toUpperCase(), W / 2, this.cont.y - 10, { color: C.uiAlert, font: '3x5', align: 'center' });
     if (p.debugRun) drawText(ctx, 'DEBUG RUN — PROGRESS NOT SAVED', W - 8, 8, { font: '3x5', color: C.uiGrey, align: 'right' });
     for (const b of this.buttons) b.enabled = this.t >= 1.1;
     this.drawButtons(ctx);

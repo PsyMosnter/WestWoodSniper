@@ -10,7 +10,13 @@ import { bloodDecal } from '../render/decals.js';
 export function damageOperative(sys, dmg, from, kind = 'bullet') {
   const w = sys.world, op = w.operative;
   if (op.dead || sys.godMode) return 0;
-  dmg = Math.max(1, Math.round(dmg));
+  if (kind === 'fire' || kind === 'fallout') {
+    // damage over time arrives in per-tick slivers: bank it and apply whole points (rounding each
+    // sliver up to 1 would turn 4 dps into 30 dps at the 30 Hz sim rate)
+    op.dotBank = (op.dotBank || 0) + dmg;
+    if (op.dotBank < 1) return 0;
+    dmg = Math.floor(op.dotBank); op.dotBank -= dmg;
+  } else dmg = Math.max(1, Math.round(dmg));
   op.hp = Math.max(0, op.hp - dmg);
   op.flashT = BALANCE.operative.hitFlash;
   op.hurtT = BALANCE.scope.swayHurtTime;

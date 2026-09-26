@@ -24,6 +24,7 @@ export class StrikeSystem {
     this.target = null;
     this.t = 0;
     this.fallout = [];        // {x,y,t}
+    this.craters = [];        // {x,y} — kept for checkpoints
     this.cloud = null;        // {x,y,t}
     this.flashT = 0;
     this.blindOp = 0;
@@ -66,6 +67,22 @@ export class StrikeSystem {
     g.audio?.play?.('laser');
     return true;
   }
+  /** Is WREN inside the lethal outer radius of the painted point? */
+  opInBlast() {
+    const op = this.world.operative, t = this.target;
+    return !!t && !op.dead && Math.hypot(op.x - t.x, op.y - t.y) <= S.outer;
+  }
+  /** The dot's tile plus the beam's tiles within `beamSuspicionTiles` of it (what the enemy can spot). */
+  beamTiles() {
+    const op = this.world.operative, t = this.target;
+    const d = Math.hypot(op.x - t.x, op.y - t.y) || 1, ux = (op.x - t.x) / d, uy = (op.y - t.y) / d;
+    const out = [];
+    for (let k = 0; k <= Math.min(S.beamSuspicionTiles, d); k++) {
+      const p = { x: Math.floor(t.x + ux * k), y: Math.floor(t.y + uy * k) };
+      if (!out.some((q) => q.x === p.x && q.y === p.y)) out.push(p);
+    }
+    return out;
+  }
   breakChannel(why) {
     this.state = 'idle'; this.target = null;
     this.game.hud.toast('LASER LOST — ' + why, C.uiAmber, 1.6);
@@ -90,17 +107,17 @@ export class StrikeSystem {
       // the laser is visible: enemies seeing the dot or the last 4 tiles of the beam grow suspicious along it
       if ((this.susT = (this.susT || 0) - dt) <= 0) {
         this.susT = 0.5;
+        const tt = this.target, pts = this.beamTiles();
         for (const u of w.units) {
-          if (u.dead || u.hidden || u.state === 'combat' || !u.goTo) continue;
-          const tt = this.target;
-          const seesDot = Math.hypot(u.x - tt.x, u.y - tt.y) < 12 && canSee(w.map, u.tx, u.ty, Math.floor(tt.x), Math.floor(tt.y), {});
-          if (seesDot) { makeSuspicious(u, op.x, op.y); u.tag = { text: '?', t: 1.2 }; }
+          if (u.dead || u.hidden || u.state === 'combat' || !u.goTo || u.blindT > 0) continue;
+          if (Math.hypot(u.x - tt.x, u.y - tt.y) >= 12) continue;
+          if (pts.some((p) => canSee(w.map, u.tx, u.ty, p.x, p.y, {}))) { makeSuspicious(u, op.x, op.y); u.tag = { text: '?', t: 1.2 }; }
         }
       }
       if (this.t >= S.channel) {
         op.designator--;
         this.state = 'inbound'; this.t = S.inbound;
-        g.hud.say('Strike confirmed. Impact in eight.', true);
+        g.hud.say(this.opInBlast() ? 'Strike confirmed. Impact in eight — you\'re danger close, WREN, MOVE!' : 'Strike confirmed. Impact in eight.', true);
         w.alerts.raiseAll('alarm', 'strike inbound');
         g.audio?.play?.('whistle');
       }
@@ -130,31 +147,37 @@ export class StrikeSystem {
       } else if (d <= S.flash && u.kind !== 'vehicle') { u.blindT = S.blindTime; u.det = 0; }
     }
     for (const f of w.friendlies) if (!f.dead && inR(f.x, f.y, S.outer)) g.friendlies?.damage(f, f.maxHp * (inR(f.x, f.y, S.inner) ? 1 : S.outerFrac) + 1, tg);
-    // structures (hardened take 25 %)
+    // structures (hardened ones take 25 % — structures.damage() applies that multiplier itself)
     for (const s of w.structures) {
       if (s.dead) continue;
       const d = s.distTo(tg.x, tg.y);
-      if (d <= S.inner) { if (s.hardened) g.structures.damage(s, s.maxHp * S.hardenedMult); else g.structures.destroy(s, { by: 'strike' }); }
-      else if (d <= S.outer) g.structures.damage(s, s.maxHp * S.outerFrac * (s.hardened ? S.hardenedMult : 1));
+      if (d <= S.inner) { if (s.hardened) g.structures.damage(s, s.maxHp, { by: 'strike' }); else g.structures.destroy(s, { by: 'strike' }); }
+      else if (d <= S.outer) g.structures.damage(s, s.maxHp * S.outerFrac, { by: 'strike' });
     }
     // WREN: dies inside the outer radius; blinded in the flash radius unless hunkered
     const dop = Math.hypot(op.x - tg.x, op.y - tg.y);
     if (dop <= S.outer) g.combat.damageOp(9999, tg, 'strike');
     else if (dop <= S.flash && !op.hunkered) this.blindOp = S.blindTime;
     // crater (impassable 3×3 centre, rubble ring) + fallout
-    const cx = Math.floor(tg.x), cy = Math.floor(tg.y);
-    for (let yy = cy - 3; yy <= cy + 3; yy++) for (let xx = cx - 3; xx <= cx + 3; xx++) {
-      if (!w.map.inb(xx, yy)) continue;
-      if (Math.abs(xx - cx) <= 1 && Math.abs(yy - cy) <= 1) w.map.setBlocked(xx, yy, true);
-      else if (Math.hypot(xx - cx, yy - cy) <= 3 && w.map.cost[w.map.idx(xx, yy)] < Infinity && w.map.structure[w.map.idx(xx, yy)] < 0) w.map.setOverlay(xx, yy, 'u');
-      g.renderer?.terrain.invalidateTile(xx, yy);
-    }
-    g.renderer?.terrain.addDecal(craterDecal(tg.x, tg.y, 5, 99));
+    this.crater(tg.x, tg.y);
     this.fallout.push({ x: tg.x, y: tg.y, t: S.falloutTime });
     g.combat.particles.debris(tg.x, tg.y, 80, ['#2A2426', '#4A3A36', '#FF7A1A', '#FFC24A']);
     g.combat.particles.smoke(tg.x, tg.y, 40, 3);
     this.target = null;
     w.events.emit('strike', { x: tg.x, y: tg.y });
+  }
+  /** Scar the ground: impassable 3×3 centre, rubble ring, scorch decal. Also used to restore checkpoints. */
+  crater(x, y) {
+    const g = this.game, m = this.world.map;
+    const cx = Math.floor(x), cy = Math.floor(y);
+    this.craters.push({ x, y });
+    for (let yy = cy - 3; yy <= cy + 3; yy++) for (let xx = cx - 3; xx <= cx + 3; xx++) {
+      if (!m.inb(xx, yy)) continue;
+      if (Math.abs(xx - cx) <= 1 && Math.abs(yy - cy) <= 1) m.setBlocked(xx, yy, true);
+      else if (Math.hypot(xx - cx, yy - cy) <= 3 && m.cost[m.idx(xx, yy)] < Infinity && m.structure[m.idx(xx, yy)] < 0) m.setOverlay(xx, yy, 'u');
+      g.renderer?.terrain.invalidateTile(xx, yy);
+    }
+    g.renderer?.terrain.addDecal(craterDecal(x, y, 5, 99));
   }
 
   // ---------------------------------------------------------------- drawing
@@ -180,6 +203,9 @@ export class StrikeSystem {
     if (this.state === 'inbound' && this.target) {
       const t = this.target;
       const blink = Math.floor(Time.realTime * 4) & 1;
+      // the kill zone, unmistakable on any ground
+      ctx.fillStyle = `rgba(255,90,58,${blink ? 0.24 : 0.14})`;
+      ctx.beginPath(); ctx.arc(Math.round(r.sx(t.x)), Math.round(r.sy(t.y)), S.outer * TILE * r.cam.zoom, 0, Math.PI * 2); ctx.fill();
       dashedCircle(ctx, r, t.x, t.y, S.outer, blink ? C.uiAlert : '#FFFFFF');
       dashedCircle(ctx, r, t.x, t.y, S.inner, C.uiAlert);
       drawText(ctx, `IMPACT ${Math.max(0, this.t).toFixed(1)}`, r.sx(t.x), r.sy(t.y) - 8, { color: C.uiAlert, align: 'center', bold: true, shadow: '#000' });
@@ -191,7 +217,10 @@ export class StrikeSystem {
   drawScreen(ctx, W, H) {
     if (this.flashT > 0) { ctx.fillStyle = '#FFFFFF'; ctx.fillRect(0, 0, W, H); }
     if (this.blindOp > 0) { ctx.fillStyle = `rgba(255,255,255,${Math.min(0.85, this.blindOp / S.blindTime).toFixed(2)})`; ctx.fillRect(0, 0, W, H); }
-    if (this.state === 'inbound') drawText(ctx, `STRIKE INBOUND ${Math.max(0, this.t).toFixed(1)}`, W / 2, 40, { color: C.uiAlert, align: 'center', bold: true, scale: 2, shadow: '#000' });
+    if (this.state === 'inbound') {
+      drawText(ctx, `STRIKE INBOUND ${Math.max(0, this.t).toFixed(1)}`, W / 2, 40, { color: C.uiAlert, align: 'center', bold: true, scale: 2, shadow: '#000' });
+      if (this.opInBlast() && (Math.floor(Time.realTime * 3) & 1)) drawText(ctx, 'YOU ARE INSIDE THE BLAST RING — MOVE!', W / 2, 60, { color: '#FFFFFF', align: 'center', shadow: C.uiAlert });
+    }
   }
 }
 

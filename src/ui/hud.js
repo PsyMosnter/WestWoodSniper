@@ -177,6 +177,7 @@ export class Hud {
       }
     }
     for (const b of Object.values(this.buttons)) b.draw(ctx);
+    this._countdown(ctx);
     // --- status (bottom-left or right if lefty)
     const sw = 148, sh = 32;
     const sx = this.lefty ? this.R - sw : this.L, sy = this.Bot - sh;
@@ -231,6 +232,19 @@ export class Hud {
       ctx.fillRect(0, 0, W, 2); ctx.fillRect(0, H - 2, W, 2); ctx.fillRect(0, 0, 2, H); ctx.fillRect(W - 2, 0, 2, H);
     }
     ctx.globalAlpha = 1;
+  }
+  /** Mission clock (M6 shift change) under the minimap buttons; red and blinking for the last 10 s. */
+  _countdown(ctx) {
+    const cd = this.game.countdown, now = this.world.time;
+    if (!cd || now >= cd.until) return;
+    const left = cd.until - now;
+    const txt = `${cd.label} ${Math.floor(left / 60)}:${String(Math.floor(left % 60)).padStart(2, '0')}`;
+    const mm = this.minimap, pb = this.buttons.pause;
+    const tw = measureText(txt, { font: '3x5' }) + 10, th = 11;
+    const x = mm.x + mm.w - tw, y = pb.y + pb.h + 4;
+    const urgent = left < 10;
+    panel(ctx, x, y, tw, th, { alpha: 0.9, rivets: false, fill: urgent ? '#2A0E0A' : '#141A15' });
+    drawText(ctx, txt, x + tw / 2, y + 3, { font: '3x5', color: urgent && (Math.floor(Time.realTime * 4) & 1) ? '#FFFFFF' : urgent ? C.uiAlert : C.uiAmber, align: 'center' });
   }
   /** Briefly expand the objectives panel (mission start, objective changes). */
   peekObjectives(sec = 4) { this.objPeek = sec; }

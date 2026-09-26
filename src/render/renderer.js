@@ -92,7 +92,7 @@ export class Renderer {
     for (const f of this.layers.effects) f(ctx, this, alpha);
     this.fogR.draw(ctx, cam);
     // progress bar for timed actions (planting C4, medkit, freeing a captive)
-    if (!op.dead && !op.hidden && op.busy && op.busy.dur > 0 && this._opCx !== undefined) {
+    if (!op.dead && !op.hidden && op.busy && op.busy.dur > 0 && op.busy.kind !== 'takedown' && this._opCx !== undefined) {
       const k = Math.min(1, op.busy.t / op.busy.dur);
       const bx = this._opCx - 10, by = this._opCy - 26 * z;
       ctx.fillStyle = '#07090A'; ctx.fillRect(bx - 1, by - 1, 22, 5);

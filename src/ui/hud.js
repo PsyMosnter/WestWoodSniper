@@ -36,6 +36,7 @@ export class Hud {
     b({ id: 'smoke', icon: 'smoke', label: 'SMOKE', onPress: () => game.cmd('smoke') });
     b({ id: 'detonate', icon: 'detonate', label: 'BOOM', onPress: () => game.cmd('detonate') });
     b({ id: 'plant', icon: 'c4', label: 'PLANT', color: C.uiAmber, onPress: () => game.cmd('plantConfirm') });
+    b({ id: 'takedown', icon: 'knife', label: 'TAKEDOWN', color: C.uiAmber, onPress: () => game.cmd('takedown') });
     this.healthRect = { x: 0, y: 0, w: 0, h: 0 };
     this.objRect = { x: 0, y: 0, w: 0, h: 0 };
     this.active = new Map(); // pointer id → button
@@ -67,6 +68,7 @@ export class Hud {
     bs.smoke.place(X(2), y2, B, B);
     bs.convoy.place(X(0), y3, B, B);
     bs.plant.place(lefty ? W - m - 2 * B - 150 : L + m + 150, H - m - B, 2 * B, B);
+    bs.takedown.place(X(2), y3, B, B);                     // above SMOKE, with the other action buttons
     bs.follow.place(X(1), y3, B, B);
     this.lefty = lefty;
   }
@@ -143,6 +145,7 @@ export class Hud {
     bs.follow.visible = (g.escortCount?.() || 0) >= 2; bs.follow.label = g.escortsHolding?.() ? 'FOLLOW' : 'HOLD';
     bs.cover.active = op.stance === 'cover';
     bs.plant.visible = !!g.c4?.pending;
+    bs.takedown.visible = !g.scopeOpen && !!g.takedown?.target();
     bs.c4.active = g.mode === 'c4';
     const hunkerBusy = !!op.trans && (op.trans.to === 'hunker' || op.trans.from === 'hunker');
     bs.hunker.progress = hunkerBusy && op.trans ? op.trans.t / op.trans.dur : -1;

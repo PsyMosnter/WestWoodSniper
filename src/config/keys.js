@@ -16,4 +16,5 @@ export const KEYS = {
   convoy: 'KeyV',
   follow: 'KeyF',
   smoke: 'KeyK',
+  takedown: 'KeyE',
 };

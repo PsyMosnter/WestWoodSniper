@@ -39,6 +39,7 @@ import { TunnelSystem } from '../world/tunnels.js';
 import { snapshot, restore } from '../missions/checkpoint.js';
 import { NoiseIndicator } from '../ui/noise.js';
 import { TerrainTrails } from '../render/terrainCover.js';
+import { Takedown } from '../combat/takedown.js';
 
 /**
  * The in-mission scene: world simulation, camera, input → commands, renderer and HUD.
@@ -92,6 +93,7 @@ export class GameScene {
     this.tunnels = new TunnelSystem(this);               // culverts (M6) — hides their guards
     this.noise = new NoiseIndicator(this);               // noise rings + HUD meter (how far a sound carries)
     this.trails = new TerrainTrails(this);               // WREN's fading trail through tall grass / shallow water
+    this.takedown = new Takedown(this);                  // silent takedown of an unaware soldier within reach
     this.scope = new Scope(this);
     this.engage = new Engage(this);
     this.hitMarks = [];
@@ -111,7 +113,7 @@ export class GameScene {
     this.renderer.layers.effects.push((ctx, r) => this._drawSmoke(ctx, r));
     // darkness goes over the sprites but under muzzle flashes, tracers and explosions
     this.renderer.layers.effects.unshift((ctx, r) => this.lighting.draw(ctx, r));
-    this.renderer.layers.overFog.push((ctx, r) => { this.noise.draw(ctx, r); this.tunnels.draw(ctx, r); this.strike.draw(ctx, r); });
+    this.renderer.layers.overFog.push((ctx, r) => { this.noise.draw(ctx, r); this.tunnels.draw(ctx, r); this.strike.draw(ctx, r); this.takedown.draw(ctx, r); });
     this.gestures = new Gestures(this._gestureHandlers());
     this.resize(this.app.display.W, this.app.display.H);
     const cp = this.params.checkpoint && this.app.checkpoint;
@@ -204,6 +206,7 @@ export class GameScene {
         break;
       case 'detonate': this.c4.detonateRemote(); break;
       case 'designator': this.strike.toggleTargeting(); break;
+      case 'takedown': this.takedown.perform(); break;
       case 'convoy': this.convoy?.toggle(); break;
       case 'followAll': this.friendlies.toggleAll(); break;
       default:
@@ -273,6 +276,7 @@ export class GameScene {
       return;
     }
     if (c4t && op.c4 <= 0 && !unit) this.runner.showTutorial('structs', 'Buildings', 'No C4 left. Long-press a building to aim at its weak points with the rifle — gunners, searchlights, dishes, coolant tanks.');
+    if (unit && !this.takedown.blocker(unit)) { this.takedown.perform(unit); return; }   // within reach & unaware: silent
     if (unit) {
       this.engage.engage(unit, { force: !!info?.shift });
       this.renderer.addMarker(unit.x, unit.y, 'tap', '#FF5A3A');
@@ -282,7 +286,10 @@ export class GameScene {
     this.lastTapUnit = null;
     this.engage.cancel();
     if (this.tunnels.tap(t.x, t.y)) { this.renderer.addMarker(t.x + 0.5, t.y + 0.5, 'tap', '#7CFF7A'); return; }
-    const ok = op.orderMove(t.x, t.y, 'walk');
+    // flat (hunkered, or getting down): a tap low-crawls there; double-tap / HUNKER gets up
+    const flat = op.stance === 'hunker' || (!!op.trans && op.trans.to === 'hunker');
+    const ok = op.orderMove(t.x, t.y, flat ? 'crawl' : 'walk');
+    if (ok && flat) this.runner.showTutorial('crawl', 'Low crawl', 'Flat on the ground, a tap crawls: very slow, still flat and all but silent. Get close enough to an unaware soldier and you can take them down without a shot. Double-tap or press HUNKER to get up.');
     if (ok) {
       this.renderer.addMarker(t.x + 0.5, t.y + 0.5, 'tap', '#7CFF7A');
       this.audio?.tick?.();
@@ -400,6 +407,7 @@ export class GameScene {
     else if (code === K.pause && this.mode === 'designator') this.strike.toggleTargeting();   // Esc leaves targeting first
     else if (code === K.pause) this.cmd('pause');
     else if (code === K.medkit) this.cmd('medkit');
+    else if (code === K.takedown) this.cmd('takedown');
     else if (code === K.debug) this.debug = !this.debug;
     else if (code === 'KeyR' && this.debug) this.world.fog.revealAll = !this.world.fog.revealAll;
   }
@@ -420,6 +428,7 @@ export class GameScene {
     this.strike.update(dt);
     this.tunnels.update(dt);
     this.noise.update(dt);
+    if (!this._takedownTip && this.takedown.target()) { this._takedownTip = true; this.runner.showTutorial('takedown', 'Silent takedown', 'Within reach and they haven\'t seen you: press TAKEDOWN (or tap them). No ammo, barely a sound — but the body stays where it falls, and anyone watching sees it happen.'); }
     this.trails.update(dt);
     this.combat.update(dt);
     this.engage.update(dt);

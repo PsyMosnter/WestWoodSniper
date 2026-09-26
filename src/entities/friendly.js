@@ -222,7 +222,8 @@ export class FriendlySystem {
       if (f.mode === 'hold') { f.hiding = true; f.path = []; f.px = f.x; f.py = f.y; continue; }
       // follow: stay 1–3 tiles behind WREN, copy crouch/hunker as "hide"
       const d = Math.hypot(op.x - f.x, op.y - f.y);
-      f.hiding = !op.moving && (op.stance === 'crouch' || op.stance === 'cover' || op.stance === 'hunker') && d <= F.followMax + 0.5;
+      // while WREN low-crawls they keep their heads down and creep after him
+      f.hiding = (op.crawling || (!op.moving && (op.stance === 'crouch' || op.stance === 'cover' || op.stance === 'hunker'))) && d <= F.followMax + 0.5;
       if (d > F.followMax) {
         f.repathT = (f.repathT || 0) - dt;
         if (!f.path.length || f.repathT <= 0) {
@@ -235,7 +236,7 @@ export class FriendlySystem {
       // can't run for more than 3 s at a time (exhausted)
       const wantRun = d > 5 && op.mode === 'run';
       f.runT = wantRun ? f.runT + dt : Math.max(0, f.runT - dt * 0.5);
-      const sp = wantRun && f.runT < f.def.runLimit ? f.def.speed * 1.7 : f.def.speed;
+      const sp = wantRun && f.runT < f.def.runLimit ? f.def.speed * 1.7 : op.crawling ? f.def.speed * 0.5 : f.def.speed;
       f.step(dt, sp);
     }
   }

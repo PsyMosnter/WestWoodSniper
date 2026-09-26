@@ -56,7 +56,7 @@ export class NoiseIndicator {
     let cur = 0;
     if (op.moving && !op.hidden && !op.dead) {
       if (op.mode === 'run') cur = BALANCE.noise.run;
-      cur = Math.max(cur, TERRAIN[m.terrain[m.idx(op.tx, op.ty)]].noise || 0);
+      cur = Math.max(cur, (TERRAIN[m.terrain[m.idx(op.tx, op.ty)]].noise || 0) * (op.mode === 'crawl' ? BALANCE.stances.crawl.noiseMult : 1));
     }
     return Math.max(cur, this.peakT < HOLD ? this.peak : 0);
   }

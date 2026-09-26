@@ -22,7 +22,7 @@ function zonesOf(type, pose, dir, frame = 0, variant = '') {
 const AWAY = 0, EAST = 2, TOWARDS = 4, WEST = 6;
 
 test('every New infantry frame renders inside its canvas (nothing clipped at the edges)', () => {
-  const poses = [['idle', 1], ['walk', 4], ['run', 4], ['crouch', 1], ['cover', 1], ['fire', 2], ['pistol', 4], ['prone', 4], ['dead', 4]];
+  const poses = [['idle', 1], ['walk', 4], ['run', 4], ['crouch', 1], ['cover', 1], ['fire', 2], ['pistol', 4], ['prone', 1], ['crawl', 4], ['dead', 4]];
   for (const type of Object.keys(INFANTRY)) for (const [pose, frames] of poses) for (let f = 0; f < frames; f++) for (let d = 0; d < 8; d++) {
     const { pix, zone, w, h } = renderInfantry(type, pose, d, f);
     assert.equal(zone.length, w * h);
@@ -34,6 +34,17 @@ test('every New infantry frame renders inside its canvas (nothing clipped at the
     }
     assert.ok(body > 20, `${type} ${pose}${f} dir ${d} is visible`);
     assert.equal(edge, 0, `${type} ${pose}${f} dir ${d} touches the canvas edge`);
+  }
+});
+
+test("WREN hunkered: a flat sniper under a ghillie scrim; crawling cycles through four different frames", () => {
+  for (let d = 0; d < 8; d++) {
+    const prone = renderInfantry('operative', 'prone', d, 0), stand = renderInfantry('operative', 'crouch', d, 0);
+    const rows = (s) => { let top = s.h, bot = 0; for (let i = 0; i < s.zone.length; i++) if (s.pix.data[i] >>> 24) { const y = Math.floor(i / s.w); top = Math.min(top, y); bot = Math.max(bot, y); } return s.ay - top; };
+    assert.ok(rows(prone) < rows(stand), `dir ${d}: lower than kneeling`);
+    const frames = [0, 1, 2, 3].map((f) => Array.from(renderInfantry('operative', 'crawl', d, f).pix.data).join(','));
+    assert.equal(new Set(frames).size, 4, `dir ${d}: four distinct crawl frames`);
+    assert.ok(zonesOf('operative', 'crawl', d).head > 0);
   }
 });
 

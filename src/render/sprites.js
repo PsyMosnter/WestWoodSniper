@@ -47,6 +47,7 @@ export function unitSprite(type, pose, dir, frame = 0, variant = '') {
   } else {
     const pal = PALETTES[def.pal];
     const view = viewForDir(dir);
+    if (pose === 'crawl') pose = 'prone';            // Classic has one flat pose for hunker and crawl
     let pix;
     if (pose === 'dead') pix = drawDeath(def.base, pal, view, frame);
     else {

@@ -142,7 +142,7 @@ export class GameScene {
     const NOT_POSES = [['idle', 1], ['walk', 4], ['run', 4], ['fire', 2], ['crouch', 1], ['dead', 4]];
     const types = new Set(this.world.units.filter((u) => u.def?.kind === 'infantry' || u.def?.kind === 'beast').map((u) => u.type));
     this.warm = warmQueue([
-      { type: 'operative', poses: [['crouch', 1], ['walk', 4], ['run', 4], ['prone', 4], ['fire', 2], ['cover', 1], ['pistol', 4], ['idle', 1]] },
+      { type: 'operative', poses: [['crouch', 1], ['walk', 4], ['run', 4], ['prone', 1], ['crawl', 4], ['fire', 2], ['cover', 1], ['pistol', 4], ['idle', 1], ['dead', 4]] },
       ...[...types].map((type) => ({ type, poses: NOT_POSES })),
       ...[...new Set((this.world.friendlies || []).filter((f) => f.kind !== 'vehicle').map((f) => f.type))].map((type) => ({ type, poses: [['idle', 1], ['walk', 4], ['crouch', 1], ['prone', 1]] })),
     ]);

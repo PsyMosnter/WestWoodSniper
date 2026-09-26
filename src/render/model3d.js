@@ -33,10 +33,19 @@ export function norm(v) { const l = Math.hypot(v[0], v[1], v[2]) || 1; return [v
 export function project(p) { return [p[0], p[1] * SEL - p[2] * CE]; }
 
 /**
- * @typedef {{ramp: string[], weight?: number, emissive?: boolean, flat?: number}} Material
+ * @typedef {{ramp: string[], weight?: number, emissive?: boolean, flat?: number, mottle?: number}} Material
  *   ramp: dark → light colours; weight: vote weight when downsampling (thin/important parts > 1);
- *   emissive: ignores light (glows); flat: fixed ramp index offset
+ *   emissive: ignores light (glows); flat: fixed ramp index offset; mottle: blotchy light variation
+ *   fixed to the surface (ghillie scrim, foliage)
  */
+
+/** Deterministic 0..1 hash of an integer lattice point (for mottled materials). */
+function hash3(x, y, z) {
+  let h = Math.imul(x, 374761393) ^ Math.imul(y, 668265263) ^ Math.imul(z, 1274126177);
+  h = Math.imul(h ^ (h >>> 13), 1103515245);
+  return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
+}
+const MOTTLE_CELL = 1.1;
 
 /** Primitive list for one frame, all in world space. */
 export class Model {
@@ -234,6 +243,10 @@ export function rasterize(model, o) {
         const nl = Math.hypot(nv[0], nv[1], nv[2]) || 1;
         const dl = (nv[0] * LIGHT[0] + nv[1] * LIGHT[1] + nv[2] * LIGHT[2]) / nl, dv = (nv[1] * VIEW[1] + nv[2] * VIEW[2]) / nl;
         l = AMB + KEY * Math.max(0, dl) + FILL * Math.max(0, dv);
+        if (bp.mat.mottle) {
+          const c = 1 / MOTTLE_CELL;
+          l += (hash3(Math.floor(ox * c), Math.floor((oy + bt * RY) * c), Math.floor((oz + bt * RZ) * c)) - 0.5) * bp.mat.mottle;
+        }
       }
       sM[n] = bp.mi; sL[n] = l; sT[n] = bt; sZ[n] = zz; sP[n] = bp.part; n++;
     }

@@ -45,6 +45,8 @@ const M = {
   antenna: { ramp: ramp('#3A4045', '#76828A', '#9EA9B0'), weight: 4 },
   gearBox: { ramp: ramp('#3A4248', '#5E6A72', '#84929A', '#AAB8C0', '#CAD6DC') },
   hide: { ramp: ramp('#2A2016', '#44351F', '#5E4A2C', '#7A6240') },
+  // WREN's ghillie scrim when hunkered: olive to dry-grass, blotchy
+  ghillie: { ramp: ramp('#22281A', '#343E24', '#4A5630', '#62703C', '#7E8446', '#9C9458'), mottle: 0.55 },
   // non-combatants
   flight: { ramp: ramp('#5A2A10', '#8E4A20', '#C0682E', '#E08A46', '#F4AA6A') },
   flightD: { ramp: ramp('#40200C', '#643618', '#8A4E24', '#A8663A') },
@@ -209,7 +211,7 @@ function build(T, pose, dir, frame) {
     m.hold = deadPose >= 2 ? 'drop' : 'flail';
     if (deadPose >= 1) { m.hipZ -= deadPose === 1 ? 1.4 : 1.0; m.lean = -0.1; m.feet = [[0.9, -1.2, 0], [0.5, 1.2, 0]]; }
   }
-  if (pose === 'prone') return prone(T, r, frame);
+  if (pose === 'prone' || pose === 'crawl') return T.ghillie ? wrenProne(T, r, pose === 'crawl', frame) : prone(T, r, frame);
   if (T.species === 'god') human(T, r, m, pose);
   else alien(T, r, m, pose);
   return r.m;
@@ -561,6 +563,75 @@ function prone(T, r, frame) {
   return r.m;
 }
 
+// ---------- WREN hunkered: sniper prone under a ghillie scrim, and the low crawl ----------
+/**
+ * Static hunker: flat behind the rifle on its bipod, legs spread, a ghillie scrim over back and helmet.
+ * Crawl (4 frames): forearm crawl — one arm reaches while the opposite knee draws up, hips swaying,
+ * the rifle carried along the right forearm.
+ */
+function wrenProne(T, r, crawling, frame) {
+  const mt = T.mats, ph = (frame & 3) * Math.PI / 2;
+  const s = crawling ? Math.round(Math.cos(ph)) : 0;   // reach: +1 right arm forward, -1 left, 0 passing
+  const sway = crawling ? Math.round(Math.sin(ph)) : 0; // hips swing to one side between reaches
+  const flat = [[1, 0, 0], [0, 1, 0], [0, 0, 1]];
+  const hipY = -0.35 * s + 0.45 * sway, lay = crawling ? 0.85 : 0.9;
+  const chestZ = crawling ? 1.05 : 1.3;               // up on the elbows behind the scope
+  const hips = [-1.3, hipY, lay], chest = [1.15, 0.15 * s - 0.2 * sway, chestZ];
+  // legs
+  for (const side of [-1, 1]) {
+    r.part();
+    const hip = [-1.6, hipY + side * 0.8, lay - 0.05];
+    let knee, foot;
+    if (!crawling) { knee = [-4.0, side * 1.9, 0.6]; foot = [-6.2, side * 2.7, 0.55]; }
+    else if (side === -s) { knee = [-2.6, side * 2.7, 0.55]; foot = [-4.8, side * 2.4, 0.5]; }   // drawn up
+    else if (s) { knee = [-4.0, side * 1.35, 0.55]; foot = [-6.3, side * 1.5, 0.5]; }             // pushing straight
+    else { knee = [-3.4, side * 2.0, 0.55]; foot = [-5.6, side * 1.9, 0.5]; }
+    r.cap(hip, knee, 0.88, mt.legs, Z.limb);
+    r.cap(knee, foot, 0.76, mt.legs, Z.limb);
+    r.cap(add(foot, [0.1, 0, 0.1]), add(foot, [-0.35, side * 0.8, -0.1]), 0.55, mt.boots, Z.limb);   // toes dug in, turned out
+  }
+  // body under the scrim
+  r.part();
+  r.ell(hips, flat, [1.3, 1.35, 0.78], mt.legs, Z.torso);
+  r.ell(chest, pitchAx(crawling ? 0 : -0.16), [1.95, 1.75, 1.0], mt.torso, Z.torso);
+  r.ell(add(lerp3(hips, chest, 0.45), [0, 0, 0.55]), pitchAx(crawling ? 0 : -0.08), [3.1, 1.95, 0.72], M.ghillie, Z.torso);
+  const tufts = [[-2.2, -1.0, 0.45], [-1.2, 0.9, 0.55], [-0.2, -0.5, 0.8], [0.8, 1.2, 0.6], [1.6, -1.1, 0.65], [2.2, 0.3, 0.75], [-2.9, 0.2, 0.4]];
+  for (const [a, b, c] of tufts) r.ell(add(lerp3(hips, chest, (a + 3) / 6), [0, b, c + 0.5]), flat, [0.62, 0.5, 0.42], M.ghillie, Z.torso);
+  // head, helmet under a scrim hood; the visor still catches the light
+  r.part();
+  const head = crawling ? [3.3, 0.1 * s, 1.4] : [3.45, 0.15, 1.95];
+  r.ball(head, 1.35, mt.skin, Z.head);
+  r.ell(add(head, [-0.15, 0, 0.4]), AX, [1.7, 1.7, 1.1], mt.helmet, Z.head);
+  r.ell(add(head, [-0.45, 0, 0.75]), AX, [1.55, 1.6, 0.75], M.ghillie, Z.head);
+  r.box(add(head, [1.15, 0, -0.1]), AX, [0.4, 1.2, 0.36], mt.visor, Z.head);
+  // arms
+  const hands = [];
+  for (const side of [-1, 1]) {
+    r.part();
+    const sh = add(chest, [1.1, side * 1.55, 0.25]);
+    let el, hand;
+    if (!crawling) { el = [3.1, side * 2.15, 0.5]; hand = side < 0 ? [3.6, -0.3, 0.75] : [4.2, 0.55, 1.2]; }
+    else if (side === s) { el = [4.5, side * 1.9, 0.45]; hand = [5.5, side * 0.95, 0.45]; }      // reaching
+    else if (s) { el = [2.2, side * 2.3, 0.45]; hand = [3.2, side * 1.2, 0.45]; }                // pulling
+    else { el = [3.3, side * 2.2, 0.45]; hand = [4.3, side * 1.1, 0.45]; }
+    r.cap(sh, el, 0.66, mt.sleeves || mt.torso, Z.limb);
+    r.cap(el, hand, 0.6, mt.sleeves || mt.torso, Z.limb);
+    r.ball(hand, 0.55, mt.hands || mt.skin, Z.limb);
+    hands.push(hand);
+  }
+  if (crawling) {
+    // rifle carried along the right forearm, muzzle forward, riding low
+    gun(T, r, add(hands[1], [-0.4, 0.35, 0.15]), norm([1, -0.06, 0.02]), 'sniper', false, 1);
+  } else {
+    // shouldered on its bipod
+    const grip = [4.2, 0.55, 1.35];
+    gun(T, r, grip, [1, 0, 0], 'sniper', false, 1);
+    for (const side of [-1, 1]) r.cap([8.4, 0.55, 1.15], [8.7, 0.55 + side * 0.75, 0.05], 0.16, M.gun, Z_PASS);
+  }
+  return r.m;
+}
+const lerp3 = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
+
 // ---------- Sniffer: a low, fast quadruped ----------
 function beast(T, pose, angle, frame) {
   let xf = null;
@@ -608,7 +679,7 @@ function beast(T, pose, angle, frame) {
 const GOD_MATS = { legs: M.khakiD, torso: M.khaki, sleeves: M.khaki, boots: M.boot, skin: M.skin, hands: M.boot, helmet: M.olive, webbing: M.steel, visor: M.visor, pack: M.khakiD, roll: M.olive };
 const NOT_MATS = { legs: M.chitin, body: M.chitin, head: M.chitin, trim: M.violet, joint: M.limeDull, hock: M.violet, belt: M.lime, core: M.lime };
 export const INFANTRY = {
-  operative: { species: 'god', mats: GOD_MATS, weapon: 'sniper', pack: true, out: OUT_GOD },
+  operative: { species: 'god', mats: GOD_MATS, weapon: 'sniper', pack: true, ghillie: true, out: OUT_GOD },
   pilot: { species: 'god', mats: { legs: M.flightD, torso: M.flight, sleeves: M.flight, boots: M.boot, skin: M.skin, hands: M.boot, helmet: M.white, visor: M.darkVisor, harness: M.harness }, weapon: 'none', out: OUT_GOD },
   scientist: { species: 'god', mats: { legs: M.khakiD, torso: M.white, sleeves: M.white, boots: M.boot, skin: M.skin, hair: M.hair, badge: M.badge }, weapon: 'none', out: OUT_GOD },
   husk: { species: 'not', mats: NOT_MATS, weapon: 'rifle', gear: [], out: OUT_NOT },
@@ -629,7 +700,7 @@ export function renderInfantry(type, pose, dir, frame = 0, variant = '') {
   let T = INFANTRY[type] || INFANTRY.husk;
   if (variant === 'nohelm' && T.gear?.includes('helmet')) T = { ...T, gear: T.gear.filter((x) => x !== 'helmet') };
   const model = build(T, pose, dir, frame);
-  const lying = pose === 'prone' || (pose === 'dead' && frame >= 2);
+  const lying = pose === 'prone' || pose === 'crawl' || (pose === 'dead' && frame >= 2);
   const w = lying ? LW : NW, h = lying ? LH : NH, ax = lying ? LAX : NAX, ay = lying ? LAY : NAY;
   const { pix, zone, top } = rasterize(model, { w, h, ax, ay, outline: T.out, scale: MODEL_SCALE, soft: Z.limb });
   return { pix, zone, top, ax, ay, w, h };

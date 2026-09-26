@@ -473,7 +473,7 @@ export class Scope {
     }
     // readouts
     const t = this.target;
-    const dist = t ? Math.hypot(t.x - op.x, t.y - op.y) : 0;
+    const dist = t ? targetDist(op.x, op.y, t) : 0;
     drawText(ctx, `RNG ${dist.toFixed(1)}`, cx, cy + D / 2 - 26, { font: '3x5', color: C.uiText, align: 'center', shadow: '#000' });
     drawText(ctx, `MAX ${this.maxRange(t).toFixed(0)}`, cx, cy + D / 2 - 19, { font: '3x5', color: C.uiTextD, align: 'center', shadow: '#000' });
     // sway meter

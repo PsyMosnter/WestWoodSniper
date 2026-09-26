@@ -37,6 +37,7 @@ import { Lighting } from '../render/lighting.js';
 import { StrikeSystem } from '../strike/strike.js';
 import { TunnelSystem } from '../world/tunnels.js';
 import { snapshot, restore } from '../missions/checkpoint.js';
+import { NoiseIndicator } from '../ui/noise.js';
 
 /**
  * The in-mission scene: world simulation, camera, input → commands, renderer and HUD.
@@ -88,6 +89,7 @@ export class GameScene {
     this.lighting = new Lighting(this);                  // night/dusk darkness, light pools, searchlights (answers world.isLit)
     this.strike = new StrikeSystem(this);                // laser designator (SPEC §14)
     this.tunnels = new TunnelSystem(this);               // culverts (M6) — hides their guards
+    this.noise = new NoiseIndicator(this);               // noise rings + HUD meter (how far a sound carries)
     this.scope = new Scope(this);
     this.engage = new Engage(this);
     this.hitMarks = [];
@@ -106,7 +108,7 @@ export class GameScene {
     this.renderer.layers.effects.push((ctx, r) => this._drawSmoke(ctx, r));
     // darkness goes over the sprites but under muzzle flashes, tracers and explosions
     this.renderer.layers.effects.unshift((ctx, r) => this.lighting.draw(ctx, r));
-    this.renderer.layers.overFog.push((ctx, r) => { this.tunnels.draw(ctx, r); this.strike.draw(ctx, r); });
+    this.renderer.layers.overFog.push((ctx, r) => { this.noise.draw(ctx, r); this.tunnels.draw(ctx, r); this.strike.draw(ctx, r); });
     this.gestures = new Gestures(this._gestureHandlers());
     this.resize(this.app.display.W, this.app.display.H);
     const cp = this.params.checkpoint && this.app.checkpoint;
@@ -414,6 +416,7 @@ export class GameScene {
     this.c4.update(dt);
     this.strike.update(dt);
     this.tunnels.update(dt);
+    this.noise.update(dt);
     this.combat.update(dt);
     this.engage.update(dt);
     this.objectives.update(dt);

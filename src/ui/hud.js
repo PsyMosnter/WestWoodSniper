@@ -179,7 +179,7 @@ export class Hud {
     for (const b of Object.values(this.buttons)) b.draw(ctx);
     this._countdown(ctx);
     // --- status (bottom-left or right if lefty)
-    const sw = 148, sh = 32;
+    const sw = 148, sh = 42;
     const sx = this.lefty ? this.R - sw : this.L, sy = this.Bot - sh;
     panel(ctx, sx, sy, sw, sh, { alpha: 0.85 });
     // health bar
@@ -212,6 +212,19 @@ export class Hud {
     drawText(ctx, ammoTxt, sx + sw - 4, ey + 2, { font: '3x5', color: reloading ? C.uiAmber : C.uiText, align: 'right' });
     const st = op.trans ? op.trans.to : op.stance;
     drawText(ctx, 'STANCE ' + st.toUpperCase() + (op.runGun ? ' +PISTOL' : ''), sx + sw - 4, ey + 9, { font: '3x5', color: C.uiTextD, align: 'right' });
+    // noise meter: how far WREN's sound carries right now (anyone inside comes to look)
+    const nz = this.game.noise?.reading();
+    if (nz) {
+      const ny = sy + 31;
+      ctx.drawImage(icon('sound', nz.segs ? nz.col : C.uiTextD, '#333', nz.segs ? nz.col : '#26302A'), hx - 1, ny);
+      for (let i = 0; i < 5; i++) {
+        const bh = 2 + i;
+        ctx.fillStyle = i < nz.segs ? (i >= 3 ? C.uiAlert : i >= 2 ? C.uiAmber : C.uiText) : '#26302A';
+        ctx.fillRect(hx + 12 + i * 5, ny + 7 - bh, 4, bh);
+      }
+      drawText(ctx, nz.word, hx + 40, ny + 1, { font: '3x5', color: nz.col });
+      if (nz.lv >= 0.5) drawText(ctx, `CARRIES ${+nz.lv.toFixed(1)} TILES`, sx + sw - 4, ny + 1, { font: '3x5', color: C.uiTextD, align: 'right' });
+    }
     // --- ticker (hidden while scoped — it would bleed over the scope)
     if (!this.game.scopeOpen) this._ticker(ctx, sx, sy - 13);
     // --- toasts

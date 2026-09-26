@@ -2,6 +2,7 @@
 import { BALANCE } from '../config/balance.js';
 import { C } from '../config/palette.js';
 import { canSee } from '../world/los.js';
+import { seesTarget, targetDist } from './targeting.js';
 
 const ST = BALANCE.stances;
 
@@ -27,8 +28,9 @@ export class Engage {
     this.checkT = 0;
     this.dest = null;
     this.waitScope = false;
+    this.needHunker = false; // the chosen firing tile is only in range hunkered (SPEC §6.2 hunker range)
   }
-  cancel() { this.target = null; this.mode = null; this.waitScope = false; this.game.combat.pistol.tapped = null; }
+  cancel() { this.target = null; this.mode = null; this.waitScope = false; this.needHunker = false; this.game.combat.pistol.tapped = null; }
   rangeFrom(tx, ty, target, hunker = false) {
     const m = this.world.map;
     const adv = Math.max(0, Math.min(ST.elevRangeBonusMax, m.elevAt(tx, ty) - m.elevAt(target.tx, target.ty)));
@@ -36,8 +38,7 @@ export class Engage {
   }
   inRangeNow(target) {
     const op = this.world.operative, m = this.world.map;
-    const d = Math.hypot(target.x - op.x, target.y - op.y);
-    return d <= this.rangeFrom(op.tx, op.ty, target, op.stance === 'hunker') && canSee(m, op.tx, op.ty, target.tx, target.ty, {});
+    return targetDist(op.x, op.y, target) <= this.rangeFrom(op.tx, op.ty, target, op.stance === 'hunker') && seesTarget(m, op.tx, op.ty, target);
   }
   /**
    * @param {any} target
@@ -83,11 +84,12 @@ export class Engage {
       if (!m.inb(x, y)) continue;
       const i = m.idx(x, y);
       if (field[i] === Infinity || m.cost[i] === Infinity) continue;
-      const d = Math.hypot(t.x - (x + 0.5), t.y - (y + 0.5));
-      const range = this.rangeFrom(x, y, t);
-      if (d > range - 0.3 || d < 2.2) continue;
-      if (!canSee(m, x, y, t.tx, t.ty, {})) continue;
-      let score = field[i];
+      const d = targetDist(x + 0.5, y + 0.5, t);
+      // tiles only in range hunkered (the extra 2 tiles) are allowed, at a small cost: walk there & hunker
+      if (d > this.rangeFrom(x, y, t, true) - 0.3 || d < 2.2) continue;
+      const hunk = d > this.rangeFrom(x, y, t) - 0.3;
+      if (!seesTarget(m, x, y, t)) continue;
+      let score = field[i] + (hunk ? 4 : 0);
       let seen = 0;
       for (const u of known) {
         const ud = Math.hypot(u.x - (x + 0.5), u.y - (y + 0.5));
@@ -101,11 +103,13 @@ export class Engage {
       score -= 3 * Math.max(0, m.elev[i] - m.elev[m.idx(t.tx, t.ty)]);
       // prefer not to stand closer than necessary to the target
       score += Math.max(0, 5 - d) * 0.6;
-      if (score < bs) { bs = score; best = { x, y }; }
+      if (score < bs) { bs = score; best = { x, y, hunk }; }
     }
     if (!best) { this.game.hud.toast('NO FIRING POSITION', C.uiAmber); this.cancel(); return; }
     this.dest = best;
-    if (best.x === op.tx && best.y === op.ty && op.inScopeStance) { this._open(); return; }
+    this.needHunker = best.hunk && !(best.x === op.tx && best.y === op.ty && op.stance === 'hunker');
+    if (this.needHunker) this.game.hud.toast('LONG SHOT — HUNKERING FOR RANGE', C.uiAmber, 1.6);
+    if (best.x === op.tx && best.y === op.ty && op.inScopeStance) { if (this.needHunker) this.waitScope = true; else this._open(); return; }
     op.orderMove(best.x, best.y, run ? 'run' : 'walk', () => { this.waitScope = true; });
     this.game.renderer.addMarker(best.x + 0.5, best.y + 0.5, 'tap', C.uiAmber);
   }
@@ -133,6 +137,8 @@ export class Engage {
     }
     if (this.mode !== 'sniper') return;
     if (this.waitScope) {
+      // a long shot: settle into hunker first (1 s), then scope
+      if (this.needHunker && op.stance !== 'hunker') { if (!op.trans && !op.moving) op.toggleHunker(); return; }
       if (op.inScopeStance) {
         if (this.inRangeNow(t)) this._open();
         else this._replan();
@@ -147,8 +153,8 @@ export class Engage {
     this.checkT -= dt;
     if (this.checkT <= 0 && this.dest) {
       this.checkT = 1;
-      const d = Math.hypot(t.x - (this.dest.x + 0.5), t.y - (this.dest.y + 0.5));
-      if (d > this.rangeFrom(this.dest.x, this.dest.y, t) || !canSee(this.world.map, this.dest.x, this.dest.y, t.tx, t.ty, {})) this._replan();
+      const d = targetDist(this.dest.x + 0.5, this.dest.y + 0.5, t);
+      if (d > this.rangeFrom(this.dest.x, this.dest.y, t, this.needHunker) || !seesTarget(this.world.map, this.dest.x, this.dest.y, t)) this._replan();
     }
   }
   _replan() {

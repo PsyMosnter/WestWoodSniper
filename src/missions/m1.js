@@ -14,7 +14,7 @@ const triggers = [
   { when: { type: 'enterArea', area: 'tut_knoll' }, do: [tut('highground', 'High ground', "From the hill you'll see them. They won't see you. Up here your rifle also reaches one tile further per level.")] },
   { when: { type: 'enterArea', area: 'tut_ford' }, do: [{ type: 'say', text: 'Lone sentry at the ford. Take him quietly.' }] },
   { when: { type: 'custom', fn: 'fordSentryVisible' }, do: [tut('scope', 'First shot', 'Tap the sentry: WREN picks a firing spot, crouches and opens the scope. Drag to aim, hold BREATH to steady, FIRE. Headshots kill instantly.')] },
-  { when: { type: 'unitDead', id: 'ford1' }, do: [tut('noise', 'Noise', 'Every rifle shot carries 12 tiles. Nearby NOT will come looking — relocate, or hunker and let them pass.'), { type: 'say', text: 'Target down.' }] },
+  { when: { type: 'unitDead', id: 'ford1' }, do: [tut('noise', 'Noise', 'Every rifle shot carries 12 tiles — the ring shows how far. Anyone inside it comes looking: relocate, or hunker and let them pass. Running and wading are noisy too: watch the NOISE meter, bottom left.'), { type: 'say', text: 'Target down.' }] },
   { when: { type: 'custom', fn: 'bodyFound' }, do: [tut('bodies', 'Bodies', 'They found a body: that base is on CAUTION — sharper eyes, faster patrols. Drop targets where patrols won\'t walk past.')] },
   { when: { type: 'detected' }, do: [tut('detected', 'Spotted', 'Break line of sight! They will search your last known position (the grey ghost) in widening rings.')] },
   { when: { type: 'custom', fn: 'nearObserve' }, do: [tut('observe', 'Observe', 'Recon objective: stay still (crouched, in cover or hunkered) with a clear view of the marked area, within 8 tiles, until the bar fills.')] },

@@ -12,6 +12,7 @@ import { scopeSprite, scopeView, resolveZone } from './hitzones.js';
 import { vehicleScopeSprite, vehicleSprite } from '../render/spriteData/vehicles.js';
 import { swayCurve, swayAmplitude, dispersion } from './sway.js';
 import { canSee } from '../world/los.js';
+import { seesTarget, targetVisible, targetDist } from '../combat/targeting.js';
 import { killUnit, damageUnit } from '../combat/damage.js';
 import { explode } from '../combat/explosions.js';
 
@@ -115,8 +116,7 @@ export class Scope {
   }
   distRatio() {
     const op = this.world.operative, t = this.target;
-    const d = Math.hypot(t.x - op.x, t.y - op.y);
-    return d / this.maxRange(t);
+    return targetDist(op.x, op.y, t) / this.maxRange(t);
   }
   candidates() {
     const w = this.world, fog = w.fog;
@@ -369,7 +369,7 @@ export class Scope {
       }
     } else if (t) {
       this.deadT = 0;
-      if (!canSee(w.map, op.tx, op.ty, t.tx, t.ty, {}) || !w.fog.isVisible(t.tx, t.ty) || Math.hypot(t.x - op.x, t.y - op.y) > this.maxRange(t) + 1.5) {
+      if (!seesTarget(w.map, op.tx, op.ty, t) || !targetVisible(w.fog, t) || targetDist(op.x, op.y, t) > this.maxRange(t) + 1.5) {
         this.lostT = (this.lostT || 0) + dt;
         if (this.lostT > 0.4) { this.close('lost'); return; }
       } else this.lostT = 0;
@@ -473,7 +473,7 @@ export class Scope {
     }
     // readouts
     const t = this.target;
-    const dist = t ? Math.hypot(t.x - op.x, t.y - op.y) : 0;
+    const dist = t ? targetDist(op.x, op.y, t) : 0;
     drawText(ctx, `RNG ${dist.toFixed(1)}`, cx, cy + D / 2 - 26, { font: '3x5', color: C.uiText, align: 'center', shadow: '#000' });
     drawText(ctx, `MAX ${this.maxRange(t).toFixed(0)}`, cx, cy + D / 2 - 19, { font: '3x5', color: C.uiTextD, align: 'center', shadow: '#000' });
     // sway meter

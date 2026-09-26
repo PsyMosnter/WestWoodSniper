@@ -16,6 +16,7 @@ import { SettingsScene } from './scenes/settings.js';
 import { Audio } from './audio/sfx.js';
 import { loadManifest } from './render/sprites.js';
 import { BriefingScene } from './ui/briefing.js';
+import { CutsceneScene } from './scenes/cutscene.js';
 import { DebriefScene } from './ui/debrief.js';
 import { Art } from './render/artStyle.js';
 
@@ -43,6 +44,16 @@ const app = {
     else this.scenes.go('briefing', { mission: 'm1' });
   },
   continueCampaign() { this.startCampaign(); },
+  /** cutscenes off for debug/automated runs (?nocut=1 or ?debug=1) */
+  cutsOn() { return params.get('nocut') !== '1' && !this.debug; },
+  /**
+   * Play cutscene `id`, then run `next` (skipped straight to `next` when cutscenes are off).
+   * `firstTimeOnly`: only if this cutscene hasn't been watched yet (it can always be replayed).
+   */
+  playCut(id, next, firstTimeOnly = false) {
+    if (!this.cutsOn() || (firstTimeOnly && this.save.seenCuts?.[id])) { next(); return; }
+    this.scenes.go('cutscene', { id, next });
+  },
   applySettings() {
     this.audio.setVolumes(this.settings.sfx, this.settings.music);
     Art.setStyle(this.settings.artStyle);
@@ -68,6 +79,7 @@ app.scenes.register('credits', (a) => new CreditsScene(a));
 app.scenes.register('failed', (a) => new FailedScene(a));
 app.scenes.register('briefing', (a) => new BriefingScene(a));
 app.scenes.register('debrief', (a) => new DebriefScene(a));
+app.scenes.register('cutscene', (a) => new CutsceneScene(a));
 
 app.display.onResize((d) => app.scenes.resize(d.W, d.H));
 
@@ -88,7 +100,8 @@ window.__app = app;
   await loadManifest();
   document.getElementById('boot')?.remove();
   const map = params.get('map');
-  if (map) app.scenes.go('game', { mission: map });
+  if (params.get('cut')) app.scenes.go('cutscene', { id: params.get('cut'), next: () => app.scenes.go('title', {}) });
+  else if (map) app.scenes.go('game', { mission: map });
   else if (params.get('skip') === '1') app.startCampaign();
   else app.scenes.go('title', {});
   Time.scale = 1;

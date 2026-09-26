@@ -26,16 +26,22 @@ const SCHEMATIC = [
 const P = (x, y, wait = 0, look = null) => (look ? { x, y, wait, look } : wait ? { x, y, wait } : { x, y });
 // Patrol loops are 30–120 s and neighbouring patrols have different periods (SPEC §16.4 rule 4).
 const PATHS = {
-  hillLoop: [P(76, 20, 3, 'N'), P(86, 20, 3, 'E'), P(88, 27, 3, 'SE'), P(78, 29, 4, 'S')],
+  // the hilltop loop keeps to the south half so the goat trail (north face) has a quiet top
+  hillLoop: [P(77, 24, 3, 'W'), P(86, 24, 3, 'E'), P(88, 27, 3, 'SE'), P(78, 29, 4, 'S')],
   keshLoop: [P(59, 5, 3, 'W'), P(62, 3, 2, 'N'), P(67, 6, 4, 'E'), P(62, 8, 2, 'S')],
-  sporeLoop: [P(69, 4, 3, 'W'), P(83, 4, 2, 'N'), P(84, 12, 3, 'E'), P(69, 12, 4, 'S')],
+  // the spore loop keeps to the north edge: the tall grass south of the field is the observer's seat
+  sporeLoop: [P(69, 4, 3, 'W'), P(83, 4, 2, 'N'), P(84, 7, 3, 'E'), P(70, 7, 4, 'N')],
   southLoop: [P(59, 39, 3, 'W'), P(63, 39, 2, 'N'), P(64, 43, 3, 'E'), P(59, 43, 2, 'S')],
-  roadNS: [P(57, 10, 4, 'N'), P(57, 34, 4, 'S')],
+  // the road walker guards the obvious way up (the track to the west ramp), not the whole road:
+  // north of y 18 the road is only swept by the Skitter's slow round trips
+  roadNS: [P(57, 24, 6, 'E'), P(57, 36, 6, 'S')],
   roadE: [P(61, 37, 3, 'W'), P(91, 37, 3, 'E')],
-  eastBankN: [P(50, 11, 4, 'W'), P(51, 21, 5, 'W')],
-  eastBankS: [P(50, 29, 5, 'W'), P(50, 37, 3, 'SW')],
-  hillFoot: [P(67, 21, 3, 'NW'), P(67, 32, 3, 'SW')],
-  skitterNS: [P(57, 9, 6, 'N'), P(57, 40, 5, 'S')],
+  // the east-bank walkers stay out of rifle earshot (12 tiles) of the west-bank spit, so the tutorial's
+  // first shot doesn't bring a search party across, and clear of the ford once its sentry is down
+  eastBankN: [P(50, 10, 4, 'W'), P(50, 14, 5, 'W')],
+  eastBankS: [P(50, 36, 5, 'W'), P(50, 39, 3, 'SW')],
+  hillFoot: [P(67, 27, 3, 'W'), P(67, 33, 3, 'SW')],
+  skitterNS: [P(57, 9, 14, 'N'), P(57, 40, 12, 'S')],
   skitterE: [P(60, 37, 4, 'W'), P(93, 37, 6, 'E')],
 };
 const U = (id, type, x, y, group, behaviour, extra = {}) => ({ id, type, x, y, alertGroup: group, behaviour, ...extra });
@@ -51,7 +57,6 @@ const UNITS = [
   U('h3', 'husk', 76, 20, 'hill', patrol('hillLoop')),
   U('h4', 'lobber', 82, 22, 'hill', camp('hillCamp')),
   U('h5', 'husk', 85, 20, 'hill', sentry(['E', 'NE', 'N'], 6), { facing: 'E' }),
-  U('h6', 'husk', 76, 20, 'hill', sentry(['W', 'SW'], 6), { facing: 'W' }),
   U('hf1', 'husk', 67, 21, 'hill', patrol('hillFoot', 'pingpong')),
   U('tr1', 'husk', 64, 25, 'hill', sentry(['W', 'NW', 'SW'], 6), { facing: 'W' }),
   // Motor pool at the north bridge — Warden Kesh
@@ -59,14 +64,14 @@ const UNITS = [
   U('m1', 'husk', 51, 4, 'motorpool', sentry(['W', 'NW'], 5), { facing: 'W' }),
   U('m2', 'husk', 51, 8, 'motorpool', sentry(['W', 'SW'], 6), { facing: 'W' }),
   U('m3', 'husk', 61, 6, 'motorpool', camp('mpCamp')),
-  U('m4', 'lobber', 66, 9, 'motorpool', sentry(['S', 'SE'], 6), { facing: 'S' }),
+  U('m4', 'lobber', 67, 4, 'motorpool', sentry(['E', 'NE'], 6), { facing: 'E' }),
   U('m5', 'husk', 65, 6, 'motorpool', camp('mpCamp')),
   // Spore field
   U('hv1', 'harvester', 72, 7, 'spore', camp('sporeField')),
   U('hv2', 'harvester', 77, 9, 'spore', camp('sporeField')),
   U('hv3', 'harvester', 80, 6, 'spore', camp('sporeField')),
   U('s1', 'husk', 69, 4, 'spore', patrol('sporeLoop')),
-  U('s2', 'husk', 83, 9, 'spore', sentry(['W', 'SW', 'NW'], 5), { facing: 'W' }),
+  U('s2', 'husk', 83, 9, 'spore', sentry(['NW', 'N', 'E'], 5), { facing: 'N' }),
   // South outpost at the south bridge
   U('w2', 'warden', 59, 39, 'south', patrol('southLoop')),
   U('so1', 'husk', 51, 40, 'south', sentry(['W', 'NW'], 5), { facing: 'W' }),
@@ -74,12 +79,11 @@ const UNITS = [
   U('so3', 'husk', 61, 41, 'south', camp('southCamp')),
   U('so4', 'lobber', 63, 45, 'south', sentry(['S', 'SW'], 6), { facing: 'S' }),
   // Road patrols (pairs) and east-bank watchers
-  U('r1', 'husk', 57, 10, 'road', patrol('roadNS', 'pingpong')),
-  U('r2', 'husk', 58, 11, 'road', { kind: 'follow', leader: 'r1', dx: -1.2, dy: 1 }),
+  U('r1', 'husk', 57, 24, 'road', patrol('roadNS', 'pingpong')),
   U('r3', 'husk', 61, 37, 'road', patrol('roadE', 'pingpong')),
   U('r4', 'husk', 62, 38, 'road', { kind: 'follow', leader: 'r3', dx: -1.2, dy: -1 }),
-  U('e1', 'husk', 50, 11, 'road', patrol('eastBankN', 'pingpong')),
-  U('e2', 'husk', 50, 29, 'road', patrol('eastBankS', 'pingpong')),
+  U('e1', 'husk', 50, 10, 'road', patrol('eastBankN', 'pingpong')),
+  U('e2', 'husk', 50, 36, 'road', patrol('eastBankS', 'pingpong')),
   U('rs1', 'husk', 80, 34, 'road', sentry(['N', 'W', 'E'], 6), { facing: 'N' }),
   U('l1', 'lobber', 90, 35, 'road', camp('eastCamp')),
   // vehicles: two Skitter road patrols, a Hauler and a Skitter parked at the motor pool

@@ -1,5 +1,7 @@
 // @ts-check
 import { Pix } from '../pixel.js';
+import { Art } from '../artStyle.js';
+import { ZONES, ZONE_PRIO } from '../model3d.js';
 
 /**
  * Scope close-up sprites (SPEC §4.5, §10.3): ~40×64 px for infantry, 4 views (front, back, left, right;
@@ -254,9 +256,11 @@ const cache = new Map();
  * @returns {{canvas: HTMLCanvasElement, zones: {name:string,x:number,y:number,w:number,h:number,prio:number}[], w:number, h:number, ax:number, ay:number}}
  */
 export function scopeSprite(type, view) {
-  const key = type + view;
+  const np = Art.painter('scopeUnit', type);
+  const key = (np ? 'new|' : '') + type + view;
   let s = cache.get(key);
   if (s) return s;
+  if (np) { s = np(view); cache.set(key, s); return s; }
   const baseView = view === 'left' ? 'right' : view;
   const r = type === 'sniffer' ? snifferScope(baseView) : notHumanoid(/** @type {any} */ (baseView), type);
   let pix = r.pix, zones = r.zones;
@@ -269,6 +273,39 @@ export function scopeSprite(type, view) {
   s = { get canvas() { return this._c || (this._c = P.toCanvas()); }, zones, w: pix.w, h: pix.h, ax: SAX, ay: SAY, _c: null };
   cache.set(key, s);
   return s;
+}
+
+/**
+ * The New art style's scope close-up: the unit's own map sprite (same pose, direction and frame)
+ * magnified `scale`× — nothing is redrawn — with its per-pixel hit zones.
+ * @param {{canvas: any, ax: number, ay: number, w: number, h: number, zoneMap: Uint8Array}} m map sprite
+ */
+export function magnifiedSprite(m, scale) {
+  let s = magCache.get(m);
+  if (!s) magCache.set(m, (s = { get canvas() { return m.canvas; }, w: m.w * scale, h: m.h * scale, ax: m.ax * scale, ay: m.ay * scale, zones: [], zoneMap: m.zoneMap, mapW: m.w, mapH: m.h, scale }));
+  return s;
+}
+const magCache = new WeakMap();
+
+/**
+ * Hit zone at scope-sprite-local (x, y) of a magnified sprite. Assisted aim (sizeMult > 1) also accepts
+ * a zone within a small radius, preferring the most important one — like growing the classic boxes.
+ */
+export function zoneAtMap(s, x, y, sizeMult = 1) {
+  const at = (sx, sy) => {
+    const px = Math.floor(sx / s.scale), py = Math.floor(sy / s.scale);
+    if (px < 0 || py < 0 || px >= s.mapW || py >= s.mapH) return 0;
+    return s.zoneMap[py * s.mapW + px];
+  };
+  let z = at(x, y);
+  if (sizeMult > 1) {
+    const d = (sizeMult - 1) * 2.5 * s.scale;
+    for (const [dx, dy] of [[-d, 0], [d, 0], [0, -d], [0, d], [-d, -d], [d, -d], [-d, d], [d, d]]) {
+      const q = at(x + dx, y + dy);
+      if (q && (!z || ZONE_PRIO[q] > ZONE_PRIO[z])) z = q;
+    }
+  }
+  return z ? { name: ZONES[z], prio: ZONE_PRIO[z] } : null;
 }
 
 /** Resolve a hit at sprite-local (x,y): highest-priority zone containing the point, with size multiplier. */

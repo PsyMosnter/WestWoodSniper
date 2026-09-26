@@ -3,7 +3,7 @@ import { BALANCE } from '../config/balance.js';
 import { C } from '../config/palette.js';
 import { TILE } from '../core/camera.js';
 import { Time } from '../core/time.js';
-import { unitSprite, whiteOf } from '../render/sprites.js';
+import { unitSprite, whiteOf, markerLift } from '../render/sprites.js';
 import { vehicleSprite } from '../render/spriteData/vehicles.js';
 import { drawText } from '../render/font.js';
 import { angleToDir8 } from '../world/tiles.js';
@@ -252,6 +252,7 @@ export class FriendlySystem {
   drawOne(ctx, r, f, x, y) {
     const z = r.cam.zoom;
     const X0 = Math.round(r.sx(x)), Y0 = Math.round(r.sy(y));
+    let up = 0;                      // taller New figures lift the HP pip and labels
     if (f.kind === 'vehicle') {
       const s = vehicleSprite('medTruck', angleToDir8(f.angle), f.dead ? 'wreck' : 'ok');
       ctx.drawImage(f.flashT > 0 ? whiteOf(s.canvas) : s.canvas, X0 - s.ax * z, Y0 - s.ay * z, s.w * z, s.h * z);
@@ -259,6 +260,7 @@ export class FriendlySystem {
       const pose = f.dead ? 'dead' : f.captive ? (f.downed ? 'prone' : 'crouch') : f.moving ? 'walk' : f.hiding ? 'crouch' : 'idle';
       const frame = f.dead ? 3 : Math.floor(f.animT * 5) & 3;
       const s = unitSprite(f.type, pose, angleToDir8(f.angle), frame);
+      up = markerLift(s, 18) - 18;
       const m = this.world.map, cover = f.dead ? null : coverKind(m, Math.floor(f.x), Math.floor(f.y));
       if (cover !== 'water') { ctx.fillStyle = 'rgba(0,0,0,0.28)'; ctx.fillRect(X0 - 3 * z, Y0, 7 * z, z); }
       const img = f.flashT > 0 ? whiteOf(s.canvas) : s.canvas;
@@ -270,12 +272,12 @@ export class FriendlySystem {
     ctx.fillStyle = C.godSteelL;
     ctx.fillRect(X0 - 3 * z, Y0 + 2 * z, 7 * z, z);
     const hpw = Math.round(12 * (f.hp / f.maxHp));
-    ctx.fillStyle = '#07090A'; ctx.fillRect(X0 - 6, Y0 - 18 * z, 13, 3);
-    ctx.fillStyle = f.hp / f.maxHp < 0.35 ? C.uiAlert : C.godSteelL; ctx.fillRect(X0 - 5, Y0 - 18 * z + 1, hpw, 1);
+    ctx.fillStyle = '#07090A'; ctx.fillRect(X0 - 6, Y0 - (18 + up) * z, 13, 3);
+    ctx.fillStyle = f.hp / f.maxHp < 0.35 ? C.uiAlert : C.godSteelL; ctx.fillRect(X0 - 5, Y0 - (18 + up) * z + 1, hpw, 1);
     if (f.captive) {
       const k = f.freeT / F.freeTime;
-      drawText(ctx, f.downed ? 'HELP UP' : 'FREE', X0, Y0 - 26 * z, { font: '3x5', color: C.uiAmber, align: 'center', shadow: '#000' });
-      if (k > 0) { ctx.fillStyle = '#26302A'; ctx.fillRect(X0 - 8, Y0 - 20 * z, 16, 2); ctx.fillStyle = C.uiAmber; ctx.fillRect(X0 - 8, Y0 - 20 * z, Math.round(16 * k), 2); }
-    } else if (f.kind === 'person' && f.mode === 'hold') drawText(ctx, 'HOLD', X0, Y0 - 26 * z, { font: '3x5', color: C.godSteelL, align: 'center', shadow: '#000' });
+      drawText(ctx, f.downed ? 'HELP UP' : 'FREE', X0, Y0 - (26 + up) * z, { font: '3x5', color: C.uiAmber, align: 'center', shadow: '#000' });
+      if (k > 0) { ctx.fillStyle = '#26302A'; ctx.fillRect(X0 - 8, Y0 - (20 + up) * z, 16, 2); ctx.fillStyle = C.uiAmber; ctx.fillRect(X0 - 8, Y0 - (20 + up) * z, Math.round(16 * k), 2); }
+    } else if (f.kind === 'person' && f.mode === 'hold') drawText(ctx, 'HOLD', X0, Y0 - (26 + up) * z, { font: '3x5', color: C.godSteelL, align: 'center', shadow: '#000' });
   }
 }

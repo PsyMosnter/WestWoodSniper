@@ -4,6 +4,7 @@ import { drawText } from '../render/font.js';
 import { MenuBase } from './menus.js';
 import { panel } from '../ui/widgets.js';
 import { writeSave } from '../save.js';
+import { Art } from '../render/artStyle.js';
 
 /** Settings (SPEC §17.3 #6). Tap a row to cycle its value. */
 const ROWS = [
@@ -16,6 +17,8 @@ const ROWS = [
   { key: 'handedness', label: 'HANDEDNESS', values: ['right', 'left'], fmt: (v) => v.toUpperCase() },
   { key: 'scanlines', label: 'SCAN-LINES', values: [true, false], fmt: (v) => (v ? 'ON' : 'OFF') },
   { key: 'remoteC4', label: 'REMOTE C4 DETONATION', values: [false, true], fmt: (v) => (v ? 'ON' : 'OFF') },
+  // the original sprites stay available: NEW draws redesigns where they exist, CLASSIC everywhere else
+  { key: 'artStyle', label: 'ART STYLE', values: ['classic', 'new'], fmt: (v) => (v === 'new' ? (Art.count() ? 'NEW' : 'NEW (NONE YET)') : 'CLASSIC') },
 ];
 
 export class SettingsScene extends MenuBase {

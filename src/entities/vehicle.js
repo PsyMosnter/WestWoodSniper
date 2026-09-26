@@ -130,6 +130,7 @@ export class VehicleSystem {
   disable(v, why) {
     if (v.disabled || v.dead) return;
     v.disabled = true;
+    if (why === 'driver') v.driverDown = true;     // New art draws the seat empty
     v.path = [];
     v.tag = { text: 'DISABLED', t: 3 };
     // turret keeps working with vision radius 3 (slit) — stored apart from visionMult, which the FSM resets

@@ -5,6 +5,7 @@ const KEY = 'westwood-sniper:v1';
 export const DEFAULT_SETTINGS = {
   music: 0.6, sfx: 0.8, difficulty: 'operative', assistedAim: false, reducedMotion: false,
   colourBlind: false, handedness: 'right', scanlines: true, remoteC4: false,
+  artStyle: 'classic',   // 'classic' (the original sprites) | 'new' (redesigns, where they exist)
 };
 
 export function loadSave() {

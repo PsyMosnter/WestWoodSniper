@@ -281,7 +281,7 @@ export class Operative {
     if (this.dead) return { pose: 'dead', frame: 3 };
     if (this.busy?.kind === 'takedown') return { pose: 'crouch', frame: 0 };   // up off the ground for the takedown
     if (this.moving) {
-      if (this.mode === 'crawl') { pose = 'prone'; frame = Math.floor(this.animT * 4) & 3; }
+      if (this.mode === 'crawl') { pose = 'crawl'; frame = Math.floor(this.animT * 4) & 3; }
       else if (this.mode === 'run') { pose = 'run'; frame = Math.floor(this.animT * 7) & 3; }
       else { pose = this.runGun ? 'pistol' : 'walk'; frame = Math.floor(this.animT * 5) & 3; }
     } else if (this.trans) {

@@ -2,6 +2,8 @@
 import { PALETTES } from '../config/palette.js';
 import { Pix, makeCanvas } from './pixel.js';
 import { drawHumanoid, drawDeath, viewForDir, mirroredDir, OPERATIVE, HUSK, HAX, HAY } from './spriteData/humanoid.js';
+import { Art } from './artStyle.js';
+import { vehicleSprite } from './spriteData/vehicles.js';
 
 /**
  * Sprite compiler & cache (SPEC §4.5): builds canvases from palette-indexed data or procedural
@@ -32,17 +34,21 @@ export function registerUnitDef(type, def) { UNIT_DEFS[type] = def; }
  * @returns {Sprite}
  */
 export function unitSprite(type, pose, dir, frame = 0, variant = '') {
-  const key = `${type}|${pose}|${dir}|${frame}|${variant}`;
+  const np = Art.painter('unit', type);                  // New art style, if this type has a redesign
+  const key = `${np ? 'new|' : ''}${type}|${pose}|${dir}|${frame}|${variant}`;
   let s = cache.get(key);
   if (s) return s;
   const png = pngCache.get(key);
   if (png) return png;
   const def = UNIT_DEFS[type] || UNIT_DEFS.operative;
-  if (def.custom) {
+  if (np) {
+    s = np(pose, dir, frame, variant);
+  } else if (def.custom) {
     s = def.custom(pose, dir, frame, variant);
   } else {
     const pal = PALETTES[def.pal];
     const view = viewForDir(dir);
+    if (pose === 'crawl') pose = 'prone';            // Classic has one flat pose for hunker and crawl
     let pix;
     if (pose === 'dead') pix = drawDeath(def.base, pal, view, frame);
     else {
@@ -54,6 +60,52 @@ export function unitSprite(type, pose, dir, frame = 0, variant = '') {
   }
   cache.set(key, s);
   return s;
+}
+
+/** Sprite variant for a unit's current state (Overseer Vrask once his helmet has been shot off). */
+export function unitVariant(u) { return u.def?.helmet && !u.helmet ? 'nohelm' : ''; }
+
+/** Height (sprite px) of a Classic figure's head above its feet — overhead markers were placed for it. */
+const CLASSIC_TOP = 14;
+/**
+ * How far above the ground (sprite px) an overhead marker goes: `base` was tuned for Classic figures;
+ * taller New figures (which report `top`, the height of their highest pixel) push it up by the difference.
+ * @param {{top?: number}|null|undefined} s @param {number} base
+ */
+export function markerLift(s, base) { return s?.top == null ? base : base + Math.max(0, s.top - CLASSIC_TOP); }
+
+/**
+ * Background sprite warm-up for the New art style: New frames are rendered on first use (a couple of
+ * milliseconds each), so the mission queues the frames its units will need and draws a few per frame
+ * instead of all at once when a squad starts running. Classic sprites need no warm-up.
+ * @param {{type: string, poses?: [string, number][], vehicle?: boolean}[]} specs  infantry types with the
+ *   poses/frame counts they use, and vehicle types (all eight facings)
+ * @returns {any[][]} queue of ['unit', type, pose, dir, frame] / ['vehicle', type, dir, state]
+ */
+export function warmQueue(specs) {
+  const q = [];
+  for (const { type, vehicle } of specs) {
+    if (vehicle && Art.painter('vehicle', type)) for (let d = 0; d < 8; d++) q.push(['vehicle', type, d, 'ok']);
+  }
+  // the most common views first: every type's idle/walk before anyone's death animation
+  const maxPoses = Math.max(0, ...specs.map((s) => s.poses?.length || 0));
+  for (let i = 0; i < maxPoses; i++) {
+    for (const { type, poses } of specs) {
+      if (!poses?.[i] || !Art.painter('unit', type)) continue;
+      const [pose, frames] = poses[i];
+      for (let f = 0; f < frames; f++) for (let d = 0; d < 8; d++) q.push(['unit', type, pose, d, f]);
+    }
+  }
+  return q;
+}
+/** Render queued frames until `budgetMs` is spent. */
+export function warmStep(q, budgetMs) {
+  const t0 = performance.now();
+  while (q.length && performance.now() - t0 < budgetMs) {
+    const j = q.shift();
+    if (j[0] === 'vehicle') { if (Art.painter('vehicle', j[1])) vehicleSprite(j[1], j[2], j[3]); }
+    else if (Art.painter('unit', j[1])) unitSprite(j[1], j[2], j[3], j[4]);
+  }
 }
 
 /** Generic cached sprite from a builder returning {pix, ax, ay}. */

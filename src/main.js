@@ -17,6 +17,7 @@ import { Audio } from './audio/sfx.js';
 import { loadManifest } from './render/sprites.js';
 import { BriefingScene } from './ui/briefing.js';
 import { DebriefScene } from './ui/debrief.js';
+import { Art } from './render/artStyle.js';
 
 const canvas = /** @type {HTMLCanvasElement} */ (document.getElementById('game'));
 const params = new URLSearchParams(location.search);
@@ -44,12 +45,16 @@ const app = {
   continueCampaign() { this.startCampaign(); },
   applySettings() {
     this.audio.setVolumes(this.settings.sfx, this.settings.music);
+    Art.setStyle(this.settings.artStyle);
     this.scenes.resize(this.display.W, this.display.H);
   },
   vibrate(ms) { try { navigator.vibrate?.(ms); } catch (e) { /* ignore */ } },
   persist() { writeSave(this.save); },
 };
 app.settings = app.save.settings;
+// ?art=classic|new: compare the art styles without touching the saved setting (Settings still wins once changed)
+if (params.get('art')) app.settings = { ...app.settings, artStyle: params.get('art') === 'new' ? 'new' : 'classic' };
+Art.setStyle(app.settings.artStyle);
 app.input = new Input(canvas, app.display);
 app.scenes = new SceneManager(app);
 app.input.handler = app.scenes;

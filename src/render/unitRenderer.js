@@ -1,8 +1,8 @@
 // @ts-check
 import { TILE } from '../core/camera.js';
 import { Time } from '../core/time.js';
-import { unitSprite, whiteOf, tintOf } from './sprites.js';
-import { vehicleSprite } from './spriteData/vehicles.js';
+import { unitSprite, unitVariant, markerLift, whiteOf, tintOf } from './sprites.js';
+import { vehicleSprite, vehicleState } from './spriteData/vehicles.js';
 import { drawText } from './font.js';
 import { BALANCE } from '../config/balance.js';
 import { C } from '../config/palette.js';
@@ -73,7 +73,7 @@ export function installUnitRendering(game) {
 function drawUnit(ctx, r, u, x, y) {
   const z = r.cam.zoom;
   if (u.kind === 'vehicle') {
-    const vs = vehicleSprite(u.type, u.dir, u.dead ? 'wreck' : 'ok');
+    const vs = vehicleSprite(u.type, u.dir, vehicleState(u));
     const X = Math.round(r.sx(x) - vs.ax * z), Y = Math.round(r.sy(y) - vs.ay * z);
     ctx.globalAlpha = 0.3; ctx.drawImage(tintOf(vs.canvas, '#000000'), X + 2 * z, Y + 2 * z, vs.w * z, vs.h * z); ctx.globalAlpha = 1;
     ctx.drawImage(u.flashT > 0 ? whiteOf(vs.canvas) : vs.canvas, X, Y, vs.w * z, vs.h * z);
@@ -81,7 +81,7 @@ function drawUnit(ctx, r, u, x, y) {
     return;
   }
   const { pose, frame } = u.pose();
-  const s = unitSprite(u.type, pose, u.dir, frame);
+  const s = unitSprite(u.type, pose, u.dir, frame, unitVariant(u));
   const X = Math.round(r.sx(x) - s.ax * z), Y = Math.round(r.sy(y) - s.ay * z);
   const m = u.world.map, cover = u.dead ? null : coverKind(m, u.tx, u.ty);
   if (!u.dead && cover !== 'water') { ctx.fillStyle = 'rgba(0,0,0,0.28)'; ctx.fillRect(Math.round(r.sx(x)) - 3 * z, Math.round(r.sy(y)), 7 * z, z); ctx.fillRect(Math.round(r.sx(x)) - 2 * z, Math.round(r.sy(y)) + z, 5 * z, z); }
@@ -176,7 +176,14 @@ function drawCone(ctx, r, u, w, fill = true) {
 
 function drawIcons(ctx, r, u, game) {
   const z = r.cam.zoom;
-  const lift = u.type === 'guardTower' ? 38 : u.kind === 'vehicle' ? 18 : 20;
+  let lift = u.type === 'guardTower' ? 38 : u.kind === 'vehicle' ? 18 : 20;
+  if (u.kind === 'vehicle') {
+    const top = vehicleSprite(u.type, u.dir, vehicleState(u)).top;
+    if (top != null) lift = Math.max(lift, top + 4);           // New vehicles: just above the roof
+  } else if (u.kind !== 'structure' && u.kind !== 'emplacement' && u.kind !== 'turret') {
+    const { pose, frame } = u.pose();
+    lift = markerLift(unitSprite(u.type, pose, u.dir, frame, unitVariant(u)), lift);
+  }
   const x = Math.round(r.sx(u.px + (u.x - u.px) * Time.alpha)), y = Math.round(r.sy(u.py + (u.y - u.py) * Time.alpha)) - lift * z;
   const cb = game.settings.colourBlind;
   if (u.state === 'combat') {

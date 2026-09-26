@@ -3,6 +3,7 @@ import { BALANCE } from '../config/balance.js';
 import { C } from '../config/palette.js';
 import { Time } from '../core/time.js';
 import { angleToDir8 } from '../world/tiles.js';
+import { unitSprite, unitVariant, markerLift } from '../render/sprites.js';
 
 const K = BALANCE.takedown;
 
@@ -59,7 +60,9 @@ export class Takedown {
     if (this.game.scopeOpen) return;
     const u = this.target();
     if (!u) return;
-    const z = r.cam.zoom, x = Math.round(r.sx(u.x)), y = Math.round(r.sy(u.y) - 17 * z);
+    const { pose, frame } = u.pose();
+    const lift = markerLift(unitSprite(u.type, pose, u.dir, frame, unitVariant(u)), 17);
+    const z = r.cam.zoom, x = Math.round(r.sx(u.x)), y = Math.round(r.sy(u.y) - lift * z);
     const bob = (Math.floor(Time.realTime * 4) & 1) * z;
     ctx.fillStyle = '#07090A'; ctx.fillRect(x - 5 * z, y - 2 * z - bob, 11 * z, 5 * z);
     ctx.fillStyle = C.uiAmber;

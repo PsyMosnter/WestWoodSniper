@@ -1,0 +1,13 @@
+{
+  "name": "westwood-sniper",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Pixel-art single-unit tactical stealth game. No runtime dependencies.",
+  "scripts": {
+    "test": "node --test \"tests/*.test.js\"",
+    "maps": "node tools/mapgen/build.js",
+    "validate": "node tools/validate-maps.js",
+    "serve": "python3 -m http.server 8123"
+  }
+}

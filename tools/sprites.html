@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>Sprite sheet</title>
+<style>body{background:#2a2d2a;margin:0}canvas{image-rendering:pixelated}</style></head>
+<body><canvas id="c"></canvas>
+<!-- Dev tool: renders sprite sheets. ?types=husk,lobber&poses=idle,walk  ?scope=husk&zones=1  ?veh=1 -->
+<script type="module">
+import { unitSprite } from '../src/render/sprites.js';
+import { floraSprite } from '../src/render/spriteData/flora.js';
+import '../src/render/spriteData/notUnits.js';
+import { scopeSprite } from '../src/render/spriteData/scopeSprites.js';
+import * as vm from '../src/render/spriteData/vehicles.js';
+import * as sm from '../src/render/spriteData/structures.js';
+const params = new URLSearchParams(location.search);
+const S = +(params.get('scale') || 4);
+const c = document.getElementById('c');
+const ctx = c.getContext('2d');
+const setup = (w, h) => { c.width = w; c.height = h; ctx.imageSmoothingEnabled = false; ctx.fillStyle = '#5E7E36'; ctx.fillRect(0, 0, w, h); };
+if (params.get('veh')) {
+  setup(1440, 1400);
+  let yy = 0;
+  for (const t of ['skitter', 'hauler', 'fuelHauler', 'crawler', 'brute', 'juggernaut', 'medTruck']) {
+    let xx = 0;
+    for (let d = 0; d < 8; d++) { const s = vm.vehicleSprite(t, d); ctx.drawImage(s.canvas, xx * S, yy * S, s.w * S, s.h * S); xx += s.w + 2; }
+    let sx = 820;
+    for (const v of ['front', 'right', 'back']) {
+      const s = vm.vehicleScopeSprite(t, v);
+      ctx.drawImage(s.canvas, sx, yy * S, s.w * 2, s.h * 2);
+      if (params.get('zones')) { ctx.strokeStyle = '#ff0'; for (const z of s.zones) ctx.strokeRect(sx + z.x * 2, yy * S + z.y * 2, z.w * 2, z.h * 2); }
+      sx += 200;
+    }
+    yy += 44;
+  }
+  let xx = 0; yy += 4;
+  for (const t of Object.keys(sm.STRUCT_DEFS)) { const s = sm.structureSprite(t); if ((xx + s.w) * S > 1440) { xx = 0; yy += 100; } ctx.drawImage(s.canvas, xx * S, yy * S, s.w * S, s.h * S); xx += s.w + 6; }
+} else if (params.get('scope')) {
+  setup(1440, 900);
+  ctx.fillStyle = '#3a4a2a'; ctx.fillRect(0, 0, c.width, c.height);
+  let sx = 0, sy = 0;
+  for (const t of params.get('scope').split(',')) {
+    for (const v of ['front', 'right', 'back', 'left']) {
+      const s = scopeSprite(t, v); ctx.drawImage(s.canvas, sx * S, sy * S, s.w * S, s.h * S);
+      if (params.get('zones')) { ctx.strokeStyle = 'rgba(255,255,0,0.8)'; for (const z of s.zones) ctx.strokeRect((sx + z.x) * S, (sy + z.y) * S, z.w * S, z.h * S); }
+      sx += 44;
+    }
+    sx = 0; sy += 68;
+  }
+} else {
+  const types = (params.get('types') || 'operative').split(',');
+  const poses = (params.get('poses') || 'idle,walk,run,crouch,cover,prone,pistol,fire,dead').split(',');
+  setup(20 * 34 * S, (types.length * poses.length * 22 + 120) * S);
+  let y = 0;
+  for (const t of types) for (const p of poses) {
+    let x = 0;
+    const frames = ['walk', 'run', 'pistol', 'dead'].includes(p) ? 4 : 1;
+    for (let d = 0; d < 8; d++) { for (let f = 0; f < frames; f++) { const s = unitSprite(t, p, d, f); ctx.drawImage(s.canvas, x * S, y * S, s.w * S, s.h * S); x += 18; } x += 4; }
+    y += 22;
+  }
+  let x = 0;
+  for (const b of ['temperate', 'arid', 'alpine', 'desert', 'jungle', 'swamp', 'volcanic']) for (const k of ['trees', 'forest', 'bush']) for (let v = 0; v < 3; v++) {
+    const s = floraSprite(b, k, v / 3 + 0.01); ctx.drawImage(s.canvas, x * S, y * S, s.w * S, s.h * S); x += s.w + 2;
+    if (x > 20 * 34 - 30) { x = 0; y += 28; }
+  }
+}
+window.done = true;
+</script></body></html>

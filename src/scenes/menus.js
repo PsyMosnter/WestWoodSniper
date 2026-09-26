@@ -122,7 +122,7 @@ export class TitleScene extends MenuBase {
     this.t = 0;
     this.bg = null;
     this.app.audio?.music?.('theme');
-    this.addButton('START', () => this.app.playCut('intro', () => this.app.startCampaign(), true));
+    this.addButton('START', () => this.app.playCut('intro', () => this.app.startCampaign()));
     this.cont = this.addButton('CONTINUE', () => this.app.continueCampaign());
     this.cont.enabled = this.app.save.unlocked > 1 || Object.keys(this.app.save.resume || {}).length > 0;
     this.addButton('SETTINGS', () => this.app.scenes.push('settings', {}));
@@ -154,7 +154,7 @@ export class TitleScene extends MenuBase {
     this.buttons.forEach((b, i) => b.place(i === n - 1 && n % 2 ? Math.round(W / 2 - bw / 2) : Math.round(W / 2 - bw - g / 2 + (i % 2) * (bw + g)), y0 + Math.floor(i / 2) * (bh + g), bw, bh));
   }
   frame(dt) { this.t += dt; }
-  onKeyDown(code) { if (code === 'Enter' || code === 'Space') this.app.playCut('intro', () => this.app.startCampaign(), true); }
+  onKeyDown(code) { if (code === 'Enter' || code === 'Space') this.app.playCut('intro', () => this.app.startCampaign()); }
   render(ctx) {
     const { W, H } = this.app.display;
     ctx.fillStyle = '#07090A'; ctx.fillRect(0, 0, W, H);

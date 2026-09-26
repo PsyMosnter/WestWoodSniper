@@ -20,10 +20,10 @@ export class BriefingScene extends MenuBase {
     this.data = null;
     this.deploy = this.addButton('DEPLOY', () => this.app.scenes.go('game', { mission: this.missionId }), { color: C.uiAmber });
     this.back = this.addButton('BACK', () => this.app.scenes.go(this.app.hasScene('campaign') ? 'campaign' : 'title', {}));
-    // the mission's intro cutscene plays the first time; SCENE replays it
+    // the mission's intro cutscene plays every time the mission is picked (one tap skips it); SCENE replays it
     const toBriefing = () => this.app.scenes.go('briefing', { mission: this.missionId, fromCut: true });
     this.scene = this.addButton('SCENE', () => this.app.playCut(this.missionId, toBriefing));
-    this.cutPending = !params.fromCut && this.app.cutsOn?.() && !this.app.save.seenCuts?.[this.missionId];
+    this.cutPending = !params.fromCut && this.app.cutsOn?.();
     this.skip = false;
     this._load();
   }

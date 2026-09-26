@@ -68,3 +68,13 @@ test('sniffer smell ignores concealment and hunker within 3 tiles', () => {
   const expect = 1.5 * BALANCE.stances.crouch.vis * 1 * 1 * (1 - 0.7 * (3 / 6));
   assert.ok(Math.abs(r - expect) < 1e-9, `${r} vs ${expect}`);
 });
+
+test('shallow water: still (or crouched) only head & shoulders show — slower fill; wading keeps full fill', () => {
+  const m = makeMap({ terrain: ['gggggggggggg', 'gggggggggggg', 'ggggwggggggg', 'gggggggggggg', 'gggggggggggg'] });
+  const w = world(m), o = obs(), vis = visionOf(o, w);
+  const still = fillRate(o, tgt({ moving: false }), 4, vis, w);
+  const wading = fillRate(o, tgt({ moving: true }), 4, vis, w);
+  assert.ok(Math.abs(still / wading - BALANCE.detection.waterStill) < 1e-9, `still ${still} vs wading ${wading}`);
+  const dry = fillRate(o, tgt({ x: 6.5, moving: false }), 4, vis, w);
+  assert.ok(Math.abs(dry - wading) < 1e-9, 'no bonus out of the water');
+});

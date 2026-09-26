@@ -7,7 +7,7 @@ import { drawText } from './font.js';
 import { BALANCE } from '../config/balance.js';
 import { C } from '../config/palette.js';
 import { visionOf } from '../ai/perception.js';
-import { T } from '../world/tiles.js';
+import { coverKind, drawCovered } from './terrainCover.js';
 
 /**
  * Draws NOT units (y-sorted), vision cones (LOS-clipped), awareness icons, tags and the LKP ghost.
@@ -83,16 +83,12 @@ function drawUnit(ctx, r, u, x, y) {
   const { pose, frame } = u.pose();
   const s = unitSprite(u.type, pose, u.dir, frame);
   const X = Math.round(r.sx(x) - s.ax * z), Y = Math.round(r.sy(y) - s.ay * z);
-  if (!u.dead) { ctx.fillStyle = 'rgba(0,0,0,0.28)'; ctx.fillRect(Math.round(r.sx(x)) - 3 * z, Math.round(r.sy(y)), 7 * z, z); ctx.fillRect(Math.round(r.sx(x)) - 2 * z, Math.round(r.sy(y)) + z, 5 * z, z); }
-  const flash = u.flashT > 0;
-  ctx.drawImage(flash ? whiteOf(s.canvas) : s.canvas, X, Y, s.w * z, s.h * z);
-  if (!u.dead) {
-    const m = u.world.map;
-    if (m.terrain[m.idx(u.tx, u.ty)] === T.tallgrass) {
-      ctx.fillStyle = 'rgba(141,170,72,0.7)';
-      for (let i = -4; i <= 4; i += 2) ctx.fillRect(Math.round(r.sx(x)) + i * z, Math.round(r.sy(y)) - 3 * z, z, 3 * z);
-    }
-  }
+  const m = u.world.map, cover = u.dead ? null : coverKind(m, u.tx, u.ty);
+  if (!u.dead && cover !== 'water') { ctx.fillStyle = 'rgba(0,0,0,0.28)'; ctx.fillRect(Math.round(r.sx(x)) - 3 * z, Math.round(r.sy(y)), 7 * z, z); ctx.fillRect(Math.round(r.sx(x)) - 2 * z, Math.round(r.sy(y)) + z, 5 * z, z); }
+  const img = u.flashT > 0 ? whiteOf(s.canvas) : s.canvas;
+  // standing in tall grass or shallow water: the lower half is hidden (bodies stay fully visible)
+  if (cover) drawCovered(ctx, z, img, s, X, Y, cover, m.biome, u.id.length * 13 + (u.id.charCodeAt(0) || 0), !!u.moving);
+  else ctx.drawImage(img, X, Y, s.w * z, s.h * z);
 }
 
 /** Ray length along angle a before LOS blocks (tile rules of SPEC §7.3). */

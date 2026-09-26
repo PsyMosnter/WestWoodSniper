@@ -7,6 +7,7 @@ import { unitSprite, whiteOf } from '../render/sprites.js';
 import { vehicleSprite } from '../render/spriteData/vehicles.js';
 import { drawText } from '../render/font.js';
 import { angleToDir8 } from '../world/tiles.js';
+import { coverKind, drawCovered } from '../render/terrainCover.js';
 
 const F = BALANCE.friendly;
 
@@ -257,8 +258,11 @@ export class FriendlySystem {
       const pose = f.dead ? 'dead' : f.captive ? (f.downed ? 'prone' : 'crouch') : f.moving ? 'walk' : f.hiding ? 'crouch' : 'idle';
       const frame = f.dead ? 3 : Math.floor(f.animT * 5) & 3;
       const s = unitSprite(f.type, pose, angleToDir8(f.angle), frame);
-      ctx.fillStyle = 'rgba(0,0,0,0.28)'; ctx.fillRect(X0 - 3 * z, Y0, 7 * z, z);
-      ctx.drawImage(f.flashT > 0 ? whiteOf(s.canvas) : s.canvas, X0 - s.ax * z, Y0 - s.ay * z, s.w * z, s.h * z);
+      const m = this.world.map, cover = f.dead ? null : coverKind(m, Math.floor(f.x), Math.floor(f.y));
+      if (cover !== 'water') { ctx.fillStyle = 'rgba(0,0,0,0.28)'; ctx.fillRect(X0 - 3 * z, Y0, 7 * z, z); }
+      const img = f.flashT > 0 ? whiteOf(s.canvas) : s.canvas;
+      if (cover) drawCovered(ctx, z, img, s, X0 - s.ax * z, Y0 - s.ay * z, cover, m.biome, f.id.length * 17, !!f.moving);
+      else ctx.drawImage(img, X0 - s.ax * z, Y0 - s.ay * z, s.w * z, s.h * z);
     }
     if (f.dead) return;
     // steel-blue friendly ring + HP pip + state

@@ -1,0 +1,13 @@
+// Cloudflare Workers static-assets deploy (`npx wrangler deploy`). There is no bundling: the build
+// command copies index.html, icon.svg, manifest.webmanifest and src/ into dist/, and only dist/ is served.
+{
+  "name": "westwoodsniper",
+  "compatibility_date": "2026-09-25",
+  "build": {
+    "command": "node tools/build-site.js",
+    "watch_dir": "src"
+  },
+  "assets": {
+    "directory": "./dist"
+  }
+}

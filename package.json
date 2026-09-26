@@ -8,6 +8,8 @@
     "test": "node --test \"tests/*.test.js\"",
     "maps": "node tools/mapgen/build.js",
     "validate": "node tools/validate-maps.js",
-    "serve": "python3 -m http.server 8123"
+    "build": "node tools/build-site.js",
+    "serve": "python3 -m http.server 8123",
+    "deploy": "npx wrangler deploy"
   }
 }

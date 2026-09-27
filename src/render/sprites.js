@@ -62,8 +62,24 @@ export function unitSprite(type, pose, dir, frame = 0, variant = '') {
   return s;
 }
 
-/** Sprite variant for a unit's current state (Overseer Vrask once his helmet has been shot off). */
-export function unitVariant(u) { return u.def?.helmet && !u.helmet ? 'nohelm' : ''; }
+/**
+ * Sprite variant for a unit's current state: 'nohelm' once Overseer Vrask's helmet has been shot off, and — dead —
+ * how he died ('dk-shot' | 'dk-takedown' | 'dk-explosion') and his blood colour ('bl-slime' …), which the Newest
+ * style animates.
+ */
+export function unitVariant(u) {
+  const v = u.def?.helmet && !u.helmet ? 'nohelm' : '';
+  return u.dead && u.deathKind ? [v, 'dk-' + u.deathKind, u.blood?.name ? 'bl-' + u.blood.name : ''].filter(Boolean).join('|') : v;
+}
+
+/**
+ * A figure's shadow on the ground: the sprite's own cast shadow (Newest style) or the generic small blob.
+ * (X, Y) = screen position of the feet; z = zoom.
+ */
+export function drawGroundShadow(ctx, s, X, Y, z) {
+  if (s?.shadow) { const sh = s.shadow; ctx.drawImage(sh.canvas, Math.round(X - sh.ax * z), Math.round(Y - sh.ay * z), sh.w * z, sh.h * z); return; }
+  ctx.fillStyle = 'rgba(0,0,0,0.28)'; ctx.fillRect(Math.round(X) - 3 * z, Math.round(Y), 7 * z, z); ctx.fillRect(Math.round(X) - 2 * z, Math.round(Y) + z, 5 * z, z);
+}
 
 /** Height (sprite px) of a Classic figure's head above its feet — overhead markers were placed for it. */
 const CLASSIC_TOP = 14;

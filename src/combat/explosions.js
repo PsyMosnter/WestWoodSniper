@@ -2,6 +2,8 @@
 import { BALANCE } from '../config/balance.js';
 import { damageOperative, damageUnit } from './damage.js';
 import { craterDecal } from '../render/decals.js';
+import { Art } from '../render/artStyle.js';
+import { BLAST_LIFE } from '../render/rtsBlast.js';
 
 const E = BALANCE.explosions;
 
@@ -19,12 +21,15 @@ export function falloff(damage, radius, dist) {
 export function explode(sys, x, y, radius, damage, o = {}) {
   const w = sys.world;
   const P = sys.particles;
-  // visuals
-  sys.effects.push({ kind: 'explosion', x, y, r: radius, t: 0, life: 0.7 + radius * 0.12 });
+  // visuals — Newest art: a fireball with ballistic debris (src/render/rtsBlast.js); otherwise the sprite blast
+  if (Art.style === 'newest') sys.effects.push({ kind: 'rtsBlast', x, y, r: radius, big: !!o.building || radius >= 2.8, seed: Math.floor(x * 131 + y * 71 + w.time * 1000), t: 0, life: BLAST_LIFE });
+  else {
+    sys.effects.push({ kind: 'explosion', x, y, r: radius, t: 0, life: 0.7 + radius * 0.12 });
+    P.debris(x, y, Math.round(8 + radius * 6));
+    P.fire(x, y, Math.round(4 + radius * 3));
+  }
   if (radius >= 1.5) sys.effects.push({ kind: 'column', x, y, r: radius, t: 0, life: 3 + radius * 1.5 });
-  P.debris(x, y, Math.round(8 + radius * 6));
   P.smoke(x, y, Math.round(4 + radius * 3), 1 + radius * 0.25);
-  P.fire(x, y, Math.round(4 + radius * 3));
   sys.game.renderer?.terrain.addDecal(craterDecal(x, y, Math.max(0.6, radius * 0.45), Math.floor(x * 17 + y * 31)));
   const cam = sys.game.cam;
   if (cam) {

@@ -5,6 +5,8 @@ import { STRUCT_DEFS, structureSprite } from '../render/spriteData/structures.js
 import { TILE } from '../core/camera.js';
 import { Time } from '../core/time.js';
 import { explode } from '../combat/explosions.js';
+import { Art } from '../render/artStyle.js';
+import { BLAST_LIFE } from '../render/rtsBlast.js';
 import { O } from '../world/tiles.js';
 import { computeAutotile } from '../world/autotile.js';
 import { dir8ToAngle, dirIndex } from '../world/tiles.js';
@@ -229,7 +231,8 @@ export class StructureSystem {
     w.map.clearStructure(s.x, s.y, s.w, s.h, true);
     for (let yy = s.y - 1; yy <= s.y + s.h; yy++) for (let xx = s.x - 1; xx <= s.x + s.w; xx++) this.game.renderer?.terrain.invalidateTile(xx, yy);
     if (s.gunner && !s.gunner.dead) { s.gunner.dead = true; }
-    this.game.combat.particles.debris(s.cx, s.cy, 30, ['#2A2D30', '#43484C', '#5A6166', '#A6F03C']);
+    if (Art.style === 'newest') this.game.combat.effects.push({ kind: 'rtsBlast', x: s.cx, y: s.cy + s.h * 0.3, r: Math.max(2.5, (s.w + s.h) * 0.7), big: true, seed: s.x * 97 + s.y * 31, t: 0, life: BLAST_LIFE });
+    else this.game.combat.particles.debris(s.cx, s.cy, 30, ['#2A2D30', '#43484C', '#5A6166', '#A6F03C']);
     this.game.combat.particles.smoke(s.cx, s.cy, 12, 2);
     this.game.cam?.shake(4);
     w.events.emit('structureDestroyed', { structure: s, cause });

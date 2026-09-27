@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Westwood Sniper — Mini run study</title>
+<style>
+  body { margin: 0; background: #101311; color: #CFE6C8; font: 13px/1.45 ui-monospace, Menlo, monospace; }
+  section { padding: 10px 18px; }
+  h1 { font-size: 16px; color: #FFB23A; margin: 14px 18px 4px; }
+  h2 { font-size: 13px; color: #FFB23A; margin: 14px 0 6px; text-transform: uppercase; letter-spacing: .05em; }
+  p { color: #7F957C; margin: 2px 0 8px; max-width: 900px; }
+  canvas { image-rendering: pixelated; display: block; border: 1px solid #2A322B; }
+  .row { display: flex; gap: 14px; flex-wrap: wrap; }
+  .cap { color: #7F957C; font-size: 11px; margin-top: 3px; }
+</style>
+</head>
+<body>
+<h1>WREN run — original "mini" sprites (8 facings × 6 frames, 64×48, anchor 32,36)</h1>
+<section id="out"></section>
+<script type="module">
+import { wrenRun, COL } from './mini.js';
+const out = document.getElementById('out');
+const DIRS = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+const SAND = ['#A88B52', '#C2A56A', '#D8BF86', '#CDB27A'];
+function ground(g, w, h) { let s = 7; const r = () => ((s = (s * 16807) % 2147483647) / 2147483647); g.fillStyle = SAND[1]; g.fillRect(0, 0, w, h); for (let i = 0; i < w * h * 0.3; i++) { g.fillStyle = SAND[[0, 2, 3][Math.floor(r() * 3)]]; g.fillRect(Math.floor(r() * w), Math.floor(r() * h), 1, 1); } }
+const cache = new Map();
+function frameCanvas(d, f) {
+  const k = d + '|' + f; let c = cache.get(k); if (c) return c;
+  const r = wrenRun(d, f);
+  c = document.createElement('canvas'); c.width = r.w; c.height = r.h;
+  const g = c.getContext('2d');
+  g.fillStyle = COL.shadow; for (let i = 0; i < r.w * r.h; i++) if (r.shadow[i] && !r.px[i]) g.fillRect(i % r.w, Math.floor(i / r.w), 1, 1);
+  for (let i = 0; i < r.w * r.h; i++) if (r.px[i]) { g.fillStyle = r.px[i]; g.fillRect(i % r.w, Math.floor(i / r.w), 1, 1); }
+  cache.set(k, c); return c;
+}
+function block(title, note) { const s = document.createElement('div'); s.innerHTML = `<h2>${title}</h2>${note ? `<p>${note}</p>` : ''}`; const r = document.createElement('div'); r.className = 'row'; s.appendChild(r); out.appendChild(s); return r; }
+function fig(row, cap, w, h, sc, draw, anim) {
+  const wrap = document.createElement('div'); const c = document.createElement('canvas'); c.width = w; c.height = h; c.style.width = w * sc + 'px'; c.style.height = h * sc + 'px';
+  const g = c.getContext('2d'); g.imageSmoothingEnabled = false;
+  const paint = (t) => { g.clearRect(0, 0, w, h); draw(g, t); }; paint(0);
+  if (anim) { const t0 = performance.now(); const loop = () => { paint((performance.now() - t0) / 1000); requestAnimationFrame(loop); }; requestAnimationFrame(loop); }
+  wrap.appendChild(c); const d = document.createElement('div'); d.className = 'cap'; d.textContent = cap; wrap.appendChild(d); row.appendChild(wrap);
+}
+// 1. all eight facings, animated at 80 ms a frame, 5×
+{
+  const row = block('Running, all eight facings (5×, 80 ms per frame)', 'Drawn from our own rig: a long low stride with the trailing leg kicking up, one pixel of bob, the body leaning in, rifle at the hip. Khaki shirt, olive trousers, green bandana, no backpack, no outline, a flat cast shadow from the feet.');
+  fig(row, DIRS.join(' · '), 8 * 34, 30, 5, (g, t) => { ground(g, 8 * 34, 30); const f = Math.floor(t / 0.08) % 6; DIRS.forEach((_, d) => g.drawImage(frameCanvas(d, f), 32 - 17, 36 - 22, 34, 30, d * 34, 0, 34, 30)); }, true);
+}
+// 2. frame strips
+{
+  const row = block('Frames 1–6 (8×): E and S', '');
+  fig(row, 'E (top) · S (bottom)', 6 * 26, 2 * 24, 8, (g) => { ground(g, 156, 48); for (let f = 0; f < 6; f++) { g.drawImage(frameCanvas(2, f), 32 - 13, 36 - 18, 26, 24, f * 26, 0, 26, 24); g.drawImage(frameCanvas(4, f), 32 - 13, 36 - 18, 26, 24, f * 26, 24, 26, 24); } });
+}
+</script>
+</body>
+</html>

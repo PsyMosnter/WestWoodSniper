@@ -1,5 +1,6 @@
 // @ts-check
 import { BALANCE } from '../config/balance.js';
+import { angleToDir8 } from '../world/tiles.js';
 import { bloodDecal } from '../render/decals.js';
 
 /**
@@ -61,6 +62,11 @@ export function killUnit(sys, u, cause) {
   u.dead = true; u.deathT = 0; u.hp = 0; u.path = [];
   u.flashT = 0; u.tag = null; u.staggerT = 0;
   u.fallDir = Math.cos(cause.dir ?? 0) >= 0 ? 1 : -1;
+  // Newest art animates the death: a takedown slumps forward (away from WREN, who is behind), a shot or a blast
+  // throws him back, away from where it came from (cause.dir points from the source to the unit)
+  const by = cause.by || '';
+  u.deathKind = by === 'knife' ? 'takedown' : ['explosion', 'c4', 'strike', 'chain', 'tank', 'jerrycan'].includes(by) ? 'explosion' : 'shot';
+  if (cause.dir != null) u.deathDir = angleToDir8(u.deathKind === 'takedown' ? cause.dir : cause.dir + Math.PI);
   u.state = 'dead';
   u.killedBy = cause.by;
   const w = sys.world;

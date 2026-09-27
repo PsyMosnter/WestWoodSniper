@@ -1,7 +1,8 @@
 // @ts-check
 import { TILE } from '../core/camera.js';
 import { Time } from '../core/time.js';
-import { unitSprite, unitVariant, markerLift, whiteOf, tintOf } from './sprites.js';
+import { unitSprite, unitVariant, markerLift, whiteOf, tintOf, drawGroundShadow } from './sprites.js';
+import { Art } from './artStyle.js';
 import { vehicleSprite, vehicleState } from './spriteData/vehicles.js';
 import { drawText } from './font.js';
 import { BALANCE } from '../config/balance.js';
@@ -81,10 +82,12 @@ function drawUnit(ctx, r, u, x, y) {
     return;
   }
   const { pose, frame } = u.pose();
-  const s = unitSprite(u.type, pose, u.dir, frame, unitVariant(u));
+  // a dead unit falls the way its death sends it (away from the shot, forward from a takedown) — Newest only
+  const dir = u.dead && u.deathDir != null && Art.style === 'newest' ? u.deathDir : u.dir;
+  const s = unitSprite(u.type, pose, dir, frame, unitVariant(u));
   const X = Math.round(r.sx(x) - s.ax * z), Y = Math.round(r.sy(y) - s.ay * z);
   const m = u.world.map, cover = u.dead ? null : coverKind(m, u.tx, u.ty);
-  if (!u.dead && cover !== 'water') { ctx.fillStyle = 'rgba(0,0,0,0.28)'; ctx.fillRect(Math.round(r.sx(x)) - 3 * z, Math.round(r.sy(y)), 7 * z, z); ctx.fillRect(Math.round(r.sx(x)) - 2 * z, Math.round(r.sy(y)) + z, 5 * z, z); }
+  if ((!u.dead || s.shadow) && cover !== 'water') drawGroundShadow(ctx, s, r.sx(x), r.sy(y), z);
   const img = u.flashT > 0 ? whiteOf(s.canvas) : s.canvas;
   // standing in tall grass or shallow water: the lower half is hidden (bodies stay fully visible)
   if (cover) drawCovered(ctx, z, img, s, X, Y, cover, m.biome, u.id.length * 13 + (u.id.charCodeAt(0) || 0), !!u.moving);

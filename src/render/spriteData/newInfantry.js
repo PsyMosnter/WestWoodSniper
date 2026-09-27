@@ -620,7 +620,7 @@ export const INFANTRY = {
  */
 export function renderInfantry(type, pose, dir, frame = 0, variant = '', zoom = 1) {
   let T = INFANTRY[type] || INFANTRY.husk;
-  if (variant === 'nohelm' && T.gear?.includes('helmet')) T = { ...T, gear: T.gear.filter((x) => x !== 'helmet') };
+  if (String(variant).includes('nohelm') && T.gear?.includes('helmet')) T = { ...T, gear: T.gear.filter((x) => x !== 'helmet') };
   const model = build(T, pose, dir, frame);
   const lying = pose === 'prone' || pose === 'crawl' || (pose === 'dead' && frame >= 2);
   // zoom > 1: a big close-up of the same figure (cutscenes), rendered at zoom× the map resolution

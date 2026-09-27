@@ -1,7 +1,7 @@
 // @ts-check
 import { TerrainRenderer } from './terrainRenderer.js';
 import { FogRenderer } from './fogRenderer.js';
-import { unitSprite, whiteOf, tintOf, markerLift } from './sprites.js';
+import { unitSprite, whiteOf, tintOf, markerLift, drawGroundShadow } from './sprites.js';
 import { TILE } from '../core/camera.js';
 import { Time } from '../core/time.js';
 import { hash2 } from '../core/rng.js';
@@ -129,7 +129,7 @@ export class Renderer {
     const z = this.cam.zoom;
     const X = Math.round(this.sx(x) - s.ax * z), Y = Math.round(this.sy(y) - s.ay * z);
     const m = this.world.map, cover = coverKind(m, op.tx, op.ty);
-    if (cover !== 'water') { ctx.fillStyle = 'rgba(0,0,0,0.28)'; ctx.fillRect(Math.round(this.sx(x)) - 3 * z, Math.round(this.sy(y)), 7 * z, z); }
+    if (cover !== 'water') drawGroundShadow(ctx, s, this.sx(x), this.sy(y), z);
     const flash = op.flashT > 0 && (Math.floor(Time.realTime * 30) & 1) === 0;
     const img = flash ? whiteOf(s.canvas) : s.canvas;
     // tall grass / shallow water hide the lower half (harder to see — SPEC §7.1 concealment)

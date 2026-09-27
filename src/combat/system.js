@@ -9,6 +9,7 @@ import { Rng } from '../core/rng.js';
 import { BALANCE } from '../config/balance.js';
 import { damageOperative, killUnit, damageUnit } from './damage.js';
 import { explode } from './explosions.js';
+import { createBlast } from '../render/rtsBlast.js';
 
 /**
  * Combat glue: particles, projectiles, player pistol, explosion visuals, rifle reload.
@@ -93,6 +94,16 @@ export class CombatSystem {
   draw(ctx, renderer) {
     const cam = renderer.cam, z = cam.zoom;
     for (const e of this.effects) {
+      if (e.kind === 'rtsBlast') {
+        // (sprite-pixel units, scaled by the zoom — integer, so it stays crisp)
+        e.fn = e.fn || createBlast(e.big ? 'building' : 'vehicle', e.seed, Math.max(0.8, e.r / 1.6));
+        ctx.save();
+        ctx.translate(Math.round((e.x * TILE - cam.left) * z), Math.round((e.y * TILE - cam.top) * z));
+        ctx.scale(z, z);
+        e.fn(ctx, 0, 0, e.t);
+        ctx.restore();
+        continue;
+      }
       if (e.kind !== 'explosion') continue;
       const frames = explosionFrames(Math.max(8, Math.round(e.r * TILE * 0.9)));
       const k = Math.min(frames.length - 1, Math.floor((e.t / e.life) * frames.length));

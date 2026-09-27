@@ -3,7 +3,7 @@ import { BALANCE } from '../config/balance.js';
 import { C } from '../config/palette.js';
 import { TILE } from '../core/camera.js';
 import { Time } from '../core/time.js';
-import { unitSprite, whiteOf, markerLift } from '../render/sprites.js';
+import { unitSprite, whiteOf, markerLift, drawGroundShadow } from '../render/sprites.js';
 import { vehicleSprite } from '../render/spriteData/vehicles.js';
 import { drawText } from '../render/font.js';
 import { angleToDir8 } from '../world/tiles.js';
@@ -260,7 +260,7 @@ export class FriendlySystem {
       const s = unitSprite(f.type, pose, angleToDir8(f.angle), frame);
       up = markerLift(s, 18) - 18;
       const m = this.world.map, cover = f.dead ? null : coverKind(m, Math.floor(f.x), Math.floor(f.y));
-      if (cover !== 'water') { ctx.fillStyle = 'rgba(0,0,0,0.28)'; ctx.fillRect(X0 - 3 * z, Y0, 7 * z, z); }
+      if (cover !== 'water') drawGroundShadow(ctx, s, X0, Y0, z);
       const img = f.flashT > 0 ? whiteOf(s.canvas) : s.canvas;
       if (cover) drawCovered(ctx, z, img, s, X0 - s.ax * z, Y0 - s.ay * z, cover, m.biome, f.id.length * 17, !!f.moving);
       else ctx.drawImage(img, X0 - s.ax * z, Y0 - s.ay * z, s.w * z, s.h * z);

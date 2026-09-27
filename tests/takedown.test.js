@@ -117,3 +117,13 @@ test('a takedown in plain view of another soldier is witnessed; one out of sight
   assert.notEqual(watcher.state, 'unaware', 'saw it happen');
   assert.equal(mate.state, 'unaware', 'behind the wall and 5 tiles off: heard nothing');
 });
+
+test('a move ordered while WREN is getting up from hunker is carried out once he is up', () => {
+  const g = setup(), op = g.world.operative;
+  flat(g);
+  op.toggleHunker();                 // getting up (0.7 s)…
+  tick(g, 0.25);
+  assert.ok(op.orderMove(15, 10, 'walk'), 'order accepted mid get-up');
+  tick(g, BALANCE.stances.hunker.exit + 1.5);
+  assert.ok(op.x > 6.5, `he walked off (x ${op.x.toFixed(2)})`);
+});

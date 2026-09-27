@@ -77,6 +77,7 @@ export class EnemySystem {
     const groupsDetecting = new Set();
     for (const u of w.units) {
       if (u.dead) { u.deathT += dt; u.px = u.x; u.py = u.y; continue; }
+      if (u.retired) continue;                                           // Boot Camp dummy that packed up
       if (u.kind === 'structure') continue;
       if (u.hidden) { u.px = u.x; u.py = u.y; u.seesOp = false; continue; } // riding inside a vehicle / in a bunker
       if (u.scripted) { u.step(dt); if (u.flashT > 0) u.flashT -= dt; continue; }          // scripted run (VIP to the bunker, riders remounting)
@@ -416,7 +417,7 @@ export class EnemySystem {
     }
     const shot = n.kind === 'rifle' || n.kind === 'pistol' || n.kind === 'explosion' || n.kind === 'c4';
     for (const u of w.units) {
-      if (u.dead || u.state === 'combat') continue;
+      if (u.dead || u.retired || u.state === 'combat') continue;
       if (u.kind === 'emplacement' || u.kind === 'turret') {
         if (Math.hypot(u.x - n.x, u.y - n.y) <= n.radius && n.source !== u) { u.lastKnown = { x: n.x, y: n.y }; u.setState('alerted'); }
         continue;

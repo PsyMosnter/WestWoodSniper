@@ -24,7 +24,7 @@ export function visionOf(obs, world) {
   if (world.timeOfDay === 'night' && obs.profile !== 'searchlight') mult *= BALANCE.ai.nightVision;
   else if (world.timeOfDay === 'dusk') mult *= BALANCE.ai.duskVision;
   if (world.blizzard) mult *= BALANCE.ai.blizzardVision;
-  if (obs.disabledVision) mult *= obs.disabledVision;
+  if (obs.disabledVision != null) mult *= obs.disabledVision;   // (0 = blind: a buggy whose driver is shot)
   if (obs.blindT > 0) mult = 0;
   return { radius: radius * mult, cone: (prof.cone * Math.PI) / 180, peripheral: prof.peripheral ?? 1, rate: prof.rate ?? 1 };
 }

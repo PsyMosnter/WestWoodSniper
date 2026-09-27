@@ -151,8 +151,8 @@ export class CampaignScene extends MenuBase {
     for (const b of [this.askBoot, this.askSkip]) b.visible = this.ask;
     if (this.ask) {
       ctx.fillStyle = 'rgba(7,9,10,0.72)'; ctx.fillRect(0, 0, W, H);
-      const pw = 320, ph = 96, px = Math.round(W / 2 - pw / 2), py = Math.round(H / 2 - 62);
-      panel(ctx, px, py, pw, ph + 44, { rivets: true, alpha: 0.97 });
+      const pw = 320, px = Math.round(W / 2 - pw / 2), py = Math.round(H / 2 - 62);
+      panel(ctx, px, py, pw, this.askBoot.y + this.askBoot.h + 10 - py, { rivets: true, alpha: 0.97 });
       drawText(ctx, 'LT. VALE: FIRST TIME OUT, WREN?', px + 10, py + 8, { color: C.uiAmber });
       const lines = wrapText('Three minutes on my training range: walk, run, hide in tall grass, hunker and crawl, a silent takedown, a driver shot and C4 on a vehicle and a building. You can run it again any time from BOOT CAMP on the map.', pw - 20, { font: '5x7' });
       lines.forEach((ln, i) => drawText(ctx, ln, px + 10, py + 22 + i * 9, { color: C.uiText }));

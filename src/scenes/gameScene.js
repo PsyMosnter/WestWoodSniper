@@ -424,7 +424,16 @@ export class GameScene {
     if (this.overlayUp && this.overlayUp(p)) return;
     if (p.owner === 'world') this.gestures.up(p, cancel);
   }
-  onWheel(d) { if (!this.loading) this._zoom(d < 0 ? 2 : 1); }
+  onWheel(d) { if (!this.loading && !this.scope.open) this._zoom(d < 0 ? 2 : 1); }
+  /** Back from the pause menu (or any overlay): a press that started here (PAUSE) ended there — forget it,
+   * or the next click would finish it as a long-press/tap on the world. */
+  resumed() {
+    if (!this.gestures || !this.hud) return;
+    this.gestures.reset(); this.gestures.lastTap = null;
+    for (const b of Object.values(this.hud.buttons)) b.pressed = false;
+    this.hud.active.clear();
+    this.dragging = false;
+  }
   onKeyUp(code) { if (this.scope?.open) this.scope.key(code, false); }
   onKeyDown(code, e) {
     if (this.loading) return;
@@ -506,7 +515,8 @@ export class GameScene {
       if (mouse.x < e) kx -= 1; else if (mouse.x > this.app.display.W - e) kx += 1;
       if (mouse.y < e) ky -= 1; else if (mouse.y > this.app.display.H - e) ky += 1;
     }
-    if (kx || ky) this.cam.panBy(kx * BALANCE.input.keyPanSpeed * dt, ky * BALANCE.input.keyPanSpeed * dt);
+    // (not while scoped — the mouse lives near the edges while aiming — nor while a tip is open)
+    if ((kx || ky) && !this.scope.open && !this.runner?.tutorial) this.cam.panBy(kx * BALANCE.input.keyPanSpeed * dt, ky * BALANCE.input.keyPanSpeed * dt);
     this.frameDt = dt;
     this.lastRealDt = dt;
     if (this.pendingDebrief) {
@@ -706,12 +716,41 @@ export class GameScene {
     const cluster = (this.hud?.B || 30) * 3 + 20, lefty = !!this.hud?.lefty;
     if (p && !p.button && (p.x < (lefty ? cluster : 40) || p.x > W - (lefty ? 40 : cluster) || p.y < 50 || p.y > H - 50)) {
       t.follow = this.cam.follow;
-      this.cam.follow = false;
-      this.cam.centreOn(p.wx, p.wy);
+      this.cam.follow = false; this.cam.pan = null;
+      const op = this.world.operative, c = this._frame([{ x: p.wx, y: p.wy }, { x: op.x, y: op.y }], 0);
+      this.cam.centreOn(c.x, c.y);
     }
   }
   onTipClosed(t) {
-    if (t && t.follow !== undefined) { this.cam.follow = t.follow; if (t.follow) this.cam.centreOn(this.world.operative.x, this.world.operative.y); }
+    if (!t || t.follow === undefined) return;
+    // keep what the tip was about in view (with WREN, if both fit) instead of snapping back to WREN;
+    // following resumes by itself once WREN walks toward the edge of the view
+    const p = this._tipPoint(t.at), op = this.world.operative;
+    const c = p && !p.button ? this._frame([{ x: op.x, y: op.y }, { x: p.wx, y: p.wy }], 0) : { x: op.x, y: op.y };
+    this.cam.centreOn(c.x, c.y);
+    this.cam.follow = !(p && !p.button) && t.follow;
+  }
+  /**
+   * Camera centre (tiles) that puts all `pts` inside the clear view — away from the screen edges and the
+   * action-button cluster. If they can't all fit, `pts[keep]` is kept in view and the view leans toward the rest.
+   */
+  _frame(pts, keep = 0) {
+    const { W, H } = this.app.display, s = TILE * this.cam.zoom;
+    const cluster = (this.hud?.B || 30) * 3 + 20, lefty = !!this.hud?.lefty;
+    const axis = (vals, a, b, half) => {
+      // a centre c puts value v on screen at (v − c)·s + half; keep that within [a, b]
+      const rng = (v) => [v - (b - half) / s, v - (a - half) / s];
+      let lo = -Infinity, hi = Infinity;
+      for (const v of vals) { const [l, h] = rng(v); lo = Math.max(lo, l); hi = Math.min(hi, h); }
+      if (lo <= hi) return (lo + hi) / 2;
+      const [kl, kh] = rng(vals[keep]);
+      const want = vals.reduce((q, v) => q + v, 0) / vals.length;
+      return Math.max(kl, Math.min(kh, want));
+    };
+    return {
+      x: axis(pts.map((q) => q.x), lefty ? cluster : 40, lefty ? W - 40 : W - cluster, W / 2),
+      y: axis(pts.map((q) => q.y), 50, H - 50, H / 2),
+    };
   }
   /** An open tip: the game is paused, the screen dims except around what the tip is about. */
   _drawTutorial(ctx) {
@@ -828,7 +867,7 @@ export class GameScene {
   /** Resume following when WREN is about to leave the view (panned planning view is kept otherwise). */
   _autoFollow(tx, ty) {
     const c = this.cam;
-    if (c.follow || c.pan) return;
+    if (c.follow || c.pan || this.runner?.tutorial) return;   // (a tip framed the view: leave it)
     if (!this.world.operative.moving) return;
     const s = c.tileToScreen(tx / TILE, ty / TILE);
     const m = 36;

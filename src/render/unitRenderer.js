@@ -34,7 +34,7 @@ export function installUnitRendering(game) {
     for (const u of w.units) {
       if (u.dead || u.hidden || u.kind === 'structure' || !w.fog.isVisible(u.tx, u.ty)) continue;
       const d = Math.hypot(u.x - op.x, u.y - op.y);
-      if (d > 16 || u.blindT > 0) continue;
+      if (d > 16 || u.blindT > 0 || u.disabledVision === 0) continue;   // no cone for a blind (driverless) vehicle
       list.push({ u, d });
     }
     // only the few cones that could actually reach WREN get the dithered fill (an Alarm would
@@ -61,7 +61,7 @@ export function installUnitRendering(game) {
     }
     const drawnIcons = [];
     for (const u of w.units) {
-      if (u.dead || u.kind === 'structure' || !w.fog.isVisible(u.tx, u.ty)) continue;
+      if (u.dead || u.hidden || u.kind === 'structure' || !w.fog.isVisible(u.tx, u.ty)) continue;
       // don't stack two icons on the same spot (units standing on each other)
       if (drawnIcons.some((d) => Math.abs(d.x - u.x) < 0.5 && Math.abs(d.y - u.y) < 0.5 && d.s === u.state)) continue;
       drawnIcons.push({ x: u.x, y: u.y, s: u.state });
@@ -182,7 +182,15 @@ function drawCone(ctx, r, u, w, fill = true) {
     }
   });
   ctx.globalAlpha = 1;
-  // inner rim: dense dots — where WREN would be seen right now
+  // inner rim: dense dots — where WREN would be seen right now — with a dark outline on both sides so it
+  // reads on light ground (tall grass, water, snow) as well as dark
+  if (c.inner > 0.2) {
+    ctx.fillStyle = 'rgba(7,9,10,0.5)';
+    for (let i = 0; i < c.pts.length - 1; i++) {
+      const [x0, y0] = at(c.pts[i], c.pts[i].di + 1.5 / TILE), [x1, y1] = at(c.pts[i + 1], c.pts[i + 1].di + 1.5 / TILE);
+      dotted(x0, y0, x1, y1, 1, 0);
+    }
+  }
   if (c.inner > 0.2) rim((o) => {
     for (const p of [c.pts[0], c.pts[c.pts.length - 1]]) {
       const [x1, y1] = at(p, p.di);

@@ -27,7 +27,11 @@ export class SceneManager {
     s.resize?.(this.app.display.W, this.app.display.H);
     return s;
   }
-  pop() { const s = this.stack.pop(); s?.exit?.(); return s; }
+  pop() {
+    const s = this.stack.pop(); s?.exit?.();
+    this.top?.resumed?.();          // the scene below gets input again: drop presses that ended on the overlay
+    return s;
+  }
   update(dt) {
     // Only the base scene simulates; overlays may block it (via Time.scale = 0)
     this.stack[0]?.update?.(dt);

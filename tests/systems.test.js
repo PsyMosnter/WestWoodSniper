@@ -46,11 +46,19 @@ test('view-slit hit leaves a vehicle with a 3-tile vision radius that survives F
   g.vehicles.disable(v, 'slit');
   v.visionMult = 1; // the FSM resets this every state change
   const after = visionOf(v, g.world).radius;
-  const dv = v.disabledVision; v.disabledVision = 0;
+  const dv = v.disabledVision; v.disabledVision = undefined;
   const full = visionOf(v, g.world).radius; v.disabledVision = dv;
   assert.ok(Math.abs(after / full - 3 / BALANCE.ai.vision.armour.radius) < 1e-6, `slit ${after} vs full ${full}`);
   assert.equal(v.disabled, true);
   assert.equal(v.speed(), 0);
+});
+
+test('a buggy whose driver is shot is blind (disabledVision 0 used to be ignored as "no modifier")', () => {
+  const g = setup({ units: [{ id: 's', type: 'skitter', x: 10, y: 10, alertGroup: 'a' }] });
+  const s = g.world.units.find((u) => u.id === 's');
+  assert.ok(visionOf(s, g.world).radius > 0);
+  g.vehicles.disable(s, 'driver');
+  assert.equal(visionOf(s, g.world).radius, 0);
 });
 
 test('a fuel hauler that dies explodes and hurts what is next to it', () => {

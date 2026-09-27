@@ -1,20 +1,23 @@
 // @ts-check
 /**
  * Boot Camp (playtest 2) — the optional ~3-minute training course before Mission 1, run by Lt. Idris Vale.
- * A 60×36 GOD training range, west to east: walk → run → tall-grass field (dummy d1 watching it) →
+ * A 58×34 GOD training range (in a 72×42 map: forest margins), west to east: walk → run → tall-grass field (dummy d1 watching it) →
  * fenced crawl lane (dummy d2 watching it through the fence) → sentry d3 with his back turned (takedown) →
  * parked Skitter (shoot the driver, then C4) → hut by the south fence (C4). Script: src/missions/bc.js.
  */
 import { MapGen } from './lib.js';
 
 export function build() {
-  const W = 60, H = 36;
+  // the course sits in the west 58×34; forest margins east and south let the camera centre the east-side
+  // stations clear of the HUD (the view can't scroll far past a map edge)
+  const W = 72, H = 42;
   const g = new MapGen(W, H, 404, 'g');
 
   // tree line round the range (looks like a clearing in the West Wood), thinner inside
   g.each((x, y) => {
-    const edge = Math.min(x, y, W - 1 - x, H - 1 - y);
-    if (edge < 2) g.set(x, y, { o: 'F' });
+    const edge = Math.min(x, y, 57 - x, 35 - y);
+    if (x > 57 || y > 35) g.set(x, y, { o: g.rng.chance(0.8) ? 'F' : 'f' });
+    else if (edge < 2) g.set(x, y, { o: 'F' });
     else if (edge < 3 && g.rng.chance(0.55)) g.set(x, y, { o: 'f' });
   });
 

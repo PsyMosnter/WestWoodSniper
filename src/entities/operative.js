@@ -135,6 +135,12 @@ export class Operative {
     if (this.stance === 'hunker' || goingFlat) {
       this.pendingMove = { tx: goal.x, ty: goal.y, mode, onArrive };
       if (!this.trans || this.trans.to === 'hunker') this.startTrans('crouch', S.hunker.exit, () => this._consumePending());
+      else if (!this.trans.consumes) {
+        // already getting up (HUNKER pressed a moment ago): move off as soon as he is up
+        const tr = this.trans, then = tr.then;
+        tr.consumes = true;
+        tr.then = () => { then?.(); this._consumePending(); };
+      }
       return true;
     }
     const path = this.world.pf.find(this.tx, this.ty, goal.x, goal.y, { partial: true });

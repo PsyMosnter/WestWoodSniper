@@ -62,12 +62,25 @@ export class DebriefScene extends MenuBase {
   onPointerDown(p) { if (this.t < 1.1) return; super.onPointerDown(p); }
   frame(dt) { this.t += dt; }
   onKeyDown(code) { if (code === 'Enter' || code === 'Space') (this.cp || this.cont).onPress(); }
+  /** Boot Camp: no stars, medals or detection stats — just the course and Vale's verdict */
+  renderTraining(ctx, W, H) {
+    const s = this.p.stats, pw = Math.min(300, W - 40), px = Math.round(W / 2 - pw / 2), py = 50;
+    panel(ctx, px, py, pw, 92, { alpha: 0.9 });
+    const rows = [['TIME ON THE RANGE', fmtTime(s.time)], ['RESETS', s.resets || 0], ['SHOTS FIRED', s.rifleShots + s.pistolShots]];
+    rows.forEach(([a, b], i) => { drawText(ctx, a, px + 10, py + 10 + i * 13, { color: C.uiTextD }); drawText(ctx, String(b), px + pw - 10, py + 10 + i * 13, { color: C.uiText, align: 'right' }); });
+    const verdict = (s.resets || 0) === 0 ? 'LT. VALE: "CLEAN RUN. DON\'T LET IT GO TO YOUR HEAD."' : 'LT. VALE: "YOU\'LL LIVE. PROBABLY."';
+    drawText(ctx, verdict, px + 10, py + 58, { color: C.uiAmber, font: '3x5' });
+    drawText(ctx, 'NEXT: MISSION 1 - FIRST LIGHT', px + 10, py + 72, { color: C.uiTextD, font: '3x5' });
+    for (const b of this.buttons) b.enabled = this.t >= 1.1;
+    this.drawButtons(ctx);
+  }
   render(ctx) {
     const { W, H } = this.app.display, p = this.p, s = p.stats;
     ctx.fillStyle = '#0B0E0C'; ctx.fillRect(0, 0, W, H);
     for (let y = 0; y < H; y += 2) { ctx.fillStyle = 'rgba(0,0,0,0.25)'; ctx.fillRect(0, y, W, 1); }
     drawText(ctx, p.won ? (p.mission === 'bc' ? 'TRAINING COMPLETE' : 'MISSION ACCOMPLISHED') : 'MISSION FAILED', W / 2, 10, { align: 'center', color: p.won ? C.uiText : C.uiAlert, bold: true, scale: 2, shadow: '#000' });
     drawText(ctx, `"${p.name.toUpperCase()}"`, W / 2, 30, { align: 'center', color: C.uiAmber });
+    if (p.mission === 'bc' && p.won) { this.renderTraining(ctx, W, H); return; }
     // stars
     const k = Math.min(3, Math.floor(this.t / 0.35));
     const earned = [p.won, p.won && s.alarms === 0, p.won && s.time <= p.par];

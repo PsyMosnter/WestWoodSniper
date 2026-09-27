@@ -28,6 +28,8 @@ export function damageOperative(sys, dmg, from, kind = 'bullet') {
   if (op.busy && op.busy.kind !== 'medkit') { op.busy.onCancel?.(); op.busy = null; }
   else if (op.busy && op.busy.kind === 'medkit') { op.busy = null; }
   if (op.hp <= 0) {
+    // a mission script may catch it (Boot Camp: your own C4 sends you back to the last marker)
+    if (sys.game.runner?.custom?.saveFromDeath?.(sys.game.runner, { from, kind })) return dmg;
     op.dead = true;
     op.path = [];
     w.events.emit('opDead', { from, kind });

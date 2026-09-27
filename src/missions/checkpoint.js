@@ -39,6 +39,7 @@ export function snapshot(game) {
     props: (w.props || []).map((p) => ({ dead: !!p.dead })),
     corpses: w.corpses.filter((c) => c.unit).map((c) => ({ id: c.unit.id, discovered: c.discovered, byPlayer: c.byPlayer })),
     objectives: game.objectives.items.map((o) => pick(o, ['id', 'done', 'failed', 'hidden', 'progress', 'elapsed'])),
+    breached: [...(w.breached || [])],
     flags: clone(game.runner.flags),
     fired: game.runner.triggers.map((t) => t.fired),
     alerts: [...w.alerts.groups.values()].map((g) => pick(g, ['id', 'level', 't', 'reinforced', 'commsDown', 'alarmCount'])),
@@ -73,6 +74,7 @@ export function restore(game, snap) {
     s.hardened = ss.hardened;
     if (ss.dead && !s.dead) quietDestroy(game, s); else s.hp = ss.hp;
   }
+  for (const [x, y] of snap.breached || []) game.structures.blastBreach(x, y, true);
   for (const gg of snap.gunners) { const u = w.units.find((q) => q.id === gg.id); if (u && gg.dead) u.dead = true; }
   const known = new Set(snap.units.map((u) => u.id));
   for (const u of w.units) if (u.kind !== 'emplacement' && u.kind !== 'turret' && !known.has(u.id)) { u.dead = true; u.hidden = true; }

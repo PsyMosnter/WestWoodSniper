@@ -5,6 +5,8 @@ import { STRUCT_DEFS, structureSprite } from '../render/spriteData/structures.js
 import { TILE } from '../core/camera.js';
 import { Time } from '../core/time.js';
 import { explode } from '../combat/explosions.js';
+import { O } from '../world/tiles.js';
+import { computeAutotile } from '../world/autotile.js';
 import { dir8ToAngle, dirIndex } from '../world/tiles.js';
 import { startSearch } from '../ai/fsm.js';
 import { drawText } from '../render/font.js';
@@ -30,6 +32,7 @@ export class Structure {
     this.hp = this.maxHp;
     this.dead = false;
     this.hardened = !!spec.hardened;
+    this.powerFrom = spec.powerFrom || null;   // id of a generator feeding this (as well as the group's plant)
     this.st = {};                 // art state flags: gunnerDead, dishDown, unpowered, sirenDead, lightDead, cellDead
     this.seen = false;            // ever seen by the player
     this.seenDead = false;        // last known state (fog shows it)
@@ -121,7 +124,7 @@ export class StructureSystem {
       }
       // power-dependent parts
       if (s.def.needsPower || s.type === 'jammer' || s.type === 'shieldGenerator') {
-        const on = this.powered(s.alertGroup);
+        const on = this.powered(s.alertGroup) && !(s.powerFrom && this.byId(s.powerFrom)?.dead);
         if (!!s.st.unpowered === on) s.st = { ...s.st, unpowered: !on };
         if (s.gunner) s.gunner.blindT = on ? 0 : 999;
       }
@@ -236,6 +239,34 @@ export class StructureSystem {
     if (s.def.explodes === 'fuelDepot') this.game.combat.later(0, () => explode(this.game.combat, s.cx, s.cy, X.fuelDepot.radius, X.fuelDepot.damage, { source: 'player', fire: 6 }));
     if (s.type === 'powerPlant') w.events.emit('powerLost', { group: s.alertGroup });
     if (s.type === 'jammer') this.game.hud?.say('Jammer offline.');
+  }
+  /**
+   * C4 on cracked rock (data.breaches): the connected cracked tiles become a ramp up the cliff — a new way
+   * onto the higher level. `quiet` (checkpoint restore) skips the particles and radio line.
+   */
+  blastBreach(tx, ty, quiet = false) {
+    const w = this.world, m = w.map;
+    const seen = new Set(), stack = [[tx, ty]];
+    while (stack.length) {
+      const [x, y] = stack.pop();
+      const k = y * m.w + x;
+      if (!m.inb(x, y) || seen.has(k) || !m.breach[k]) continue;
+      seen.add(k);
+      stack.push([x + 1, y], [x - 1, y], [x, y + 1], [x, y - 1]);
+    }
+    if (!seen.size) return;
+    for (const k of seen) { m.breach[k] = 0; m.overlay[k] = O.ramp; }
+    computeAutotile(m);
+    m.recompute();
+    (w.breached ||= []).push([tx, ty]);
+    for (const k of seen) {
+      const x = k % m.w, y = Math.floor(k / m.w);
+      for (let yy = y - 2; yy <= y + 2; yy++) for (let xx = x - 2; xx <= x + 2; xx++) this.game.renderer?.terrain.invalidateTile(xx, yy);
+      if (quiet) continue;
+      this.game.combat.particles.debris(x + 0.5, y + 0.5, 10, ['#7A4A32', '#9A6040', '#4A2E22']);
+      this.game.combat.particles.smoke(x + 0.5, y + 0.5, 3, 1.4);
+    }
+    if (!quiet) { w.events.emit('breach', { x: tx, y: ty }); this.game.hud?.say('The rock gave way — there\'s a way up.', true); }
   }
   /** C4 on a demolishable bridge: every connected bridge tile drops into the water (SPEC §13, Mission 3). */
   demolishBridge(tx, ty) {

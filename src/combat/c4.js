@@ -34,6 +34,7 @@ export class C4System {
     }
     for (const v of w.units) if (v.kind === 'vehicle' && v.disabled && !v.dead && Math.floor(v.x) === tx && Math.floor(v.y) === ty) return { kind: 'vehicle', v, x: v.x, y: v.y, name: v.name };
     if (m.demolishable[m.idx(tx, ty)]) return { kind: 'bridge', x: tx + 0.5, y: ty + 0.5, tx, ty, name: 'Bridge' };
+    if (m.breach[m.idx(tx, ty)]) return { kind: 'breach', x: tx + 0.5, y: ty + 0.5, tx, ty, name: 'Cracked rock' };
     return null;
   }
   /** tiles adjacent to the target the Operative could plant from */
@@ -122,6 +123,7 @@ export class C4System {
     if (t.kind === 'structure' && !t.s.dead) g.structures.destroy(t.s, { by: 'c4' });
     if (t.kind === 'vehicle' && !t.v.dead) g.vehicles.destroy(t.v, { by: 'c4' });
     if (t.kind === 'bridge') g.structures?.demolishBridge?.(t.tx, t.ty);
+    if (t.kind === 'breach') g.structures?.blastBreach?.(t.tx, t.ty);
     explode(g.combat, c.x, c.y, K.radius, K.damage, { source: 'player', noise: K.noise, buildingMult: 0.5 });
     w.noise(c.x, c.y, K.noise, 'c4');
     // base alert: at least Caution; Alarm if inside a base footprint

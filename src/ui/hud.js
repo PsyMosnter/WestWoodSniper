@@ -54,29 +54,26 @@ export class Hud {
     const bs = this.buttons;
     const mmW = 96, mmH = 72;
     this.minimap.layout(W - m - mmW - 2, Tt + m + 2, mmW, mmH);
-    // actions: a 2×3 grid under the minimap — R&GUN COVER / HUNKER SMOKE / TAKEDOWN C4 — plus an extra
-    // row for STRIKE (right) and the escort/convoy orders (left) once a mission has them
+    // actions: a 3×2 grid under the minimap — R&GUN COVER TAKEDOWN / HUNKER SMOKE C4 — plus a row under it,
+    // filled from the right, for STRIKE / ADVANCE / FOLLOW once a mission has them
     const rowY = Tt + m + mmH + 8;
-    const extraRows = this._extraRows();
-    const rows = 3 + extraRows;
-    const avail = H - m - rowY - (B + g) * 0;              // the system row sits left of the grid, not under it
-    const gs = Math.max(26, Math.min(B, Math.floor((mmW + 2 - g) / 2), Math.floor((avail - (rows - 1) * g) / rows)));
-    const gx0 = W - m - 2 * gs - g, gx1 = W - m - gs;
+    const extras = this._extras();
+    const rows = 2 + (extras.length ? 1 : 0);
+    const sb = Math.min(B, 36), sy = H - m - sb;              // system row, bottom right
+    const avail = sy - g - rowY;
+    const gs = Math.max(24, Math.min(B, Math.floor((mmW + 2 - 2 * g) / 3), Math.floor((avail - (rows - 1) * g) / rows)));
+    const gx = (c) => W - m - (3 - c) * gs - (2 - c) * g;
     const gy = (r) => rowY + r * (gs + g);
-    bs.runGun.place(gx0, gy(0), gs, gs); bs.cover.place(gx1, gy(0), gs, gs);
-    bs.hunker.place(gx0, gy(1), gs, gs); bs.smoke.place(gx1, gy(1), gs, gs);
-    bs.takedown.place(gx0, gy(2), gs, gs); bs.c4.place(gx1, gy(2), gs, gs); bs.detonate.place(gx1, gy(2), gs, gs);
-    bs.designator.place(gx1, gy(3), gs, gs);
-    const convoyOn = !!this.game.convoy, followOn = (this.game.escortCount?.() || 0) >= 2;
-    bs.convoy.place(gx0, gy(3), gs, gs);
-    bs.follow.place(gx0, gy(convoyOn && followOn ? 4 : 3), gs, gs);
+    bs.runGun.place(gx(0), gy(0), gs, gs); bs.cover.place(gx(1), gy(0), gs, gs); bs.takedown.place(gx(2), gy(0), gs, gs);
+    bs.hunker.place(gx(0), gy(1), gs, gs); bs.smoke.place(gx(1), gy(1), gs, gs);
+    bs.c4.place(gx(2), gy(1), gs, gs); bs.detonate.place(gx(2), gy(1), gs, gs);
+    extras.forEach((id, i) => bs[id].place(gx(2 - i), gy(2), gs, gs));
     bs.plant.place(L + m + 150, H - m - B, 2 * B, B);
-    // system row along the bottom, just left of the grid: ZOOM SAVE PAUSE CENTRE
-    const sb = Math.min(B, 36), sy = H - m - sb, sx1 = gx0 - g - sb;
-    bs.centre.place(sx1, sy, sb, sb);
-    bs.pause.place(sx1 - (sb + g), sy, sb, sb);
-    bs.save.place(sx1 - 2 * (sb + g), sy, sb, sb);
-    bs.zoom.place(sx1 - 3 * (sb + g), sy, sb, sb);
+    // system row along the bottom edge, flush right: ZOOM SAVE PAUSE CENTRE
+    const sx = (i) => W - m - (4 - i) * sb - (3 - i) * g;
+    bs.zoom.place(sx(0), sy, sb, sb); bs.save.place(sx(1), sy, sb, sb);
+    bs.pause.place(sx(2), sy, sb, sb); bs.centre.place(sx(3), sy, sb, sb);
+    const extraRows = extras.join();
     this._layoutKey = extraRows;
     this.lefty = lefty;
   }
@@ -142,15 +139,14 @@ export class Hud {
     for (const t of this.toasts) t.t -= dt;
     this.toasts = this.toasts.filter((t) => t.t > 0);
   }
-  /** rows needed under the 2×3 grid: STRIKE / ADVANCE / FOLLOW */
-  _extraRows() {
+  /** mission buttons under the grid, right to left: STRIKE, ADVANCE, FOLLOW */
+  _extras() {
     const op = this.world.operative, g = this.game;
-    const strike = op.designator > 0, convoy = !!g.convoy, follow = (g.escortCount?.() || 0) >= 2;
-    return (strike || convoy || follow ? 1 : 0) + (convoy && follow ? 1 : 0);
+    return [op.designator > 0 && 'designator', !!g.convoy && 'convoy', (g.escortCount?.() || 0) >= 2 && 'follow'].filter(Boolean);
   }
   syncButtons() {
     const op = this.world.operative, bs = this.buttons, g = this.game;
-    if (this._extraRows() !== this._layoutKey) this.layout(this.W, this.H, this.B, this.lefty, this.safe);
+    if (this._extras().join() !== this._layoutKey) this.layout(this.W, this.H, this.B, this.lefty, this.safe);
     bs.hunker.active = op.stance === 'hunker' || (!!op.trans && op.trans.to === 'hunker');
     bs.runGun.active = op.runGun;
     // the grid is fixed: C4 / SMOKE / TAKEDOWN stay in place, greyed out when not usable

@@ -254,7 +254,7 @@ export class TerrainRenderer {
         P.shadowEllipse(X + 10 + jx, Y + 13, o === O.trees ? 6 : 8, 3, 0.62);
       }
       switch (o) {
-        case O.boulder: this._boulder(P, X, Y, tx, ty); break;
+        case O.boulder: this._boulder(P, X, Y, tx, ty); if (m.breach?.[ti]) this._cracks(P, X, Y, tx, ty); break;
         case O.sandbags: this._sandbags(P, X, Y, tx, ty); break;
         case O.crate: this._crate(P, X, Y, tx, ty); break;
         case O.rocks: this._rocks(P, X, Y, tx, ty); break;
@@ -430,6 +430,15 @@ export class TerrainRenderer {
     }
   }
 
+  /** cracked rock (a C4 breach point): dark zig-zag fissures and pale chips at the foot */
+  _cracks(P, X, Y, tx, ty) {
+    const R = this.rock;
+    for (const [sx, len, dir] of [[5, 9, 1], [10, 7, -1]]) {
+      let x = X + sx, y = Y + 4;
+      for (let i = 0; i < len; i++) { P.px(x, y, R[0]); if (i % 2) x += dir * (hash2(tx + i, ty, 33) > 0.4 ? 1 : 0); else y++; P.px(x + 1, y, R[1]); }
+    }
+    for (const [dx, dy] of [[3, 14], [7, 15], [12, 14], [14, 15]]) P.px(X + dx, Y + dy, R[4]);
+  }
   _boulder(P, X, Y, tx, ty) {
     const R = this.rock;
     const r = hash2(tx, ty, 31);

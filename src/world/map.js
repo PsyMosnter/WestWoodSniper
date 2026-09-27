@@ -28,6 +28,7 @@ export class GameMap {
     this.coverObj = new Uint8Array(N);          // low cover object
     this.coverTile = new Uint8Array(N);         // walkable tile that counts as "in/adjacent to cover"
     this.demolishable = new Uint8Array(N);
+    this.breach = new Uint8Array(N);            // cracked rock: C4 turns it into a ramp (data.breaches)
     this.version = 0;                           // bump when passability changes
     this.decode(data);
     computeAutotile(this);
@@ -50,6 +51,7 @@ export class GameMap {
       }
     }
     for (const b of data.demolishable || []) this.demolishable[this.idx(b.x, b.y)] = 1;
+    for (const b of data.breaches || []) this.breach[this.idx(b.x, b.y)] = 1;
   }
   /** Recompute derived per-tile properties (after terrain/overlay/structure changes). */
   recompute() {

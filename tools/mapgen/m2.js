@@ -92,9 +92,11 @@ const STRUCTURES = [
   { id: 'ap', type: 'alarmPylon', x: 75, y: 17, alertGroup: 'base' },
   { id: 'tw1', type: 'guardTower', x: 72, y: 39, alertGroup: 'base', facing: 'S' },
   { id: 'tw2', type: 'guardTower', x: 79, y: 39, alertGroup: 'base', facing: 'S' },
-  { id: 'tu1', type: 'gunTurret', x: 67, y: 39, alertGroup: 'base', facing: 'S' },
-  { id: 'tu2', type: 'gunTurret', x: 84, y: 39, alertGroup: 'base', facing: 'S' },
+  { id: 'tu1', type: 'gunTurret', x: 67, y: 39, alertGroup: 'base', facing: 'S', powerFrom: 'gen' },
+  { id: 'tu2', type: 'gunTurret', x: 84, y: 39, alertGroup: 'base', facing: 'S', powerFrom: 'gen' },
   { id: 'mg1', type: 'mgNest', x: 69, y: 41, alertGroup: 'base', facing: 'S' },
+  // the gate turrets run off their own generator down on the south-east plain (way in #2)
+  { id: 'gen', type: 'generator', x: 104, y: 54, alertGroup: 'plains' },
 ];
 
 export function build() {
@@ -139,11 +141,17 @@ export function build() {
   g.scatter(46, 4, 44, 6, 0.2, { o: 'o' }, (x, y, c) => c.e === 1 && c.o === '.' && Math.abs(y - 6) >= 1);
   g.clear(46, 6, 44, 1);
   g.clear(69, 7, 3, 3);
+  // (the 0→1 ramp at x=58 used to land on a one-tile pillar behind a boulder: widen the shelf so it joins the band)
+  for (let y = 4; y <= 7; y++) for (let x = 57; x <= 61; x++) g.set(x, y, { e: 1, o: '.' });
+  g.ramp(58, 3, 'S', 1, 0);
+  for (let y = 7; y <= 9; y++) g.set(70, y, { o: '.' });
   g.ramp(70, 9, 'S', 1, 1);
   // ridge ramps (west side)
   g.ramp(20, 31, 'E', 1, 0);
   g.ramp(27, 27, 'E', 1, 1);
   g.clear(18, 29, 3, 5);
+  // a scree ramp from the plains into the canyon's south mouth (the canyon route to the cracked rock)
+  g.ramp(44, 38, 'N', 1, 0); g.clear(43, 35, 3, 5);
   // --- boulder fields & dead trees on the plains
   g.scatter(4, 20, 14, 18, 0.07, { o: 'o' }, (x, y, c) => c.e === 0 && c.o === '.');
   g.scatter(46, 64, 12, 10, 0.08, { o: 'o' }, (x, y, c) => c.e === 0 && c.t !== 'r');
@@ -159,6 +167,11 @@ export function build() {
   g.clear(0, 64, 7, 12, 'g');
   g.clear(100, 68, 10, 10, 's');
   for (const s of STRUCTURES) { const d = STRUCT_DEFS[s.type]; g.clear(s.x, s.y, d.w, d.h, 'c'); }
+  // way in #1: cracked rock in the canyon wall below the fuel depot — C4 turns it into a ramp up to the mesa top
+  const BREACHES = [{ x: 46, y: 24 }, { x: 46, y: 25 }];
+  for (const b of BREACHES) { g.set(b.x, b.y, { e: 1, o: 'o', t: 'd' }); g.set(b.x + 1, b.y, { e: 2, o: '.' }); g.set(b.x + 2, b.y, { e: 2, o: '.' }); g.set(b.x - 1, b.y, { e: 1, o: '.' }); }
+  // diversion: fuel barrels on the slope east of the gate road (their blast carries to the gate guards)
+  for (const [x, y] of [[86, 49], [87, 49], [86, 50]]) g.set(x, y, { o: 'x' });
   // gate gap stays open after structure clearing
   for (let x = 74; x <= 77; x++) g.set(x, 39, { o: '.', t: 'r' });
 
@@ -167,6 +180,7 @@ export function build() {
     tint: 'rgba(255,170,80,0.07)',
     ...g.layers(),
     structures: STRUCTURES,
+    breaches: BREACHES,
     units: UNITS,
     friendlies: [],
     paths: PATHS,
@@ -180,6 +194,8 @@ export function build() {
       ridgeTop: { x: 29, y: 18, w: 11, h: 19 },
       goatPath: { x: 46, y: 3, w: 44, h: 7 },
       gateApproach: { x: 68, y: 44, w: 16, h: 12 },
+      canyonWall: { x: 40, y: 19, w: 6, h: 11 },
+      generatorYard: { x: 96, y: 49, w: 15, h: 13 },
     },
     alertGroups: {
       base: { barracks: 'bar', reinforceCap: 6, area: 'mesa' },

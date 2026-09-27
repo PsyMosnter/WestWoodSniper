@@ -63,6 +63,7 @@ export const STRUCT_DEFS = {
   shieldGenerator: { w: 2, h: 2, Hb: 18, blockH: 2.5, hpKey: 'small', c4: true, name: 'Shield Generator' },
   hiveSpire: { w: 4, h: 4, Hb: 84, blockH: 3, hpKey: 'spire', c4: true, name: 'Hive Spire' },
   gate: { w: 1, h: 1, Hb: 9, blockH: 1.0, hpKey: 'wall', c4: true, name: 'Gate' },
+  generator: { w: 2, h: 2, Hb: 12, blockH: 1.0, hpKey: 'small', c4: true, name: 'Generator' },
 };
 
 const PAINT = {
@@ -213,6 +214,13 @@ const PAINT = {
     }
     for (let i = 0; i < 26; i++) { const y = 10 + i * 5, x = 32 + Math.round(Math.sin(i * 1.7) * (4 + i * 0.9)); b.px(x, y, st?.unpowered ? LIME[1] : LIME[3]); b.px(x + 1, y, LIME[2]); }
     b.px(32, 0, VIO[3]); b.px(31, 1, VIO[2]);
+  },
+  generator(b) {
+    b.box(2, 6, 28, 20, 10, CH, CH, { plates: 7, ribs: 4 });
+    b.rect(22, 0, 5, 8, CH[1]); b.rect(23, 0, 3, 1, CH[0]);               // exhaust stack
+    for (let x = 6; x < 18; x += 4) b.rect(x, 10, 2, 8, MET[1]);           // cooling fins
+    b.light(6, 30, LIME[3]); b.light(12, 30, VIO[2]);
+    for (let y = 26; y < 36; y++) b.px(29, y, LIME[1]);                    // cable to the gate
   },
   gate(b) {
     b.box(0, 0, 16, 16, 9, MET, MET, { ribs: 3 });

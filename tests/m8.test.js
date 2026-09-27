@@ -124,6 +124,7 @@ test('snow tracks: WREN leaves prints in snow; a patrol crossing fresh prints tu
   tick(g, 1.5);
   const e = g.world.units[0];
   assert.ok(['suspicious', 'investigating'].includes(e.state), `patrol state ${e.state}`);
+  g.world.operative.stop();                     // (still walking he would lay fresh prints after the wipe)
   g.weather.t = BALANCE.terrain.blizzardEvery - BALANCE.terrain.blizzardLength + 0.1;
   tick(g, 0.1);
   assert.equal(g.world.blizzard, true);

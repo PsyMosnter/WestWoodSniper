@@ -113,6 +113,7 @@ export class GameScene {
     this.renderer.layers.overFog.push((ctx, r) => this.c4.draw(ctx, r));
     this.renderer.layers.overFog.push((ctx, r) => { this.runner.drawLZ(ctx, r); if (r._lzLabel) drawText(ctx, 'LZ', r._lzLabel.x, r._lzLabel.y, { font: '3x5', color: '#7CFF7A', align: 'center' }); r._lzLabel = null; });
     this.renderer.layers.overFog.push((ctx, r) => this._drawDropship(ctx, r));
+    this.renderer.layers.overFog.push((ctx, r) => this.runner.drawMarkers(ctx, r));
     this.renderer.layers.effects.push((ctx, r) => this._drawSmoke(ctx, r));
     // darkness goes over the sprites but under muzzle flashes, tracers and explosions
     this.renderer.layers.effects.unshift((ctx, r) => this.lighting.draw(ctx, r));
@@ -129,7 +130,7 @@ export class GameScene {
     const at = this.app.params.get('at');
     if (at) { const [ax, ay] = at.split(',').map(Number); const t = this.world.map.nearestWalkable(ax, ay, 6); if (t) { op.x = op.px = t.x + 0.5; op.y = op.py = t.y + 0.5; } }
     this.cam.centreOn(op.x, op.y);
-    this.world.fog.revealAll = !!this.app.params.get('reveal');
+    this.world.fog.revealAll = !!this.app.params.get('reveal') || !!this.data.revealMap;   // (Boot Camp: the range is in plain view)
     this.world.update(0);
     // bake terrain progressively
     const gen = this.renderer.terrain.buildAll();
@@ -154,7 +155,8 @@ export class GameScene {
       ...[...new Set((this.world.friendlies || []).filter((f) => f.kind !== 'vehicle').map((f) => f.type))].map((type) => ({ type, poses: [['idle', 1], ['walk', 4], ['crouch', 1], ['prone', 1]] })),
       ...[...new Set([...this.world.units, ...(this.world.friendlies || [])].filter((u) => u.kind === 'vehicle').map((u) => u.type))].map((type) => ({ type, vehicle: true })),
     ]);
-    this.hud.say(this.fromCheckpoint ? 'Picking up where you left off, WREN.' : "WREN, OVERWATCH. You're on the ground.");
+    const opening = this.fromCheckpoint ? 'Picking up where you left off, WREN.' : this.data.alwaysTips ? null : "WREN, OVERWATCH. You're on the ground.";
+    if (opening) this.hud.say(opening);   // (Boot Camp opens with Lt. Vale's own line)
     this.world.events.on('toast', (t) => this.hud.toast(t.text, t.color));
     this.world.events.on('runGunOff', () => this.hud.toast('RUN & GUN OFF'));
     this.world.events.on('opDead', () => {
@@ -175,10 +177,11 @@ export class GameScene {
       }
     });
     this.world.events.on('objectiveDone', (o) => {
-      this.hud.say('Objective complete.'); this.hud.toast('OBJECTIVE COMPLETE', '#7CFF7A'); this.hud.peekObjectives(4);
+      if (!this.data.training) this.hud.say('Objective complete.');
+      this.hud.toast('OBJECTIVE COMPLETE', '#7CFF7A'); this.hud.peekObjectives(4);
       this.audio?.play?.('objective');
-      // autosave on every objective (a beat later, once the runner has checked for the win)
-      this.pendingAutosave = { key: 'objective:' + (o?.id ?? ''), t: 0.6 };
+      // autosave on every objective (a beat later, once the runner has checked for the win) — not in Boot Camp
+      if (!this.data.training) this.pendingAutosave = { key: 'objective:' + (o?.id ?? ''), t: 0.6 };
     });
     window.__game = this;
   }
@@ -307,7 +310,7 @@ export class GameScene {
     // flat (hunkered, or getting down): a tap low-crawls there; double-tap / HUNKER gets up
     const flat = op.stance === 'hunker' || (!!op.trans && op.trans.to === 'hunker');
     const ok = op.orderMove(t.x, t.y, flat ? 'crawl' : 'walk');
-    if (ok && flat) this.runner.showTutorial('crawl', 'Low crawl', 'Flat on the ground, a tap crawls: very slow, still flat and all but silent. Get close enough to an unaware soldier and you can take them down without a shot. Double-tap or press HUNKER to get up.');
+    if (ok && flat && !this.data.alwaysTips) this.runner.showTutorial('crawl', 'Low crawl', 'Flat on the ground, a tap crawls: very slow, still flat and all but silent. Get close enough to an unaware soldier and you can take them down without a shot. Double-tap or press HUNKER to get up.');
     if (ok) {
       this.renderer.addMarker(t.x + 0.5, t.y + 0.5, 'tap', '#7CFF7A');
       this.audio?.tick?.();
@@ -421,7 +424,16 @@ export class GameScene {
     if (this.overlayUp && this.overlayUp(p)) return;
     if (p.owner === 'world') this.gestures.up(p, cancel);
   }
-  onWheel(d) { if (!this.loading) this._zoom(d < 0 ? 2 : 1); }
+  onWheel(d) { if (!this.loading && !this.scope.open) this._zoom(d < 0 ? 2 : 1); }
+  /** Back from the pause menu (or any overlay): a press that started here (PAUSE) ended there — forget it,
+   * or the next click would finish it as a long-press/tap on the world. */
+  resumed() {
+    if (!this.gestures || !this.hud) return;
+    this.gestures.reset(); this.gestures.lastTap = null;
+    for (const b of Object.values(this.hud.buttons)) b.pressed = false;
+    this.hud.active.clear();
+    this.dragging = false;
+  }
   onKeyUp(code) { if (this.scope?.open) this.scope.key(code, false); }
   onKeyDown(code, e) {
     if (this.loading) return;
@@ -471,7 +483,7 @@ export class GameScene {
       const near = this.world.units.filter((u) => !u.dead && !u.hidden && u.state === 'combat' && u.def?.kind === 'infantry' && Math.hypot(u.x - op.x, u.y - op.y) < 9).length;
       if (near >= 2) { this._runGunTip = true; this.runner.showTutorial('runGun', 'Run & Gun', "They're closing in. Press R&GUN: WREN lowers the rifle and fights on the move with the pistol — fast and loud, but it keeps you alive. Break line of sight, then find cover.", { button: 'runGun' }); }
     }
-    if (!this._takedownTip && this.takedown.target()) { this._takedownTip = true; this.runner.showTutorial('takedown', 'Silent takedown', 'Within reach and they haven\'t seen you: press TAKEDOWN (or tap them). No ammo, barely a sound — but the body stays where it falls, and anyone watching sees it happen.'); }
+    if (!this._takedownTip && !this.data.alwaysTips && this.takedown.target()) { this._takedownTip = true; this.runner.showTutorial('takedown', 'Silent takedown', 'Within reach and they haven\'t seen you: press TAKEDOWN (or tap them). No ammo, barely a sound — but the body stays where it falls, and anyone watching sees it happen.'); }
     this.trails.update(dt);
     this.combat.update(dt);
     this.engage.update(dt);
@@ -503,7 +515,8 @@ export class GameScene {
       if (mouse.x < e) kx -= 1; else if (mouse.x > this.app.display.W - e) kx += 1;
       if (mouse.y < e) ky -= 1; else if (mouse.y > this.app.display.H - e) ky += 1;
     }
-    if (kx || ky) this.cam.panBy(kx * BALANCE.input.keyPanSpeed * dt, ky * BALANCE.input.keyPanSpeed * dt);
+    // (not while scoped — the mouse lives near the edges while aiming — nor while a tip is open)
+    if ((kx || ky) && !this.scope.open && !this.runner?.tutorial) this.cam.panBy(kx * BALANCE.input.keyPanSpeed * dt, ky * BALANCE.input.keyPanSpeed * dt);
     this.frameDt = dt;
     this.lastRealDt = dt;
     if (this.pendingDebrief) {
@@ -652,6 +665,10 @@ export class GameScene {
     if (at) {
       if (at.area) return area(at.area) || 'op';
       if (at.x !== undefined || at.button || at === 'op') return at;
+      if (typeof at === 'string') {                  // a unit or structure id (mission scripts)
+        const e = w.units.find((q) => q.id === at) || w.structures.find((q) => q.id === at);
+        return e ? { ref: e } : 'op';
+      }
       return { ref: at };                        // a unit or structure: follow it
     }
     switch (key) {
@@ -695,14 +712,45 @@ export class GameScene {
     // bring what the tip is about into view
     const p = this._tipPoint(t.at);
     const { W, H } = this.app.display;
-    if (p && !p.button && (p.x < 40 || p.x > W - 40 || p.y < 50 || p.y > H - 50)) {
+    // (the action-button cluster counts as off-screen: a subject under it can't be seen or tapped)
+    const cluster = (this.hud?.B || 30) * 3 + 20, lefty = !!this.hud?.lefty;
+    if (p && !p.button && (p.x < (lefty ? cluster : 40) || p.x > W - (lefty ? 40 : cluster) || p.y < 50 || p.y > H - 50)) {
       t.follow = this.cam.follow;
-      this.cam.follow = false;
-      this.cam.centreOn(p.wx, p.wy);
+      this.cam.follow = false; this.cam.pan = null;
+      const op = this.world.operative, c = this._frame([{ x: p.wx, y: p.wy }, { x: op.x, y: op.y }], 0);
+      this.cam.centreOn(c.x, c.y);
     }
   }
   onTipClosed(t) {
-    if (t && t.follow !== undefined) { this.cam.follow = t.follow; if (t.follow) this.cam.centreOn(this.world.operative.x, this.world.operative.y); }
+    if (!t || t.follow === undefined) return;
+    // keep what the tip was about in view (with WREN, if both fit) instead of snapping back to WREN;
+    // following resumes by itself once WREN walks toward the edge of the view
+    const p = this._tipPoint(t.at), op = this.world.operative;
+    const c = p && !p.button ? this._frame([{ x: op.x, y: op.y }, { x: p.wx, y: p.wy }], 0) : { x: op.x, y: op.y };
+    this.cam.centreOn(c.x, c.y);
+    this.cam.follow = !(p && !p.button) && t.follow;
+  }
+  /**
+   * Camera centre (tiles) that puts all `pts` inside the clear view — away from the screen edges and the
+   * action-button cluster. If they can't all fit, `pts[keep]` is kept in view and the view leans toward the rest.
+   */
+  _frame(pts, keep = 0) {
+    const { W, H } = this.app.display, s = TILE * this.cam.zoom;
+    const cluster = (this.hud?.B || 30) * 3 + 20, lefty = !!this.hud?.lefty;
+    const axis = (vals, a, b, half) => {
+      // a centre c puts value v on screen at (v − c)·s + half; keep that within [a, b]
+      const rng = (v) => [v - (b - half) / s, v - (a - half) / s];
+      let lo = -Infinity, hi = Infinity;
+      for (const v of vals) { const [l, h] = rng(v); lo = Math.max(lo, l); hi = Math.min(hi, h); }
+      if (lo <= hi) return (lo + hi) / 2;
+      const [kl, kh] = rng(vals[keep]);
+      const want = vals.reduce((q, v) => q + v, 0) / vals.length;
+      return Math.max(kl, Math.min(kh, want));
+    };
+    return {
+      x: axis(pts.map((q) => q.x), lefty ? cluster : 40, lefty ? W - 40 : W - cluster, W / 2),
+      y: axis(pts.map((q) => q.y), 50, H - 50, H / 2),
+    };
   }
   /** An open tip: the game is paused, the screen dims except around what the tip is about. */
   _drawTutorial(ctx) {
@@ -743,7 +791,7 @@ export class GameScene {
     ctx.globalAlpha = k;
     panel(ctx, px, py, pw, ph, { alpha: 0.96, fill: '#141A15' });
     ctx.fillStyle = C.uiAmber; ctx.fillRect(px, py, 3, ph);
-    drawText(ctx, 'OVERWATCH TIP · ' + (tut.title || '').toUpperCase(), px + 8, py + 5, { color: C.uiAmber, font: '3x5' });
+    drawText(ctx, (this.data.radioName || 'OVERWATCH') + ' TIP · ' + (tut.title || '').toUpperCase(), px + 8, py + 5, { color: C.uiAmber, font: '3x5' });
     lines.forEach((l, i) => drawText(ctx, l, px + 8, py + 15 + i * 9, { color: C.uiText }));
     const more = this.runner.tutQueue.length;
     drawText(ctx, 'PAUSED · ' + (more ? `+${more} MORE · ` : '') + 'TAP TO CONTINUE', px + pw - 6, py + ph - 9, { font: '3x5', color: C.uiGrey, align: 'right' });
@@ -819,7 +867,7 @@ export class GameScene {
   /** Resume following when WREN is about to leave the view (panned planning view is kept otherwise). */
   _autoFollow(tx, ty) {
     const c = this.cam;
-    if (c.follow || c.pan) return;
+    if (c.follow || c.pan || this.runner?.tutorial) return;   // (a tip framed the view: leave it)
     if (!this.world.operative.moving) return;
     const s = c.tileToScreen(tx / TILE, ty / TILE);
     const m = 36;

@@ -61,6 +61,7 @@ export class Unit {
     this.seenByPlayerT = -999;    // world time when the player last saw this unit
     this.tag = null;              // floating tag {text, t}
     this.important = !!spec.important;
+    this.training = !!spec.training;   // Boot Camp dummy: sees and reacts, never fires (src/missions/bc.js)
     this.name = spec.name || this.def.name;
   }
   get tx() { return Math.floor(this.x); }

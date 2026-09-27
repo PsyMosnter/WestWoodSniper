@@ -1,6 +1,7 @@
 // @ts-check
 import { BALANCE } from '../config/balance.js';
 import { dirIndex, angleToDir8, TERRAIN, T as TT } from '../world/tiles.js';
+import { stanceRange } from '../ai/perception.js';
 
 const S = BALANCE.stances;
 
@@ -69,6 +70,21 @@ export class Operative {
     if (this.trans) v = Math.max(f(this.trans.from), f(this.trans.to));
     return v * (this.exposureT > 0 ? this.exposure : 1);
   }
+  /**
+   * Share of an enemy's sight radius at which WREN can be picked out now (the inner vision cone):
+   * stance/movement and the tile's concealment; during a stance change the larger; a shot's exposure
+   * (muzzle flash) blows it out to the full radius.
+   */
+  rangeFactor(observer, conceal = 1) {
+    const f = (st) => {
+      if (st === 'cover') return stanceRange(observer && this.coverFrom && this.coverBetween(observer) ? 'cover' : 'coverUncovered', conceal);
+      return stanceRange(st, conceal);
+    };
+    let v = this.crawling ? stanceRange('crawl', conceal) : f(this.stance);
+    if (this.trans) v = Math.max(f(this.trans.from), f(this.trans.to));
+    if (this.exposureT > 0 && this.exposure > 1) v = 1;
+    return Math.min(1, v);
+  }
   /** Is the cover object between the Operative and an observer? */
   coverBetween(obs) {
     const c = this.coverFrom;
@@ -119,6 +135,12 @@ export class Operative {
     if (this.stance === 'hunker' || goingFlat) {
       this.pendingMove = { tx: goal.x, ty: goal.y, mode, onArrive };
       if (!this.trans || this.trans.to === 'hunker') this.startTrans('crouch', S.hunker.exit, () => this._consumePending());
+      else if (!this.trans.consumes) {
+        // already getting up (HUNKER pressed a moment ago): move off as soon as he is up
+        const tr = this.trans, then = tr.then;
+        tr.consumes = true;
+        tr.then = () => { then?.(); this._consumePending(); };
+      }
       return true;
     }
     const path = this.world.pf.find(this.tx, this.ty, goal.x, goal.y, { partial: true });
@@ -236,6 +258,8 @@ export class Operative {
     }
     if (this.busy) {
       this.busy.t += dt;
+      const L = this.busy.lunge;
+      if (L) { const k = Math.min(1, this.busy.t / L.dur); this.x = L.x0 + (L.x1 - L.x0) * k; this.y = L.y0 + (L.y1 - L.y0) * k; }
       if (this.busy.t >= this.busy.dur) { const b = this.busy; this.busy = null; b.onDone?.(); }
     }
     if (this.path.length && !this.blockingTrans) this._move(dt);
@@ -269,7 +293,11 @@ export class Operative {
       if (this.mode === 'run') r = BALANCE.noise.run;
       if (td.noise) r = Math.max(r, td.noise * (this.mode === 'crawl' ? S.crawl.noiseMult : 1));
       if (r > 0) this.world.noise(this.x, this.y, r, 'step');
-      if (td.tracks) this.world.events.emit('track', { x: this.x, y: this.y, a: this.angle });
+    }
+    // deep snow keeps footprints: one every 0.4 tiles, at any speed (a continuous trough)
+    if (TERRAIN[m.terrain[m.idx(this.tx, this.ty)]].tracks && Math.hypot(this.x - (this.trackX ?? -9), this.y - (this.trackY ?? -9)) >= 0.4) {
+      this.trackX = this.x; this.trackY = this.y;
+      this.world.events.emit('track', { x: this.x, y: this.y, a: this.angle });
     }
     if (!this.path.length) this._arrive();
   }

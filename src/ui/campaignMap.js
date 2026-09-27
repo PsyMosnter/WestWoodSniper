@@ -29,6 +29,11 @@ export class CampaignScene extends MenuBase {
     this.sel = focusIdx >= 0 && focusIdx < (save.unlocked || 1) ? focusIdx : Math.min((save.unlocked || 1) - 1, NODES.length - 1);
     this.brief = this.addButton('BRIEFING', () => this.go(), { color: C.uiAmber });
     this.back = this.addButton('MENU', () => this.app.scenes.go('title', {}));
+    this.boot = this.addButton('BOOT CAMP', () => this.app.scenes.go('briefing', { mission: 'bc' }));
+    // a new campaign asks once: Lt. Vale's 3-minute Boot Camp, or straight to Mission 1
+    this.ask = !save.bootCamp && !save.missions?.m1 && this.app.missionExists('bc');
+    this.askBoot = this.addButton('BOOT CAMP (3 MIN)', () => { this.ask = false; this.app.scenes.go('briefing', { mission: 'bc' }); }, { color: C.uiAmber });
+    this.askSkip = this.addButton('SKIP TO MISSION 1', () => { this.ask = false; save.bootCamp = 'skipped'; this.app.persist?.(); });
     this.bg = null;
   }
   go() {
@@ -41,12 +46,16 @@ export class CampaignScene extends MenuBase {
     const B = Math.max(26, this.app.display.buttonSize);
     this.brief.place(W - 10 - 120, H - 10 - B, 120, B);
     this.back.place(10, H - 10 - B, 80, B);
+    this.boot.place(10 + 80 + 6, H - 10 - B, 90, B);
+    this.askBoot.place(Math.round(W / 2) - 150, Math.round(H / 2) + 12, 140, B);
+    this.askSkip.place(Math.round(W / 2) + 10, Math.round(H / 2) + 12, 140, B);
     this.mapRect = { x: 8, y: 22, w: W - 16, h: H - 22 - B - 20 };
     this.bg = null;
   }
   frame(dt) { this.t += dt; if (this.toast) { this.toast.t -= dt; if (this.toast.t <= 0) this.toast = null; } }
   nodePos(n) { const r = this.mapRect; return { x: Math.round(r.x + n.x * r.w), y: Math.round(r.y + n.y * r.h) }; }
   onBackgroundDown(p) {
+    if (this.ask) return;
     let best = -1, bd = 26;
     NODES.forEach((n, i) => { const q = this.nodePos(n); const d = Math.hypot(p.x - q.x, p.y - q.y); if (d < bd) { bd = d; best = i; } });
     if (best >= 0) {
@@ -56,6 +65,7 @@ export class CampaignScene extends MenuBase {
     }
   }
   onKeyDown(code) {
+    if (this.ask) { if (code === 'Enter' || code === 'Space') this.askBoot.onPress(); if (code === 'Escape') this.askSkip.onPress(); return; }
     if (code === 'ArrowRight' || code === 'KeyD') this.sel = Math.min(NODES.length - 1, this.sel + 1);
     if (code === 'ArrowLeft' || code === 'KeyA') this.sel = Math.max(0, this.sel - 1);
     if (code === 'Enter' || code === 'Space') this.go();
@@ -137,6 +147,16 @@ export class CampaignScene extends MenuBase {
     } else drawText(ctx, open ? 'NOT YET ATTEMPTED' : 'COMPLETE THE PREVIOUS MISSION', px + 5, py + 26, { font: '3x5', color: open ? C.uiText : C.uiGrey });
     if (open) drawText(ctx, 'TAP AGAIN OR BRIEFING ▸', px + 5, py + ph - 10, { font: '3x5', color: C.uiTextD });
     this.brief.enabled = open;
+    for (const b of [this.brief, this.back, this.boot]) b.visible = !this.ask;
+    for (const b of [this.askBoot, this.askSkip]) b.visible = this.ask;
+    if (this.ask) {
+      ctx.fillStyle = 'rgba(7,9,10,0.72)'; ctx.fillRect(0, 0, W, H);
+      const pw = 320, px = Math.round(W / 2 - pw / 2), py = Math.round(H / 2 - 62);
+      panel(ctx, px, py, pw, this.askBoot.y + this.askBoot.h + 10 - py, { rivets: true, alpha: 0.97 });
+      drawText(ctx, 'LT. VALE: FIRST TIME OUT, WREN?', px + 10, py + 8, { color: C.uiAmber });
+      const lines = wrapText('Three minutes on my training range: walk, run, hide in tall grass, hunker and crawl, a silent takedown, a driver shot and C4 on a vehicle and a building. You can run it again any time from BOOT CAMP on the map.', pw - 20, { font: '5x7' });
+      lines.forEach((ln, i) => drawText(ctx, ln, px + 10, py + 22 + i * 9, { color: C.uiText }));
+    }
     this.drawButtons(ctx);
     if (this.toast) drawText(ctx, this.toast.text, W / 2, H / 2, { align: 'center', color: C.uiAmber, shadow: '#000' });
   }

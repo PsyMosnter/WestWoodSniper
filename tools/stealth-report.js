@@ -6,7 +6,7 @@
  * someone's sight (cone, range, LOS, tall grass, night…). Then finds the least-exposed walking route
  * from the start to the tiles each primary objective needs (OBSERVE vantage points, targets, areas).
  *
- * Usage: node tools/stealth-report.js m1 [secs=180] [out.png]   (env: KILL=ford1 SCALE=8 CROP=x0,y0,x1,y1)
+ * Usage: node tools/stealth-report.js m1 [secs=180] [out.png]   (env: STANCE=walk KILL=ford1 SCALE=8 CROP=x0,y0,x1,y1)
  * Numbers per objective: route length (tiles), watched tiles on it (> 20 % of the time), mean and peak
  * watch share. Lower = easier to sneak. The PNG shows the watch heatmap (red) and the routes (white).
  */
@@ -20,7 +20,7 @@ import { VehicleSystem } from '../src/entities/vehicle.js';
 import { PropSystem } from '../src/entities/props.js';
 import { FriendlySystem } from '../src/entities/friendly.js';
 import { Lighting } from '../src/render/lighting.js';
-import { canObserve } from '../src/ai/perception.js';
+import { canObserve, stanceRange } from '../src/ai/perception.js';
 import { canSee } from '../src/world/los.js';
 import { O } from '../src/world/tiles.js';
 
@@ -45,7 +45,11 @@ for (const kid of (process.env.KILL || '').split(',').filter(Boolean)) { const u
 
 // --- sample vision
 const watched = new Float32Array(m.w * m.h);
-const probe = { x: 0, y: 0, hunkered: false, stanceFactor: 0.6 };
+const watchers = new Map();       // tile → Map(unit id → samples)  (env DETAIL=1 lists them per hot tile)
+// the probe moves like WREN would cross the map (env STANCE: walk | crawl | crouch | run; default walk):
+// seen only inside that stance's detection range (the inner cone), shrunk by the tile's concealment
+const STANCE = process.env.STANCE || 'walk';
+const probe = { x: 0, y: 0, hunkered: STANCE === 'crawl' || STANCE === 'hunker', stanceFactor: 0.6, rangeFactor: (_o, conceal) => stanceRange(STANCE, conceal) };
 const DT = 1 / 30, SAMPLE = 0.25;
 let samples = 0, acc = 0;
 for (let t = 0; t < SECS; t += DT) {
@@ -62,7 +66,10 @@ for (let t = 0; t < SECS; t += DT) {
         const i = y * m.w + x;
         if (seen[i] || !m.walkable(x, y)) continue;
         probe.x = x + 0.5; probe.y = y + 0.5;
-        if (canObserve(u, probe, w).visible) seen[i] = 1;
+        if (canObserve(u, probe, w).visible) {
+          seen[i] = 1;
+          if (process.env.DETAIL) { let q = watchers.get(i); if (!q) watchers.set(i, (q = new Map())); q.set(u.id, (q.get(u.id) || 0) + 1); }
+        }
       }
     }
   }
@@ -100,24 +107,31 @@ function goalTiles(o) {
     if (o.type === 'OBSERVE') return near(cx, cy, 8, (x, y) => Math.hypot(x - cx, y - cy) <= 8 && [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => canSee(m, x, y, cx + dx, cy + dy, {})));
     return near(cx, cy, Math.max(a.w, a.h), (x, y) => x >= a.x && y >= a.y && x < a.x + a.w && y < a.y + a.h);
   }
+  if (o.area && areas[o.area]) { const a = areas[o.area]; return near(a.x, a.y, Math.max(a.w, a.h), (x, y) => x >= a.x && y >= a.y && x < a.x + a.w && y < a.y + a.h); }
   const ids = o.entities || (o.entity ? [o.entity] : o.unit ? [o.unit] : o.units || []);
   const tiles = [];
   for (const eid of ids) {
-    const e = w.structures.find((q) => q.id === eid) || w.units.find((q) => q.id === eid) || w.friendlies.find((q) => q.id === eid);
-    if (e) tiles.push(...near(Math.floor(e.cx ?? e.x), Math.floor(e.cy ?? e.y), 8, (x, y) => canSee(m, x, y, Math.floor(e.cx ?? e.x), Math.floor(e.cy ?? e.y), {})));
+    const st = w.structures.find((q) => q.id === eid);
+    // a building: the tiles around its footprint (where the C4 goes)
+    if (st) { tiles.push(...near(st.x - 1, st.y - 1, Math.max(st.w, st.h) + 2, (x, y) => x >= st.x - 1 && y >= st.y - 1 && x <= st.x + st.w && y <= st.y + st.h)); continue; }
+    const e = w.units.find((q) => q.id === eid) || w.friendlies.find((q) => q.id === eid);
+    if (e) tiles.push(...near(Math.floor(e.x), Math.floor(e.y), 8, (x, y) => canSee(m, x, y, Math.floor(e.x), Math.floor(e.y), {})));
   }
   return tiles;
 }
 const routes = [];
-console.log(`${id} "${mod.name}" — ${w.units.filter((u) => !u.dead).length} enemies, ${SECS} s sampled`);
+console.log(`${id} "${mod.name}" — ${w.units.filter((u) => !u.dead).length} enemies, ${SECS} s sampled, probe ${STANCE}`);
 for (const o of mod.objectives || []) {
   if (!o.primary || o.type === 'EXTRACT' || o.type === 'STEALTH') continue;
-  const p = route(goalTiles(o));
+  const goals = goalTiles(o);
+  if (!goals.length) { console.log(`  ${o.id} ${o.type}: (no map target — scripted objective)`); continue; }
+  const p = route(goals);
   if (!p) { console.log(`  ${o.id} ${o.type}: NO ROUTE`); continue; }
   routes.push(p);
   const ws = p.map((i) => watched[i]);
   const hot = ws.filter((v) => v > 0.2).length;
   const mean = ws.reduce((a, b) => a + b, 0) / ws.length;
+  if (process.env.DETAIL) for (const i of p) if (watched[i] > 0.2) console.log(`      (${i % m.w},${(i / m.w) | 0}) ${(watched[i] * 100).toFixed(0)}% — ${[...(watchers.get(i) || new Map())].sort((a, b) => b[1] - a[1]).slice(0, 3).map(([k, v]) => `${k} ${(v / samples * 100).toFixed(0)}%`).join(', ')}`);
   console.log(`  ${o.id} ${o.type.padEnd(7)} route ${String(p.length).padStart(3)} tiles · watched tiles ${String(hot).padStart(2)} · mean ${(mean * 100).toFixed(1).padStart(4)} % · peak ${(Math.max(...ws) * 100).toFixed(0).padStart(3)} %  — ${o.text}`);
 }
 

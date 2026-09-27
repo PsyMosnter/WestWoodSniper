@@ -93,7 +93,79 @@ export function drawCovered(ctx, z, img, s, X, Y, kind, biome, seed = 0, moving 
   }
 }
 
-/** WREN's fading trail through tall grass (flattened blades) and shallow water (spreading wake). */
+/**
+ * Tile-wide trail swaths (playtest 2): trodden tall grass and churned deep snow are drawn as a band about
+ * one tile wide along WREN's path, built from overlapping pixel-art stamps. Stamps are opaque and fade by
+ * ordered dithering (fewer pixels, never lighter alpha), so overlapping stamps never stack into dark blobs.
+ */
+const BAYER = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
+const SW = 15, SH = 11;                                   // stamp size in world px (tile = 16)
+const stamps = new Map();
+/** @param {'grass'|'snow'} kind @param {number} level 1..4 (4 = full) */
+function swathStamp(kind, biome, level) {
+  const key = kind + biome + level;
+  let c = stamps.get(key);
+  if (c) return c;
+  c = document.createElement('canvas');
+  c.width = SW; c.height = SH;
+  const g = /** @type {CanvasRenderingContext2D} */ (c.getContext('2d'));
+  const grass = grassCols(biome);
+  const [core, edge] = kind === 'snow' ? ['#AEC0CC', '#AEC0CC'] : [grass[0], grass[0]];   // one flat colour: overlapping stamps read as one band
+  const cx = (SW - 1) / 2, cy = (SH - 1) / 2;
+  for (let y = 0; y < SH; y++) for (let x = 0; x < SW; x++) {
+    const d = Math.hypot((x - cx) / (SW / 2), (y - cy) / (SH / 2));
+    if (d > 1) continue;
+    const b = BAYER[(y & 3) * 4 + (x & 3)];
+    if (d > 0.82 && b % 3 === 0) continue;                 // ragged rim
+    if (b >= level * 4) continue;                          // fade: fewer pixels
+    g.fillStyle = d < 0.62 ? core : edge;
+    g.fillRect(x, y, 1, 1);
+  }
+  stamps.set(key, c);
+  return c;
+}
+const levelOf = (fade) => Math.max(0, Math.min(4, Math.ceil(fade * 4)));
+
+/**
+ * Draw a trail: `pts` [{x, y, a, t, side}] oldest first, `life` seconds. Grass: flattened blades lying the
+ * way WREN went; snow: a churned trough with boot prints.
+ */
+export function drawSwath(ctx, r, pts, kind, biome, life, fog) {
+  const z = r.cam.zoom;
+  const vis = (p) => !fog || fog.isVisible(Math.floor(p.x), Math.floor(p.y));
+  for (const p of pts) {
+    const lv = levelOf(1.25 * (1 - p.t / life));
+    if (!lv || !vis(p)) continue;
+    ctx.drawImage(swathStamp(kind, biome, lv), Math.round(r.sx(p.x)) - Math.floor(SW / 2) * z, Math.round(r.sy(p.y)) - Math.floor(SH / 2) * z, SW * z, SH * z);
+  }
+  const grass = grassCols(biome);
+  for (let i = 0; i < pts.length; i++) {
+    const p = pts[i];
+    const fade = 1.25 * (1 - p.t / life);
+    if (fade <= 0.25 || !vis(p)) continue;
+    const X = Math.round(r.sx(p.x)), Y = Math.round(r.sy(p.y));
+    const ca = Math.cos(p.a), sa = Math.sin(p.a);
+    if (kind === 'snow') {
+      // boot print: 2×3 px, left/right of the line of travel
+      const ox = Math.round(-sa * 2.5 * p.side), oy = Math.round(ca * 2.5 * p.side);
+      ctx.fillStyle = fade > 0.6 ? '#7C91A2' : '#93A7B6';
+      ctx.fillRect(X + (ox - 1) * z, Y + (oy - 1) * z, 2 * z, 2 * z);
+      ctx.fillRect(X + Math.round(ox - 1 + ca) * z, Y + Math.round(oy - 1 + sa) * z, 2 * z, z);
+    } else {
+      // two blades pressed flat, pointing the way WREN went, light tips
+      for (const side of [-1, 1]) {
+        const bx = X - sa * (side * 3 + p.side) * z, by = Y + ca * (side * 3 + p.side) * z;
+        for (let k = 0; k < 4; k++) {
+          ctx.fillStyle = k === 3 ? grass[3] : grass[2];
+          ctx.fillRect(Math.round(bx + ca * k * z), Math.round(by + sa * k * z), z, z);
+        }
+      }
+    }
+  }
+}
+
+/** WREN's trail through tall grass (a trodden swath that springs back) and shallow water (spreading wake). */
+export const TRAIL_LIFE = { grass: 12, water: 1.8 };
 export class TerrainTrails {
   constructor(game) {
     this.game = game;
@@ -105,7 +177,7 @@ export class TerrainTrails {
   update(dt) {
     const op = this.world.operative;
     for (const p of this.pts) p.t += dt;
-    this.pts = this.pts.filter((p) => p.t < (p.kind === 'grass' ? 6 : 1.8));
+    this.pts = this.pts.filter((p) => p.t < TRAIL_LIFE[p.kind]);
     if (!op.moving || op.hidden || op.dead) return;
     const kind = coverKind(this.world.map, op.tx, op.ty);
     if (!kind) return;
@@ -113,42 +185,24 @@ export class TerrainTrails {
     if (last && Math.hypot(op.x - last.x, op.y - last.y) < 0.35) return;
     this.side = -this.side;
     this.pts.push({ x: op.x, y: op.y, a: op.angle || 0, t: 0, kind, side: this.side });
-    if (this.pts.length > 16) this.pts.shift();         // a few tiles long (16 × 0.35)
+    if (this.pts.length > 48) this.pts.shift();         // about 17 tiles (48 × 0.35)
   }
   /** ground layer: under the sprites */
   draw(ctx, r) {
     const z = r.cam.zoom, fog = this.world.fog;
-    const grass = grassCols(this.biome);
-    for (let i = 0; i < this.pts.length; i++) {
-      const p = this.pts[i];
-      if (!fog.isVisible(Math.floor(p.x), Math.floor(p.y))) continue;
+    drawSwath(ctx, r, this.pts.filter((p) => p.kind === 'grass'), 'grass', this.biome, TRAIL_LIFE.grass, fog);
+    for (const p of this.pts) {
+      if (p.kind !== 'water' || !fog.isVisible(Math.floor(p.x), Math.floor(p.y))) continue;
+      // a wake ring spreading out behind WREN
       const X = r.sx(p.x), Y = r.sy(p.y);
-      if (p.kind === 'grass') {
-        // a trodden streak back to the previous point, with a few bent blades — springs back over 6 s
-        const fade = Math.min(1, 1.3 * (1 - p.t / 6));
-        const q = this.pts[i + 1] && this.pts[i + 1].kind === 'grass' ? this.pts[i + 1] : null;
-        ctx.fillStyle = grass[0]; ctx.globalAlpha = 0.7 * fade;
-        if (q) {
-          const QX = r.sx(q.x), QY = r.sy(q.y), n = Math.max(1, Math.round(Math.hypot(QX - X, QY - Y) / z));
-          for (let k = 0; k <= n; k++) { const x = X + ((QX - X) * k) / n, y = Y + ((QY - Y) * k) / n; ctx.fillRect(Math.round(x - z), Math.round(y - z / 2), 3 * z, 2 * z); }
-        } else ctx.fillRect(Math.round(X - z), Math.round(Y - z / 2), 3 * z, 2 * z);
-        const ca = Math.cos(p.a), sa = Math.sin(p.a), off = p.side * 2.5;
-        const bx = X - sa * off * z, by = Y + ca * off * z;
-        ctx.globalAlpha = 0.9 * fade;
-        ctx.fillStyle = grass[1]; ctx.fillRect(Math.round(bx), Math.round(by), z, z); ctx.fillRect(Math.round(bx + ca * z), Math.round(by + sa * z), z, z);
-        ctx.fillStyle = grass[3]; ctx.fillRect(Math.round(bx + ca * 2 * z), Math.round(by + sa * 2 * z), z, z);
-      } else {
-        // a wake ring spreading out behind WREN
-        const k = p.t / 1.8, R = (2 + k * 7) * z;
-        ctx.globalAlpha = 0.75 * (1 - k);
-        ctx.fillStyle = FOAM;
-        for (let i = 0; i < 14; i++) {
-          const a = (i / 14) * Math.PI * 2;
-          ctx.fillRect(Math.round(X + Math.cos(a) * R), Math.round(Y + Math.sin(a) * R * 0.45), z, z);
-        }
+      const k = p.t / TRAIL_LIFE.water, R = (2 + k * 7) * z;
+      ctx.globalAlpha = 0.75 * (1 - k);
+      ctx.fillStyle = FOAM;
+      for (let i = 0; i < 14; i++) {
+        const a = (i / 14) * Math.PI * 2;
+        ctx.fillRect(Math.round(X + Math.cos(a) * R), Math.round(Y + Math.sin(a) * R * 0.45), z, z);
       }
     }
     ctx.globalAlpha = 1;
   }
 }
-

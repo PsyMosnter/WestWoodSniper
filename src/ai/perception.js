@@ -24,9 +24,35 @@ export function visionOf(obs, world) {
   if (world.timeOfDay === 'night' && obs.profile !== 'searchlight') mult *= BALANCE.ai.nightVision;
   else if (world.timeOfDay === 'dusk') mult *= BALANCE.ai.duskVision;
   if (world.blizzard) mult *= BALANCE.ai.blizzardVision;
-  if (obs.disabledVision) mult *= obs.disabledVision;
+  if (obs.disabledVision != null) mult *= obs.disabledVision;   // (0 = blind: a buggy whose driver is shot)
   if (obs.blindT > 0) mult = 0;
   return { radius: radius * mult, cone: (prof.cone * Math.PI) / 180, peripheral: prof.peripheral ?? 1, rate: prof.rate ?? 1 };
+}
+
+/**
+ * Share of an observer's sight radius at which a target with this stance on this tile can be picked out
+ * (playtest 2 — the inner cone): run 1 … hunker 0.3, shrunk further by concealment (tall grass, swamp).
+ * @param {string} stance  run | walk | crouch | cover | coverUncovered | crawl | hunker
+ * @param {number} conceal terrain concealment of the target's tile (1 = none)
+ */
+export function stanceRange(stance, conceal = 1) {
+  const R = D.range;
+  return (R[stance] ?? 1) * (1 - (1 - conceal) * R.concealK);
+}
+
+/**
+ * How far (tiles) observer `obs` can pick out `target` right now — the inner cone. Targets without a
+ * `rangeFactor` (friendlies, probes) are seen out to the full radius.
+ */
+export function detectRange(obs, target, world, vis = visionOf(obs, world)) {
+  if (!target.rangeFactor) return vis.radius;
+  const m = world.map;
+  const tx = Math.floor(target.x), ty = Math.floor(target.y);
+  let r = vis.radius * target.rangeFactor(obs, m.conceal[m.idx(tx, ty)]);
+  if (m.terrain[m.idx(tx, ty)] === T.tallgrass) r = Math.min(r, D.tallGrassMaxDist);
+  if (obs.def?.smell) r = Math.max(r, Math.min(vis.radius, D.sniffer.smellDist));   // smell ignores stance & cover
+  if ((obs.kind === 'vehicle' || obs.kind === 'turret') && target.hunkered) r = 0;       // they can't see a hunkered target
+  return r;
 }
 
 /**
@@ -38,6 +64,7 @@ export function canObserve(obs, target, world) {
   const dx = target.x - obs.x, dy = target.y - obs.y;
   const dist = Math.hypot(dx, dy);
   if (dist > vis.radius || vis.radius <= 0) return { visible: false, dist, vis };
+  if (target.rangeFactor && dist > detectRange(obs, target, world, vis)) return { visible: false, dist, vis };
   const m = world.map;
   const tx = Math.floor(target.x), ty = Math.floor(target.y);
   let a = Math.atan2(dy, dx) - obs.angle;

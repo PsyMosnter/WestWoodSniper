@@ -13,7 +13,8 @@ const follow = (leader, dx, dy) => ({ kind: 'follow', leader, dx, dy });
 
 const PATHS = {
   // the north goat path: a Warden and two Sniffers on a ~60 s pingpong (SPEC: 60 s loop)
-  northLoop: [P(50, 6, 4, 'W'), P(80, 6, 3, 'E')],
+  // (playtest 2: longer waits at the ends — the quiet windows on the path are what make it a way in)
+  northLoop: [P(47, 6, 9, 'W'), P(80, 6, 8, 'E')],
   plantLoop: [P(58, 20, 3, 'N'), P(64, 20, 2, 'E'), P(64, 27, 3, 'S'), P(58, 27, 2, 'W')],
   eastLoop: [P(80, 14, 3, 'N'), P(97, 15, 3, 'E'), P(97, 33, 4, 'SE'), P(81, 34, 3, 'S')],
   wallWalk: [P(59, 37, 3, 'S'), P(92, 37, 4, 'S')],
@@ -42,7 +43,7 @@ const UNITS = [
   U('b12', 'warden', 71, 34, 'base', sentry(['S', 'E', 'W'], 5), { facing: 'S' }),
   U('b13', 'husk', 96, 30, 'base', sentry(['E', 'S'], 6), { facing: 'E' }),
   U('b14', 'lobber', 90, 36, 'base', sentry(['S'], 6), { facing: 'S' }),
-  U('b15', 'husk', 55, 12, 'base', sentry(['N', 'W'], 6), { facing: 'N' }),
+  U('b15', 'husk', 55, 12, 'base', sentry(['W', 'S'], 6), { facing: 'W' }),   // (not N: that stared at the goat path's top)
   U('b16', 'husk', 50, 32, 'base', sentry(['W', 'SW'], 6), { facing: 'W' }),
   // gate (south switchback) — towers, turrets, MG nest are structures
   U('g1', 'husk', 73, 40, 'base', sentry(['S', 'SW'], 5), { facing: 'S' }),
@@ -52,9 +53,9 @@ const UNITS = [
   U('g5', 'lobber', 81, 44, 'base', sentry(['S'], 6), { facing: 'S' }),
   U('g6', 'warden', 76, 45, 'base', sentry(['S', 'W', 'E'], 6), { facing: 'S' }),
   // north goat path
-  U('n1', 'warden', 50, 6, 'north', patrol('northLoop', 'pingpong')),
-  U('n2', 'sniffer', 51, 7, 'north', follow('n1', -1.5, -1)),
-  U('n3', 'sniffer', 51, 5, 'north', follow('n1', -1.5, 1)),
+  U('n1', 'warden', 47, 6, 'north', patrol('northLoop', 'pingpong')),
+  U('n2', 'sniffer', 48, 7, 'north', follow('n1', -1.5, -1)),
+  U('n3', 'sniffer', 48, 5, 'north', follow('n1', -1.5, 1)),
   U('n4', 'husk', 71, 12, 'north', sentry(['E', 'S'], 7), { facing: 'E' }),
   // canyon & West Ridge surroundings
   U('c1', 'husk', 43, 15, 'canyon', patrol('canyon', 'pingpong')),

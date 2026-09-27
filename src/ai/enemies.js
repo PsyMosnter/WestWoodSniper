@@ -77,6 +77,7 @@ export class EnemySystem {
     const groupsDetecting = new Set();
     for (const u of w.units) {
       if (u.dead) { u.deathT += dt; u.px = u.x; u.py = u.y; continue; }
+      if (u.retired) continue;                                           // Boot Camp dummy that packed up
       if (u.kind === 'structure') continue;
       if (u.hidden) { u.px = u.x; u.py = u.y; u.seesOp = false; continue; } // riding inside a vehicle / in a bunker
       if (u.scripted) { u.step(dt); if (u.flashT > 0) u.flashT -= dt; continue; }          // scripted run (VIP to the bunker, riders remounting)
@@ -202,6 +203,7 @@ export class EnemySystem {
     const w = this.world, op = w.operative;
     const def = u.def;
     const { tgt, vis } = combatTarget(u, w);
+    if (u.training) { if (vis) u.face(tgt.x, tgt.y); return; }   // Boot Camp dummies never shoot
     if (vis) { u.lastKnown = { x: tgt.x, y: tgt.y }; u.lostT = 0; }
     else u.lostT = (u.lostT || 0) + dt;
     if (tgt === op && op.dead) { u.setState('returning'); return; }
@@ -415,7 +417,7 @@ export class EnemySystem {
     }
     const shot = n.kind === 'rifle' || n.kind === 'pistol' || n.kind === 'explosion' || n.kind === 'c4';
     for (const u of w.units) {
-      if (u.dead || u.state === 'combat') continue;
+      if (u.dead || u.retired || u.state === 'combat') continue;
       if (u.kind === 'emplacement' || u.kind === 'turret') {
         if (Math.hypot(u.x - n.x, u.y - n.y) <= n.radius && n.source !== u) { u.lastKnown = { x: n.x, y: n.y }; u.setState('alerted'); }
         continue;

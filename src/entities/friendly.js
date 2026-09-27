@@ -7,6 +7,7 @@ import { unitSprite, whiteOf, markerLift } from '../render/sprites.js';
 import { vehicleSprite } from '../render/spriteData/vehicles.js';
 import { drawText } from '../render/font.js';
 import { angleToDir8 } from '../world/tiles.js';
+import { drive } from './steering.js';
 import { coverKind, drawCovered } from '../render/terrainCover.js';
 
 const F = BALANCE.friendly;
@@ -68,17 +69,12 @@ export class Friendly {
     const veh = this.kind === 'vehicle';
     const c = (veh ? m.vcost : m.cost)[m.idx(this.tx, this.ty)];
     let budget = speed / Math.max(0.5, Math.min(3, c === Infinity ? 1 : c)) * dt;
+    // trucks drive like cars (arc round corners, no turning on the spot)
+    if (veh) { drive(this, dt, budget / dt, m); this.animT += dt; return; }
     while (budget > 0 && this.path.length) {
       const wp = this.path[0];
       const dx = wp.x + 0.5 - this.x, dy = wp.y + 0.5 - this.y, d = Math.hypot(dx, dy);
-      if (d > 1e-4) {
-        const ta = Math.atan2(dy, dx);
-        if (veh) {
-          let da = ta - this.angle; while (da > Math.PI) da -= 2 * Math.PI; while (da < -Math.PI) da += 2 * Math.PI;
-          this.angle += Math.max(-2.4 * dt, Math.min(2.4 * dt, da));
-          if (Math.abs(da) > 1) return;
-        } else this.angle = ta;
-      }
+      if (d > 1e-4) this.angle = Math.atan2(dy, dx);
       if (d <= budget) { this.x = wp.x + 0.5; this.y = wp.y + 0.5; budget -= d; this.path.shift(); }
       else { this.x += (dx / d) * budget; this.y += (dy / d) * budget; budget = 0; }
     }

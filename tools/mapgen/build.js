@@ -8,7 +8,7 @@ import { toModule } from './lib.js';
 const root = join(dirname(fileURLToPath(import.meta.url)), '../..');
 const outDir = join(root, 'src/missions/data');
 mkdirSync(outDir, { recursive: true });
-const all = ['test', 'm1', 'm2', 'm3', 'm4', 'm5', 'm6', 'm7'];
+const all = ['test', 'bc', 'm1', 'm2', 'm3', 'm4', 'm5', 'm6', 'm7'];
 const want = process.argv.slice(2).length ? process.argv.slice(2) : all;
 for (const id of want) {
   let mod;

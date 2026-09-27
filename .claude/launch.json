@@ -4,8 +4,8 @@
     {
       "name": "westwood",
       "runtimeExecutable": "python3",
-      "runtimeArgs": ["-m", "http.server", "8123"],
-      "port": 8123
+      "runtimeArgs": ["tools/serve.py", "8125"],
+      "port": 8125
     }
   ]
 }

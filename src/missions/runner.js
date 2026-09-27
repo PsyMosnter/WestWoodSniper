@@ -103,7 +103,7 @@ export class MissionRunner {
    * the game picks one for the tip's key (GameScene.tipAnchor).
    */
   showTutorial(key, title, text, at) {
-    if (this.tutorialSeen.has(key) || this.game.settings.tutorials === false) return;
+    if (!this.data.alwaysTips && (this.tutorialSeen.has(key) || this.game.settings.tutorials === false)) return;
     if (this.tutorial?.key === key || this.tutQueue.some((q) => q.key === key)) return;
     const t = { key, title, text, t: 0, at: this.game.tipAnchor ? this.game.tipAnchor(key, at) : null };
     if (this.tutorial) { this.tutQueue.push(t); return; }
@@ -238,6 +238,25 @@ export class MissionRunner {
     ctx.globalAlpha = 1;
     ctx.fillStyle = 'rgba(7,9,10,0.8)'; ctx.fillRect(Math.round((x0 + x1) / 2) - 8, y0 - 10, 16, 8);
     r._lzLabel = { x: (x0 + x1) / 2, y: y0 - 9 };
+  }
+
+  /** world-space marker for objectives flagged `marker` (Boot Camp stations): a pulsing corner box + chevron */
+  drawMarkers(ctx, r) {
+    const z = r.cam.zoom, T = performance.now() / 1000;
+    for (const o of this.game.objectives.list()) {
+      if (!o.marker || o.done || o.hidden || !o.area) continue;
+      const a = this.data.areas[o.area];
+      const x0 = Math.round(r.sx(a.x)), y0 = Math.round(r.sy(a.y)), x1 = Math.round(r.sx(a.x + a.w)), y1 = Math.round(r.sy(a.y + a.h));
+      const p = Math.round((Math.sin(T * 4) * 0.5 + 0.5) * 2) * z, L = 5 * z;
+      ctx.fillStyle = 'rgba(124,255,122,0.16)'; ctx.fillRect(x0, y0, x1 - x0, y1 - y0);
+      for (const [cx, cy, sx, sy] of [[x0 - p, y0 - p, 1, 1], [x1 + p, y0 - p, -1, 1], [x0 - p, y1 + p, 1, -1], [x1 + p, y1 + p, -1, -1]]) {
+        ctx.fillStyle = '#07090A'; ctx.fillRect(cx - (sx < 0 ? L : 0) + z, cy - (sy < 0 ? 2 * z : 0) + z, L, 2 * z); ctx.fillRect(cx - (sx < 0 ? 2 * z : 0) + z, cy - (sy < 0 ? L : 0) + z, 2 * z, L);
+        ctx.fillStyle = '#7CFF7A'; ctx.fillRect(cx - (sx < 0 ? L : 0), cy - (sy < 0 ? 2 * z : 0), L, 2 * z); ctx.fillRect(cx - (sx < 0 ? 2 * z : 0), cy - (sy < 0 ? L : 0), 2 * z, L);
+      }
+      const mx = Math.round((x0 + x1) / 2), my = y0 - 6 * z - Math.round((Math.sin(T * 3) * 0.5 + 0.5) * 3) * z;
+      ctx.fillStyle = '#07090A'; ctx.fillRect(mx - 4 * z, my - z, 9 * z, 5 * z);
+      ctx.fillStyle = '#7CFF7A'; ctx.fillRect(mx - 3 * z, my, 7 * z, z); ctx.fillRect(mx - 2 * z, my + z, 5 * z, z); ctx.fillRect(mx - z, my + 2 * z, 3 * z, z); ctx.fillRect(mx, my + 3 * z, z, z);
+    }
   }
 
   // ---------------------------------------------------------------- end

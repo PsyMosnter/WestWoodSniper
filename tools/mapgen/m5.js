@@ -38,7 +38,7 @@ add('mh1', 'husk', 8, 12, 'hill', patrol('hillLoop'));
 add('mh2', 'husk', 9, 13, 'hill', follow('mh1', -1, 1));
 add('mh3', 'warden', 12, 16, 'hill', sentry(['E', 'S'], 6), { facing: 'E' });
 add('mh4', 'lobber', 14, 19, 'hill', sentry(['S', 'E'], 6), { facing: 'S' });
-add('mh5', 'husk', 5, 26, 'hill', sentry(['S', 'W'], 6), { facing: 'S' });
+add('mh5', 'husk', 8, 27, 'hill', sentry(['S', 'E'], 6), { facing: 'S' });   // (playtest 2: was (5,26) facing S/W — it stared down the quiet west way up)
 add('mh6', 'scorcher', 11, 10, 'hill', sentry(['N', 'W'], 6), { facing: 'N' });
 // north jungle island
 add('nj1', 'husk', 40, 14, 'north', patrol('northJungle'));

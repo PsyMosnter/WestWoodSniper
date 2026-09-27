@@ -13,7 +13,7 @@
  * point, lean, talk…), eyebrows and a turnable head. Lip-sync, blinks and WREN's glasses gleam are cheap 2D
  * overlays on cached renders, so a shot needs only a handful of renders.
  */
-import { renderChibi, bustBox, figureBox, addGleam, CHIBI, CAST } from '../render/spriteData/chibiInfantry.js';
+import { renderChibi, bustBox, figureBox, addGleam } from '../render/spriteData/chibiInfantry.js';
 import { Pix } from '../render/pixel.js';
 import { drawText, wrapText, measureText } from '../render/font.js';
 
@@ -33,7 +33,7 @@ export function figure(type, pose, dir, frame, zoom, o = {}) {
   if (f) return f;
   const box = o.bust ? bustBox(type, zoom) : figureBox(type, zoom);
   const r = renderChibi(type, pose, dir, frame, '', { zoom, box, ink: zoom >= 3 ? 1 : 0, brow: o.brow ?? 0, yaw: o.yaw, tilt: o.tilt });
-  f = { c: r.pix.toCanvas(), pix: r.pix, ax: r.ax, ay: r.ay, w: r.w, h: r.h, anch: r.anch, type, zoom, gl: [] };
+  f = { get c() { return this._c || (this._c = this.pix.toCanvas()); }, _c: null, pix: r.pix, ax: r.ax, ay: r.ay, w: r.w, h: r.h, anch: r.anch, type, zoom, gl: [] };
   FIG.set(frameKey, f);
   return f;
 }
@@ -124,7 +124,7 @@ function drawActor(scene, g, S, who, f, x, y, o = {}) {
   }
   g.drawImage(img, x0, y0);
   face(g, f, x0, y0, { mouth: talking ? mouthAt(sp.text, sp.lt) : 0, blink: !S.reduced && blinking(S.T, who.length), talking, T: S.T, green: o.green });
-  if (f.anch) scene.talkers[who] = [x0 + f.anch.top[0], Math.max(0, y0 + f.anch.top[1] - (o.lift || 0))];
+  if (f.anch) scene.talkers[who] = [x0 + f.anch.top[0], Math.max(0, y0 + f.anch.top[1])];
   return { x0, y0, talking };
 }
 
@@ -150,24 +150,17 @@ export function drawSpeech(ctx, text, x, y, color, W, top) {
  * @param {any} K {BIOME, SKY, bands, ridge, blade, disc, ell, rng, weather, clamp01, ease, lerp}
  */
 export function makeStageShots(K) {
-  const { BIOME, SKY, bands, ridge, blade, disc, rng, weather, clamp01, ease, lerp } = K;
+  const { BIOME, SKY, bands, ridge, blade, disc, rng, weather, clamp01, lerp } = K;
 
   /** where an actor is at local time t: its base merged with the beats reached so far; moves interpolate */
   function actorAt(a, t) {
-    const st = { ...a };
-    let prevX = a.x, walking = false;
+    const st = { ...a, walking: false };
     for (const b of a.beats || []) {
       if (t < b.t) break;
-      if (b.x != null && b.walk) {
-        const k = clamp01((t - b.t) / b.walk);
-        st.x = lerp(prevX, b.x, k);
-        if (k < 1) walking = true;
-        prevX = b.x;
-      }
-      Object.assign(st, { ...b, x: st.x });
-      if (b.x != null && !b.walk) { st.x = b.x; prevX = b.x; }
+      const fromX = st.x, { t: t0, walk, ...rest } = b;
+      Object.assign(st, rest);
+      if (walk && b.x != null) { const k = clamp01((t - t0) / walk); st.x = lerp(fromX, b.x, k); st.walking = k < 1; }
     }
-    st.walking = walking;
     return st;
   }
 
@@ -182,7 +175,7 @@ export function makeStageShots(K) {
     else if (pose === 'fish') frame = Math.floor(S.t * 1.5) & 1;
     else if (pose === 'point') frame = talking ? Math.floor(sp.lt / 0.3) & 1 : 0;
     const bob = st.walking || S.reduced ? 0 : Math.round(Math.sin(S.T * 2.1 + a.who.length) * 0.6);
-    return { st, f: figure(CAST_OF[a.who] || a.who, pose, st.dir ?? 4, frame, a.zoom || 4, { brow: st.brow ?? 0, yaw: st.yaw, tilt: st.tilt }), bob };
+    return { st, f: figure(CAST_OF[a.who] || a.who, pose, st.dir ?? 4, frame, a.zoom || 4, { brow: st.brow ?? 0, yaw: st.yaw, tilt: st.tilt ?? -0.18 }), bob };
   }
 
   // ---------------------------------------------------------------- sets: back layer, actors, front layer
@@ -267,10 +260,19 @@ export function makeStageShots(K) {
         const Rr = rng(15); g.fillStyle = '#6A5A7E';
         for (let i = 0; i < 40; i++) { const y = hy + 6 + Rr() * (h - hy), x = (Rr() * w + (reduced ? 0 : T * (6 + (y - hy) * 0.08))) % w; g.fillRect(Math.round(x), Math.round(y), 3 + Math.round((y - hy) * 0.06), 1); }
         // the jetty, from the near left out into the river
-        const J = [[-20, h], [w * 0.62, h], [w * 0.42, h * 0.62], [w * 0.1, h * 0.62]];
-        g.fillStyle = '#3A2614'; g.beginPath(); J.forEach(([x, y], i) => (i ? g.lineTo(x, y) : g.moveTo(x, y))); g.fill();
-        for (let i = 0; i < 9; i++) { const k = i / 9, y = lerp(h, h * 0.62, Math.pow(k, 0.8)); g.fillStyle = i & 1 ? '#6A4A2A' : '#5A3E22'; const xl = lerp(-20, w * 0.1, Math.pow(k, 0.8)), xr = lerp(w * 0.62, w * 0.42, Math.pow(k, 0.8)); const y2 = lerp(h, h * 0.62, Math.pow((i + 1) / 9, 0.8)); g.fillRect(Math.round(xl), Math.round(y2), Math.round(xr - xl), Math.max(1, Math.round(y - y2) - 1)); }
-        for (const px of [w * 0.12, w * 0.4]) { g.fillStyle = '#24160A'; g.fillRect(px, h * 0.6, 5, 14); }
+        const fy = h * 0.62, nl = -20, nr = w * 0.62, fl = w * 0.1, fr = w * 0.42;
+        // posts under the far end, the dark side of the deck, then the deck: boards running out, seams across
+        for (const px of [fl + 6, fr - 10, (fl + fr) / 2]) { g.fillStyle = '#1E1208'; g.fillRect(px, fy, 5, 18); g.fillStyle = '#6A5A7E'; g.fillRect(px - 2, fy + 16, 9, 1); }
+        g.fillStyle = '#24160A'; g.beginPath(); g.moveTo(nr, h); g.lineTo(fr, fy); g.lineTo(fr, fy + 7); g.lineTo(nr, h + 10); g.fill();
+        g.fillStyle = '#2E1C0E'; g.fillRect(fl, fy, fr - fl, 5);
+        g.fillStyle = '#5E4226'; g.beginPath(); g.moveTo(nl, h); g.lineTo(nr, h); g.lineTo(fr, fy); g.lineTo(fl, fy); g.fill();
+        for (let i = 1; i < 7; i++) {                      // boards (lines converging on the far end)
+          const k = i / 7; g.strokeStyle = '#3E2A16'; g.lineWidth = 1;
+          g.beginPath(); g.moveTo(lerp(nl, nr, k), h); g.lineTo(lerp(fl, fr, k), fy); g.stroke();
+        }
+        g.fillStyle = '#7A5A34';
+        for (let i = 0; i < 7; i++) { const k = i / 7, y = lerp(fy, h, Math.pow(k, 1.6)); g.fillRect(Math.round(lerp(fl, nl, Math.pow(k, 1.6))), Math.round(y), Math.round(lerp(fr - fl, nr - nl, Math.pow(k, 1.6))), 1); }
+        g.fillStyle = '#7A5A34'; g.beginPath(); g.moveTo(fl, fy); g.lineTo(fr, fy); g.lineTo(fr, fy + 1); g.lineTo(fl, fy + 1); g.fill();
         // WREN's seat (an upturned crate), the radio on another, his rifle leaning on it
         const sx = S.seat[0], sy = S.seat[1], sz = S.seatH;
         g.fillStyle = '#4A3218'; g.fillRect(sx - 14, sy - sz, 28, sz); g.fillStyle = '#6E4E2A'; g.fillRect(sx - 14, sy - sz, 28, 3); g.fillStyle = '#2E1E0E'; g.fillRect(sx + 11, sy - sz, 3, sz);
@@ -366,9 +368,16 @@ export function makeStageShots(K) {
     ridge(g, w, hy - 10, 40, 5 + shot.biome.length, B.far[1], hy + 30, 3);
     ridge(g, w, hy + 10, 30, 13 + shot.biome.length, B.far[0], h, 3);
     const R = rng(shot.biome.length * 31 + 7);
-    for (let i = 0; i < 16; i++) {
-      const x = R() * (w + 80) - 40 - pan * (0.5 + R()), y = R() * h * 0.9, r = 18 + R() * 34;
-      g.globalAlpha = 0.25 + R() * 0.25; disc(g, x, y, r, B.g[1 + Math.floor(R() * 3)]); g.globalAlpha = 1;
+    for (let i = 0; i < 22; i++) {                       // out-of-focus foliage: soft discs with a lighter core
+      const x = R() * (w + 80) - 40 - pan * (0.5 + R()), y = h * 0.3 + R() * h * 0.6, r = 8 + R() * 16, c = B.g[1 + Math.floor(R() * 3)];
+      g.globalAlpha = 0.12 + R() * 0.12; disc(g, x, y, r, c); g.globalAlpha *= 0.8; disc(g, x - r * 0.2, y - r * 0.2, r * 0.6, B.g[4]); g.globalAlpha = 1;
+    }
+    // a frame of dark leaves hanging into the corner opposite the speaker
+    const lx = shot.side === 'right' ? 0 : w, sgn = shot.side === 'right' ? 1 : -1;
+    for (let i = 0; i < 9; i++) {
+      const a = (i / 9) * 1.3 + 0.2, len = 30 + R() * 30, x = lx + sgn * (Math.cos(a) * len * 0.8), y = -6 + Math.sin(a) * len + Math.sin(T * 0.8 + i) * (reduced ? 0 : 1.5);
+      g.fillStyle = i & 1 ? B.g[0] : B.g[1];
+      g.beginPath(); g.ellipse(x, y, 16 + R() * 8, 6 + R() * 3, sgn * (a - 0.2), 0, Math.PI * 2); g.fill();
     }
     if (shot.time !== 'night') {
       g.globalAlpha = 0.07; g.fillStyle = '#FFF4D0';
@@ -390,9 +399,9 @@ export function makeStageShots(K) {
     g.fillStyle = '#10280F'; for (let i = 0; i < 6; i++) g.fillRect(x, y + (ph * i) / 6, pw, 1);
     const type = CAST_OF[who] || who;
     const sp = S.speaking, talking = sp && sp.who === who;
-    const f = figure(type, talking ? 'talk' : 'stand', 4, talking ? Math.floor(sp.lt / 0.45) % 3 : 0, 4.2, { bust: true, brow: 0 });
+    const f = figure(type, talking ? 'talk' : 'stand', 4, talking ? Math.floor(sp.lt / 0.45) % 3 : 0, 4.2, { bust: true, brow: 0, tilt: -0.3 });
     const jitter = !reduced && talking && Math.floor(T * 13) % 11 === 0 ? 2 : 0;
-    drawActor(scene, g, S, who, f, x + pw / 2 + jitter, y + ph + f.ay - f.h + 4, { green: true, lift: -(y - (y + ph + f.ay - f.h + 4 - f.ay)) });
+    drawActor(scene, g, S, who, f, x + pw / 2 + jitter, y + ph + f.ay - f.h + 4, { green: true });
     for (let yy = 0; yy < ph; yy += 2) { g.fillStyle = 'rgba(0,0,0,0.28)'; g.fillRect(x, y + yy, pw, 1); }
     if (!reduced) { const by = y + ((T * 30) % (ph + 20)) - 10; g.fillStyle = 'rgba(160,255,160,0.08)'; g.fillRect(x, by, pw, 6); }
     g.restore();
@@ -435,7 +444,7 @@ export function makeStageShots(K) {
       const pose = talking ? 'talk' : listen, frame = talking ? Math.floor(S.speaking.lt / 0.45) % 3 : 0;
       const zoom = shot.zoom || Math.max(6, Math.round(h / 34));
       const brow = (shot.beats || []).reduce((b, x) => (t >= x.t && x.brow != null ? x.brow : b), shot.brow ?? 0);
-      const f = figure(type, pose, shot.dir ?? (shot.side === 'right' ? 5 : 3), frame, zoom, { bust: true, brow, yaw: shot.yaw });
+      const f = figure(type, pose, shot.dir ?? (shot.side === 'right' ? 5 : 3), frame, zoom, { bust: true, brow, yaw: shot.yaw, tilt: shot.tilt ?? -0.32 });
       const lb = Math.round(h * 0.1);
       const cx = shot.inset ? (shot.side === 'right' ? w * 0.7 : w * 0.3) : w * 0.5;
       const breath = S.reduced ? 0 : Math.round(Math.sin(S.T * 1.8) * 1);
@@ -453,9 +462,9 @@ export function makeStageShots(K) {
 export function preloadStage(shot, h) {
   if (shot.kind === 'closeup') {
     const type = CAST_OF[shot.who] || shot.who, zoom = shot.zoom || Math.max(6, Math.round(h / 34)), dir = shot.dir ?? (shot.side === 'right' ? 5 : 3);
-    figure(type, shot.listen || 'stand', dir, 0, zoom, { bust: true, brow: shot.brow ?? 0, yaw: shot.yaw });
-    for (let f = 0; f < 3; f++) figure(type, 'talk', dir, f, zoom, { bust: true, brow: shot.brow ?? 0, yaw: shot.yaw });
-    if (shot.inset) for (const [p, fr] of [['stand', 0], ['talk', 0], ['talk', 1], ['talk', 2]]) figure(CAST_OF[shot.inset] || shot.inset, p, 4, fr, 4.2, { bust: true, brow: 0 });
+    const o = { bust: true, brow: shot.brow ?? 0, yaw: shot.yaw, tilt: shot.tilt ?? -0.32 };
+    figure(type, shot.listen || 'stand', dir, 0, zoom, o);
+    for (let f = 0; f < 3; f++) figure(type, 'talk', dir, f, zoom, o);
+    if (shot.inset) for (const [p, fr] of [['stand', 0], ['talk', 0], ['talk', 1], ['talk', 2]]) figure(CAST_OF[shot.inset] || shot.inset, p, 4, fr, 4.2, { bust: true, brow: 0, tilt: -0.3 });
   }
 }
-export { CHIBI, CAST };

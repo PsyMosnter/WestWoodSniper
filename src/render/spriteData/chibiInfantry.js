@@ -302,7 +302,7 @@ export function bustBox(type, zoom, margin = 6) {
 /** A box for a whole standing (or sitting) figure at `zoom`. */
 export function figureBox(type, zoom) {
   const d = defOf(type), k = K * (d.scale || 1);
-  const top = ((d.hipZ + d.chest + d.head) * k + 12) * 0.83 * zoom;
+  const top = ((d.hipZ + d.chest + d.head) * k + 16) * 0.83 * zoom;
   return { w: Math.round(56 * zoom), h: Math.round(top + 8 * zoom), ax: Math.round(28 * zoom), ay: Math.round(top) };
 }
 

@@ -1,16 +1,19 @@
 // @ts-check
 import { drawText, wrapText } from '../render/font.js';
 import { makeCanvas } from '../render/pixel.js';
-import { renderInfantry } from '../render/spriteData/newInfantry.js';
 import { renderVehicle } from '../render/spriteData/newVehicles.js';
+import { renderChibi } from '../render/spriteData/chibiInfantry.js';
+import { makeStageShots, preloadStage, drawSpeech } from './cutStage.js';
 import { drawLogo } from './menus.js';
 import { CUTS, FAILED_LINES, CREDITS, cutLength } from '../missions/story.js';
 
 /**
- * Cutscene player (story intro, mission intros, mission failed, campaign ending). Everything is drawn
- * procedurally into a low-resolution buffer (half the display, so it reads as pixel art) and scaled
- * up; the soldiers and vehicles are the New-style 3D models rendered big. Text (titles, radio lines)
- * is drawn crisp on top. Tap / Esc / Enter / Space skips. Reduced motion: no shake, flashes or drift.
+ * Cutscene player (story intro, mission intros, mission failed, campaign ending). Nature close-ups and
+ * establishing shots are drawn procedurally into a low-resolution buffer (half the display, so they read as
+ * pixel art) and scaled up; the acted scenes — painted sets and big talking heads, LucasArts style — are drawn at
+ * full resolution (cutStage.js). The cast are the Chibi-style 3D models rendered big; vehicles are the New-style
+ * models. Speech appears above the speaker's head in their colour; voices from off screen get a subtitle bar.
+ * Tap / Esc / Enter / Space skips. Reduced motion: no shake, flashes or drift.
  */
 
 // ------------------------------------------------------------------ palettes
@@ -29,7 +32,9 @@ const BIOME = {
   swamp: { g: ['#141A10', '#222A1A', '#323C24', '#46522E', '#5E6C3C'], ground: '#262E1C', far: ['#1C2418', '#2A3424', '#3A4632'], soil: '#2A2618' },
   volcanic: { g: ['#0E0A0A', '#1A1414', '#2A2020', '#3E302C', '#56443C'], ground: '#241C1C', far: ['#1A1416', '#2A2224', '#3E3234'], soil: '#1E1616', embers: true },
 };
-const SPEAKER = { OVERWATCH: '#7CFF7A', WREN: '#D8CA98', 'GOD COMMAND': '#6FA2C8', 'DR. ADLER': '#9FD8FF' };
+const SPEAKER = { OVERWATCH: '#7CFF7A', WREN: '#FFE08A', 'GOD COMMAND': '#8FC2F0', 'DR. ADLER': '#C8A8FF' };
+/** shots drawn at full resolution (the acted scenes) */
+const HIRES = new Set(['stage', 'closeup']);
 const BILE = ['#E8D43A', '#8E7F12', '#FFF6A0'];
 
 // ------------------------------------------------------------------ helpers
@@ -80,7 +85,11 @@ const SPR = new Map();
 function inf(type, pose, dir, frame, zoom) {
   const key = `i|${type}|${pose}|${dir}|${frame}|${zoom}`;
   let s = SPR.get(key);
-  if (!s) { const r = renderInfantry(type, pose, dir, frame, '', zoom); s = { c: r.pix.toCanvas(), ax: r.ax, ay: r.ay, w: r.w, h: r.h }; SPR.set(key, s); }
+  if (!s) {
+    const box = { w: Math.round(64 * zoom), h: Math.round(52 * zoom), ax: Math.round(32 * zoom), ay: Math.round(40 * zoom) };
+    const r = renderChibi(type, pose, dir, frame, '', { zoom: zoom * 0.8, box, ink: zoom >= 3 ? 1 : 0 });
+    s = { c: r.pix.toCanvas(), ax: r.ax, ay: r.ay, w: r.w, h: r.h }; SPR.set(key, s);
+  }
   return s;
 }
 function veh(type, dir, zoom) {
@@ -95,8 +104,9 @@ function put(g, s, x, y, alpha = 1) {
   g.globalAlpha = 1;
 }
 /** Sprites a shot needs, rendered up front (a few tens of milliseconds each). */
-function preload(shot) {
-  const walk = (type, dir, z) => { for (let f = 0; f < 4; f++) inf(type, 'walk', dir, f, z); };
+function preload(shot, H) {
+  if (HIRES.has(shot.kind)) { preloadStage(shot, H); return; }
+  const walk = (type, dir, z) => { for (let f = 0; f < 6; f++) inf(type, 'walk', dir, f, z); };
   if (shot.kind === 'macro') {
     const a = shot.approach;
     if (a === 'crawl') { for (let f = 0; f < 4; f++) inf('operative', 'crawl', 2, f, 4); inf('operative', 'prone', 2, 0, 4); }
@@ -105,13 +115,13 @@ function preload(shot) {
     if (a === 'infantry') { walk('husk', 2, 5); walk('lobber', 2, 4); }
     if (a === 'pods') walk('husk', 2, 5);
     if (a === 'sniffer') { walk('sniffer', 6, 5); inf('sniffer', 'idle', 6, 0, 5); }
-    if (a === 'scatter') for (let f = 0; f < 4; f++) { inf('husk', 'run', 6, f, 3); inf('lobber', 'run', 6, f, 2); }
+    if (a === 'scatter') for (let f = 0; f < 6; f++) { inf('husk', 'run', 6, f, 3); inf('lobber', 'run', 6, f, 2); }
   }
   if (shot.kind === 'establish') {
     if (shot.wren === 'crouch') inf('operative', 'crouch', 0, 0, 3);
     if (shot.wren === 'prone') inf('operative', 'prone', 0, 0, 3);
     if (shot.wren === 'sit') inf('operative', 'crouch', 2, 0, 3);
-    if (shot.scene === 'canyonPatrol') for (let f = 0; f < 4; f++) inf('husk', 'walk', 6, f, 1);
+    if (shot.scene === 'canyonPatrol') for (let f = 0; f < 6; f++) inf('husk', 'walk', 6, f, 1);
   }
 }
 
@@ -131,17 +141,17 @@ export class CutsceneScene {
     if (p.id === 'failed') { this.app.audio?.music?.(null); this.app.audio?.sting?.('fail'); }
     else this.app.audio?.music?.('theme');
     this.shake = 0;
-    for (const s of this.cut.shots) preload(s);
+    for (const s of this.cut.shots) preload(s, this.app.display.H);
     const save = this.app.save;
     if (save) { save.seenCuts = save.seenCuts || {}; save.seenCuts[p.id] = true; this.app.persist?.(); }
     this.resize(this.app.display.W, this.app.display.H);
   }
   resize(W, H) {
-    this.P = W >= 400 ? 2 : 1;
-    this.bw = Math.ceil(W / this.P); this.bh = Math.ceil(H / this.P);
-    if (!this.buf || this.buf.width !== this.bw || this.buf.height !== this.bh) {
-      this.buf = makeCanvas(this.bw, this.bh);
-      this.g = /** @type {CanvasRenderingContext2D} */ (this.buf.getContext('2d'));
+    this.P0 = W >= 400 ? 2 : 1;
+    this.bufs = this.bufs || {};
+    for (const P of new Set([this.P0, 1])) {
+      const bw = Math.ceil(W / P), bh = Math.ceil(H / P), b = this.bufs[P];
+      if (!b || b.w !== bw || b.h !== bh) { const c = makeCanvas(bw, bh); this.bufs[P] = { c, g: /** @type {CanvasRenderingContext2D} */ (c.getContext('2d')), w: bw, h: bh }; }
     }
   }
   finish() {
@@ -164,9 +174,12 @@ export class CutsceneScene {
   }
   render(ctx) {
     const { W, H } = this.app.display;
-    const g = this.g, w = this.bw, h = this.bh;
     const { s, lt } = this.shotAt(this.t);
+    if (!this.bufs[1] || this.bufs[1].w !== W || this.bufs[1].h !== H) this.resize(W, H);
+    this.P = HIRES.has(s.kind) ? 1 : this.P0;
+    const B = this.bufs[this.P], g = B.g, w = B.w, h = B.h;
     this.overlay = [];
+    this.talkers = {};
     this.shake = 0;
     g.setTransform(1, 0, 0, 1, 0, 0);
     g.globalAlpha = 1;
@@ -186,7 +199,7 @@ export class CutsceneScene {
     ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H);
     const sh = this.reduced ? 0 : this.shake;
     const ox = sh ? Math.round((Math.random() - 0.5) * sh * 2) * this.P : 0, oy = sh ? Math.round((Math.random() - 0.5) * sh * 2) * this.P : 0;
-    ctx.drawImage(this.buf, ox, oy, w * this.P, h * this.P);
+    ctx.drawImage(B.c, ox, oy, w * this.P, h * this.P);
     for (const o of this.overlay) o(ctx, W, H);
     this._subtitles(ctx, W, H, lb * this.P);
     if (this.t > 0.35) drawText(ctx, 'TAP TO SKIP >', W - 6, H - 10, { font: '3x5', color: '#5A625C', align: 'right' });
@@ -200,6 +213,8 @@ export class CutsceneScene {
       if (this.t < at || this.t >= end) continue;
       const n = Math.floor((this.t - at) * 45);
       const shown = text.slice(0, n);
+      const on = this.talkers?.[who];
+      if (on) { drawSpeech(ctx, shown, on[0] * this.P, on[1] * this.P, SPEAKER[who] || '#E8F0E0', W, lbPx); continue; }
       const maxW = Math.min(W - 24, 420);
       const rows = wrapText(shown, maxW - measureSpeaker(who));
       const y0 = H - lbPx - 4 - rows.length * 9;
@@ -400,6 +415,8 @@ const SHOTS = {
   },
 };
 
+Object.assign(SHOTS, makeStageShots({ BIOME, SKY, bands, ridge, blade, disc, ell, rng, weather, clamp01, ease, lerp }));
+
 // ------------------------------------------------------------------ the insect of the day
 function bug(g, S, kind, bx, gy, tA, ap, squashed) {
   const T = S.T;
@@ -482,7 +499,7 @@ function arrive(g, S, ap, tA, gy, bugX, vs, vx) {
     for (const [type, z, delay] of walkers) {
       const tt = tA - t0 - delay;
       if (tt < 0) continue;
-      const x = -60 + tt * (z === 5 ? 95 : 80), fr = Math.floor(tt * 5) & 3;
+      const x = -60 + tt * (z === 5 ? 95 : 80), fr = Math.floor(tt * 7.5) % 6;
       if (x > w + 80) continue;
       put(g, inf(type, 'walk', 2, fr, z), x, gy + (z === 5 ? 14 : 2));
     }
@@ -496,7 +513,7 @@ function arrive(g, S, ap, tA, gy, bugX, vs, vx) {
     if (tt < 1.8) x = lerp(w + 70, w * 0.62, tt / 1.8);
     else if (tt < 3.4) { x = w * 0.62; sniff = true; }
     else x = w * 0.62 - (tt - 3.4) * 90;
-    const s = sniff ? inf('sniffer', 'idle', 6, 0, 5) : inf('sniffer', 'walk', 6, Math.floor(tt * 6) & 3, 5);
+    const s = sniff ? inf('sniffer', 'idle', 6, 0, 5) : inf('sniffer', 'walk', 6, Math.floor(tt * 9) % 6, 5);
     put(g, s, x, gy + 12 + (sniff && !reduced ? Math.round(Math.sin(tt * 18)) : 0));
     if (sniff) { g.globalAlpha = 0.25 + 0.25 * Math.sin(tt * 9); disc(g, x - 40, gy - 22, 4, '#E4FF6A'); g.globalAlpha = 1; }
     return;
@@ -518,7 +535,7 @@ function arrive(g, S, ap, tA, gy, bugX, vs, vx) {
       const tt = Math.max(0, tA - 1.2 - d);
       const x = w * x0 - (run ? tt * 120 : 0);
       if (x < -60) continue;
-      const s = run && tt > 0 ? inf(type, 'run', 6, Math.floor(tt * 7) & 3, z) : inf(type, 'run', 6, 1, z);
+      const s = run && tt > 0 ? inf(type, 'run', 6, Math.floor(tt * 10) % 6, z) : inf(type, 'run', 6, 1, z);
       put(g, s, x, gy + 8 + y0);
     }
   }
@@ -652,7 +669,7 @@ const SCENES = {
     g.fillStyle = B.g[3]; g.fillRect(0, fl + 6, w, 1);
     for (let i = 0; i < 4; i++) {
       const x = w * 0.95 - ((T * 10 + i * 12) % (w * 0.5)) - pan;
-      put(g, inf('husk', 'walk', 6, (Math.floor(T * 5) + i) & 3, 1), x, fl + 10);
+      put(g, inf('husk', 'walk', 6, (Math.floor(T * 7.5) + i) % 6, 1), x, fl + 10);
     }
     // the trucks, far off at the canyon mouth, dust behind them
     for (let i = 0; i < 3; i++) { const x = w * 0.5 + i * 12 - pan; g.fillStyle = '#968A5E'; g.fillRect(Math.round(x), fl + 2, 9, 4); g.fillStyle = '#4A7FA8'; g.fillRect(Math.round(x) + 3, fl + 2, 3, 1); g.globalAlpha = 0.25; disc(g, x - 6, fl + 4, 5, '#C4A07A'); g.globalAlpha = 1; }

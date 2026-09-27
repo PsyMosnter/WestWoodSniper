@@ -25,6 +25,10 @@ export function loadSave() {
     seenCuts: d.seenCuts && typeof d.seenCuts === 'object' ? d.seenCuts : {},
     /** mid-mission saves, one per mission: { mission, key, kind: 'auto'|'quick', at, name, snap } */
     resume: d.resume && typeof d.resume === 'object' ? d.resume : {},
+    /** tips already read (each shows once per save) — was written but dropped on load until playtest 2 */
+    tutorialSeen: Array.isArray(d.tutorialSeen) ? d.tutorialSeen : [],
+    /** Boot Camp: 'done' | 'skipped' | null (the campaign map asks once while null) */
+    bootCamp: d.bootCamp === 'done' || d.bootCamp === 'skipped' ? d.bootCamp : null,
   };
 }
 

@@ -202,6 +202,7 @@ export class EnemySystem {
     const w = this.world, op = w.operative;
     const def = u.def;
     const { tgt, vis } = combatTarget(u, w);
+    if (u.training) { if (vis) u.face(tgt.x, tgt.y); return; }   // Boot Camp dummies never shoot
     if (vis) { u.lastKnown = { x: tgt.x, y: tgt.y }; u.lostT = 0; }
     else u.lostT = (u.lostT || 0) + dt;
     if (tgt === op && op.dead) { u.setState('returning'); return; }

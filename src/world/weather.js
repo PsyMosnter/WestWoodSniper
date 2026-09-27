@@ -5,6 +5,7 @@ import { Time } from '../core/time.js';
 import { T } from './tiles.js';
 import { canSee } from './los.js';
 import { makeSuspicious } from '../ai/fsm.js';
+import { drawSwath } from '../render/terrainCover.js';
 
 /**
  * Snow tracks (SPEC §8.6) and weather (blizzard in Mission 3; rain/haze tint elsewhere).
@@ -26,7 +27,7 @@ export class Weather {
   }
   addTrack(e) {
     const last = this.tracks[this.tracks.length - 1];
-    if (last && Math.hypot(last.x - e.x, last.y - e.y) < 0.45) return;
+    if (last && Math.hypot(last.x - e.x, last.y - e.y) < 0.4) return;
     this.tracks.push({ x: e.x, y: e.y, a: e.a, t: 0, side: (this.tracks.length & 1) ? 1 : -1 });
     if (this.tracks.length > 400) this.tracks.shift();
   }
@@ -66,16 +67,9 @@ export class Weather {
       }
     }
   }
-  /** footprints (drawn on the ground, under sprites) */
+  /** footprints: a tile-wide trough through the snow with boot prints (drawn on the ground, under sprites) */
   drawTracks(ctx, r) {
-    const z = r.cam.zoom;
-    for (const t of this.tracks) {
-      const a = Math.max(0, 1 - t.t / BALANCE.terrain.snowTrackLife);
-      if (a <= 0.02) continue;
-      const px = -Math.sin(t.a) * 1.5 * t.side, py = Math.cos(t.a) * 1.5 * t.side;
-      ctx.fillStyle = `rgba(110,130,145,${(0.55 * a).toFixed(2)})`;
-      ctx.fillRect(Math.round(r.sx(t.x) + px * z), Math.round(r.sy(t.y) + py * z), 2 * z, z);
-    }
+    if (this.tracks.length) drawSwath(ctx, r, this.tracks, 'snow', this.world.map.biome, BALANCE.terrain.snowTrackLife, null);
   }
   /** screen-space weather overlay (above the world, below the HUD) */
   drawOverlay(ctx, W, H) {

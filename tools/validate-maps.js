@@ -13,7 +13,7 @@ import { isVehicleType } from '../src/entities/vehicle.js';
 import { pathToFileURL } from 'node:url';
 import { canSee } from '../src/world/los.js';
 
-const ALL = ['m1', 'm2', 'm3', 'm4', 'm5', 'm6', 'm7'];
+const ALL = ['bc', 'm1', 'm2', 'm3', 'm4', 'm5', 'm6', 'm7'];
 
 /** @returns {{id:string, errors:string[], warnings:string[], info:string[]}} */
 export function validate(data) {

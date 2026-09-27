@@ -87,6 +87,9 @@ export const BALANCE = {
     lkpSearchTime: 30,
     lkpRings: [2, 4, 6],
     alarmDetectedTime: 3,
+    // how far an enemy can pick WREN out, as a share of its full sight radius (playtest 2: the inner cone).
+    // Running is the outer cone; concealment (tall grass 0.5, swamp 0.8) shrinks it by (1 - conceal) * concealK.
+    range: { run: 1.0, walk: 0.82, crouch: 0.5, cover: 0.45, coverUncovered: 0.5, crawl: 0.55, hunker: 0.3, concealK: 0.7 },
   },
 
   noise: {
@@ -230,7 +233,8 @@ export const BALANCE = {
 
   // silent takedown (playtest): an unaware infantry target within reach, no ammo, barely a sound
   takedown: {
-    reach: 1.4,           // tiles
+    reach: 2.0,           // tiles (playtest 2: was 1.4 — inside an enemy's 1.5-tile peripheral vision, so it was hard to reach from behind)
+    lunge: 0.7,           // WREN closes to this distance during the takedown
     time: 0.6,            // s WREN is busy
     awareDet: 0.5,        // a target whose meter on WREN is at/above this (while seeing him) can't be surprised
   },

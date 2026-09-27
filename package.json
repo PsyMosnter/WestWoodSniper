@@ -10,7 +10,7 @@
     "validate": "node tools/validate-maps.js",
     "stealth": "node tools/stealth-report.js",
     "build": "node tools/build-site.js",
-    "serve": "python3 -m http.server 8123",
+    "serve": "python3 tools/serve.py 8123",
     "deploy": "npx wrangler deploy"
   }
 }

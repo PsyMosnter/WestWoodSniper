@@ -322,7 +322,7 @@ export class Hud {
     if (!cur) return;
     const n = Math.min(cur.text.length, Math.floor(cur.t * 45));
     const txt = cur.text.slice(0, n);
-    const prefix = 'OVERWATCH: ';
+    const prefix = (this.game.data?.radioName || 'OVERWATCH') + ': ';
     // never run under the action-button cluster or off-screen (works for both handedness)
     const cluster = this.B * 3 + 12;
     const avail = this.lefty ? (this.R - (this.L + cluster)) : (this.R - cluster - x);

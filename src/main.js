@@ -19,6 +19,7 @@ import { BriefingScene } from './ui/briefing.js';
 import { CutsceneScene } from './scenes/cutscene.js';
 import { DebriefScene } from './ui/debrief.js';
 import { Art } from './render/artStyle.js';
+import { CampaignScene } from './ui/campaignMap.js';
 
 const canvas = /** @type {HTMLCanvasElement} */ (document.getElementById('game'));
 const params = new URLSearchParams(location.search);
@@ -37,7 +38,7 @@ const app = {
   audio: new Audio(),
   hasScene(name) { return this.scenes.registry.has(name); },
   /** missions with content so far */
-  available: ['m1', 'm2', 'm3', 'm4', 'm5', 'm6', 'm7'],
+  available: ['bc', 'm1', 'm2', 'm3', 'm4', 'm5', 'm6', 'm7'],
   missionExists(id) { return this.available.includes(id); },
   startCampaign() {
     if (this.hasScene('campaign')) this.scenes.go('campaign', {});
@@ -86,6 +87,7 @@ app.scenes.register('failed', (a) => new FailedScene(a));
 app.scenes.register('briefing', (a) => new BriefingScene(a));
 app.scenes.register('debrief', (a) => new DebriefScene(a));
 app.scenes.register('cutscene', (a) => new CutsceneScene(a));
+app.scenes.register('campaign', (a) => new CampaignScene(a));   // (built in M10, never registered until playtest 2)
 
 app.display.onResize((d) => app.scenes.resize(d.W, d.H));
 

@@ -3,6 +3,7 @@ import { BALANCE } from '../config/balance.js';
 import { Unit } from './unit.js';
 import { startSearch } from '../ai/fsm.js';
 import { explode } from '../combat/explosions.js';
+import { drive } from './steering.js';
 
 const U = BALANCE.units;
 
@@ -55,7 +56,11 @@ export class Vehicle extends Unit {
   }
   /** something (another vehicle, WREN, a friendly) sits right in front: wait for it */
   blockedAhead() {
-    const ca = Math.cos(this.angle), sa = Math.sin(this.angle);
+    // "ahead" is where it wants to go (the next waypoint), not where the bonnet points — otherwise a
+    // vehicle parked beside it would block a car that is about to turn away from it
+    const wp = this.path[0];
+    const ang = wp ? Math.atan2(wp.y + 0.5 - this.y, wp.x + 0.5 - this.x) : this.angle;
+    const ca = Math.cos(ang), sa = Math.sin(ang);
     const w = this.world;
     const test = (o, r) => {
       const dx = o.x - this.x, dy = o.y - this.y, d = Math.hypot(dx, dy);
@@ -68,12 +73,16 @@ export class Vehicle extends Unit {
   }
   step(dt) {
     this.px = this.x; this.py = this.y;
-    let da = this.targetAngle - this.angle;
-    while (da > Math.PI) da -= Math.PI * 2;
-    while (da < -Math.PI) da += Math.PI * 2;
-    const turn = 2.6 * dt;
-    this.angle += Math.abs(da) <= turn ? da : Math.sign(da) * turn;
-    if (!this.path.length || this.disabled) return false;
+    if (!this.path.length || this.disabled) {
+      // parked: swing round to face what it's looking at (aiming) — tracked hulls pivot, wheels creep round slowly
+      let da = this.targetAngle - this.angle;
+      while (da > Math.PI) da -= Math.PI * 2;
+      while (da < -Math.PI) da += Math.PI * 2;
+      if (this.disabled && !this.def.armoured) return false;
+      const turn = (this.def.armoured ? 1.6 : 1.0) * dt;
+      this.angle += Math.abs(da) <= turn ? da : Math.sign(da) * turn;
+      return false;
+    }
     // hunting vehicles pull up a few tiles short of the point they are closing on (no ramming WREN)
     if (this.state === 'investigating' || this.state === 'alerted' || this.state === 'combat') {
       const op = this.world.operative;
@@ -81,30 +90,20 @@ export class Vehicle extends Unit {
       const nearOp = !op.dead && !op.hidden && Math.hypot(op.x - this.x, op.y - this.y) < U.vehicleStopShort;
       if (nearGoal || nearOp) { this.path = []; return true; }
     }
-    // vehicles turn before driving off (no crab-walking); hysteresis stops wobbling between turn & drive
-    if (Math.abs(da) > 0.9) this.turning = true;
-    else if (Math.abs(da) < 0.3) this.turning = false;
-    if (this.turning) return false;
     if (this.ghostT > 0) this.ghostT -= dt;
     if (this.blockedAhead()) {
-      this.waitT = (this.waitT || 0) + dt;
+      // (blockT, not waitT: patrols use waitT for their pauses at waypoints and would count it back down)
+      this.blockT = (this.blockT || 0) + dt;
       // two vehicles nose to nose would wait forever: after a moment one squeezes past (brief overlap)
-      if (this.waitT > 2 + (this.id.length % 3) * 0.4) { this.ghostT = 2.5; this.waitT = 0; }
+      if (this.blockT > 2 + (this.id.length % 3) * 0.4) { this.ghostT = 2.5; this.blockT = 0; }
       return false;
     }
-    this.waitT = 0;
-    let budget = this.speed() * dt;
-    while (budget > 0 && this.path.length) {
-      const wp = this.path[0];
-      const tx = wp.x + 0.5, ty = wp.y + 0.5;
-      const dx = tx - this.x, dy = ty - this.y;
-      const d = Math.hypot(dx, dy);
-      if (d > 1e-4) this.targetAngle = Math.atan2(dy, dx);
-      if (d <= budget) { this.x = tx; this.y = ty; budget -= d; this.path.shift(); }
-      else { this.x += (dx / d) * budget; this.y += (dy / d) * budget; budget = 0; }
-    }
+    this.blockT = 0;
+    // drive like a car: roll forward, arc round corners, slow for sharp turns (no turning on the spot)
+    const done = drive(this, dt, this.speed(), this.world.map, { radius: this.def.armoured ? 0.6 : 0.9 });
+    this.targetAngle = this.angle;
     this.animT += dt;
-    return this.path.length === 0;
+    return done;
   }
   pose() { return { pose: this.dead ? 'wreck' : 'ok', frame: 0 }; }
 }

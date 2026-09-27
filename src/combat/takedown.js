@@ -48,6 +48,13 @@ export class Takedown {
     op.path = []; op.pendingMove = null;
     op.angle = a; op.facing = angleToDir8(a);
     op.busy = { kind: 'takedown', t: 0, dur: K.time, target: u };
+    // close the gap: a quick lunge to arm's length (reach is 2 tiles, the knife is not), if the ground allows
+    const d = Math.hypot(u.x - op.x, u.y - op.y), m = w.map;
+    if (d > K.lunge) {
+      const x1 = u.x - Math.cos(a) * K.lunge, y1 = u.y - Math.sin(a) * K.lunge;
+      const ok = m.inb(Math.floor(x1), Math.floor(y1)) && m.cost[m.idx(Math.floor(x1), Math.floor(y1))] < Infinity && m.elevAt(Math.floor(x1), Math.floor(y1)) === m.elevAt(op.tx, op.ty);
+      if (ok) op.busy.lunge = { x0: op.x, y0: op.y, x1, y1, dur: Math.min(K.time * 0.6, 0.35) };
+    }
     g.engage?.cancel?.();
     g.combat.kill(u, { by: 'knife', source: 'player', dir: a });
     w.noise(u.x, u.y, BALANCE.noise.takedown, 'takedown', op);

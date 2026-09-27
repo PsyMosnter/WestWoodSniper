@@ -6,7 +6,7 @@ import { vehicleSprite, vehicleState } from './spriteData/vehicles.js';
 import { drawText } from './font.js';
 import { BALANCE } from '../config/balance.js';
 import { C } from '../config/palette.js';
-import { visionOf } from '../ai/perception.js';
+import { visionOf, detectRange } from '../ai/perception.js';
 import { coverKind, drawCovered } from './terrainCover.js';
 
 /**
@@ -42,7 +42,7 @@ export function installUnitRendering(game) {
     list.sort((a, b) => a.d - b.d);
     let fills = 0;
     for (const { u, d } of list) {
-      const reach = (u.cone?.pts?.[0]?.full ?? 7) + 1.5;
+      const reach = (u.cone?.inner ?? 7) + 2.5;
       const fill = d <= reach && fills < 4;
       if (fill) fills++;
       drawCone(ctx, r, u, w, fill);
@@ -109,7 +109,7 @@ function rayLen(map, ox, oy, a, maxR, eO) {
 }
 
 const CONE_STYLE = {
-  unaware: { dot: 'rgba(255,246,200,0.9)', fill: 'rgba(255,246,200,0.28)' },
+  unaware: { dot: 'rgba(255,246,200,0.9)', fill: 'rgba(255,246,200,0.34)' },
   wary: { dot: 'rgba(255,178,58,1)', fill: 'rgba(255,178,58,0.38)' },
   combat: { dot: 'rgba(255,90,58,1)', fill: 'rgba(255,90,58,0.4)' },
 };
@@ -129,48 +129,70 @@ function conePattern(ctx, col) {
   return p;
 }
 
+/**
+ * A vision cone in two parts (playtest 2): the dotted outer rim is the furthest this unit can see at all
+ * (WREN running in the open), the filled inner cone is how far it can pick WREN out *right now* — it
+ * shrinks as he walks, crouches, crawls or hunkers, and in tall grass. Both are clipped by line of sight.
+ */
 function drawCone(ctx, r, u, w, fill = true) {
-  const now = w.time;
-  if (!u.cone || now - u.cone.t > 0.1 || Math.abs(u.cone.a - u.angle) > 0.05) {
-    const vis = visionOf(u, w);
+  const now = w.time, op = w.operative;
+  const vis = visionOf(u, w);
+  const inner = op.dead || op.hidden ? 0 : Math.min(vis.radius, detectRange(u, op, w, vis));
+  if (!u.cone || now - u.cone.t > 0.1 || Math.abs(u.cone.a - u.angle) > 0.05 || Math.abs(u.cone.inner - inner) > 0.05) {
     const n = 18;
     const pts = [];
     const eO = w.map.elevAt(u.tx, u.ty);
     for (let i = 0; i <= n; i++) {
       const a = u.angle - vis.cone / 2 + (vis.cone * i) / n;
-      pts.push({ a, d: rayLen(w.map, u.x, u.y, a, vis.radius, eO), full: vis.radius });
+      const d = rayLen(w.map, u.x, u.y, a, vis.radius, eO);
+      pts.push({ a, d, di: Math.min(d, inner), full: vis.radius });
     }
-    u.cone = { t: now, a: u.angle, pts, per: vis.peripheral, x: u.x, y: u.y };
+    u.cone = { t: now, a: u.angle, pts, per: vis.peripheral, x: u.x, y: u.y, inner };
   }
   const c = u.cone;
   const z = r.cam.zoom;
   const cx = Math.round(r.sx(u.x)), cy = Math.round(r.sy(u.y));
   const st = u.state === 'combat' ? CONE_STYLE.combat : u.state === 'unaware' || u.state === 'returning' ? CONE_STYLE.unaware : CONE_STYLE.wary;
-  // dithered fill only for cones that matter right now (WREN nearby, or the unit is alert) — rims for the rest
-  if (fill) {
+  const at = (p, d) => [cx + Math.cos(p.a) * d * TILE * z, cy + Math.sin(p.a) * d * TILE * z];
+  // dithered fill of the inner (detection) cone only for cones that matter right now — rims for the rest
+  if (fill && c.inner > 0.2) {
     ctx.fillStyle = conePattern(ctx, st.fill);
     ctx.beginPath();
     ctx.moveTo(cx, cy);
-    for (const p of c.pts) ctx.lineTo(cx + Math.cos(p.a) * p.d * TILE * z, cy + Math.sin(p.a) * p.d * TILE * z);
+    for (const p of c.pts) { const [x, y] = at(p, p.di); ctx.lineTo(x, y); }
     ctx.closePath();
     ctx.fill();
   }
-  // crisp dotted rim with a dark shadow pixel so it reads on light ground (tall grass, sand, snow)
-  const rim = (fn) => { ctx.fillStyle = 'rgba(7,9,10,0.55)'; fn(1); ctx.fillStyle = st.dot; fn(0); };
-  rim((o) => {
-  const step = 3; // px between rim dots
-  for (const p of [c.pts[0], c.pts[c.pts.length - 1]]) {
-    const len = p.d * TILE * z;
-    for (let t = 8; t < len; t += step) ctx.fillRect(Math.round(cx + Math.cos(p.a) * t) + o, Math.round(cy + Math.sin(p.a) * t) + o, z, z);
-  }
-  for (let i = 0; i < c.pts.length - 1; i++) {
-    const p = c.pts[i], q = c.pts[i + 1];
-    const x0 = cx + Math.cos(p.a) * p.d * TILE * z, y0 = cy + Math.sin(p.a) * p.d * TILE * z;
-    const x1 = cx + Math.cos(q.a) * q.d * TILE * z, y1 = cy + Math.sin(q.a) * q.d * TILE * z;
-    const seg = Math.hypot(x1 - x0, y1 - y0);
-    const k = Math.max(1, Math.round(seg / step));
+  // a dotted line with a dark shadow pixel so it reads on light ground (tall grass, sand, snow)
+  const dotted = (x0, y0, x1, y1, step, o) => {
+    const k = Math.max(1, Math.round(Math.hypot(x1 - x0, y1 - y0) / step));
     for (let j = 0; j < k; j++) ctx.fillRect(Math.round(x0 + (x1 - x0) * j / k) + o, Math.round(y0 + (y1 - y0) * j / k) + o, z, z);
-  }
+  };
+  const rim = (fn) => { ctx.fillStyle = 'rgba(7,9,10,0.55)'; fn(1); ctx.fillStyle = st.dot; fn(0); };
+  // outer rim: sparse dots — the edges and the arc at full sight
+  ctx.globalAlpha = 0.75;
+  rim((o) => {
+    for (const p of [c.pts[0], c.pts[c.pts.length - 1]]) {
+      const [x0, y0] = at(p, p.di), [x1, y1] = at(p, p.d);
+      if (p.d - p.di > 0.3) dotted(x0, y0, x1, y1, 4, o);
+    }
+    for (let i = 0; i < c.pts.length - 1; i++) {
+      const [x0, y0] = at(c.pts[i], c.pts[i].d), [x1, y1] = at(c.pts[i + 1], c.pts[i + 1].d);
+      dotted(x0, y0, x1, y1, 4, o);
+    }
+  });
+  ctx.globalAlpha = 1;
+  // inner rim: dense dots — where WREN would be seen right now
+  if (c.inner > 0.2) rim((o) => {
+    for (const p of [c.pts[0], c.pts[c.pts.length - 1]]) {
+      const [x1, y1] = at(p, p.di);
+      const s0 = Math.min(8, p.di * TILE * z);
+      dotted(cx + Math.cos(p.a) * s0, cy + Math.sin(p.a) * s0, x1, y1, 2, o);
+    }
+    for (let i = 0; i < c.pts.length - 1; i++) {
+      const [x0, y0] = at(c.pts[i], c.pts[i].di), [x1, y1] = at(c.pts[i + 1], c.pts[i + 1].di);
+      dotted(x0, y0, x1, y1, 2, o);
+    }
   });
 }
 

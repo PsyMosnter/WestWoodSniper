@@ -29,7 +29,8 @@ export class DebriefScene extends MenuBase {
         bestTime: prev.bestTime ? Math.min(prev.bestTime, p.stats.time) : p.stats.time,
       };
       const idx = MISSION_ORDER.indexOf(p.mission);
-      save.unlocked = Math.max(save.unlocked || 1, Math.min(MISSION_ORDER.length, idx + 2));
+      if (idx >= 0) save.unlocked = Math.max(save.unlocked || 1, Math.min(MISSION_ORDER.length, idx + 2));
+      if (p.mission === 'bc') save.bootCamp = 'done';
       writeSave(save);
     }
     const next = MISSION_ORDER[MISSION_ORDER.indexOf(p.mission) + 1];
@@ -65,7 +66,7 @@ export class DebriefScene extends MenuBase {
     const { W, H } = this.app.display, p = this.p, s = p.stats;
     ctx.fillStyle = '#0B0E0C'; ctx.fillRect(0, 0, W, H);
     for (let y = 0; y < H; y += 2) { ctx.fillStyle = 'rgba(0,0,0,0.25)'; ctx.fillRect(0, y, W, 1); }
-    drawText(ctx, p.won ? 'MISSION ACCOMPLISHED' : 'MISSION FAILED', W / 2, 10, { align: 'center', color: p.won ? C.uiText : C.uiAlert, bold: true, scale: 2, shadow: '#000' });
+    drawText(ctx, p.won ? (p.mission === 'bc' ? 'TRAINING COMPLETE' : 'MISSION ACCOMPLISHED') : 'MISSION FAILED', W / 2, 10, { align: 'center', color: p.won ? C.uiText : C.uiAlert, bold: true, scale: 2, shadow: '#000' });
     drawText(ctx, `"${p.name.toUpperCase()}"`, W / 2, 30, { align: 'center', color: C.uiAmber });
     // stars
     const k = Math.min(3, Math.floor(this.t / 0.35));

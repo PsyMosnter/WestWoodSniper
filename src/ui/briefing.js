@@ -23,7 +23,8 @@ export class BriefingScene extends MenuBase {
     // the mission's intro cutscene plays every time the mission is picked (one tap skips it); SCENE replays it
     const toBriefing = () => this.app.scenes.go('briefing', { mission: this.missionId, fromCut: true });
     this.scene = this.addButton('SCENE', () => this.app.playCut(this.missionId, toBriefing));
-    this.cutPending = !params.fromCut && this.app.cutsOn?.();
+    this.cutPending = !params.fromCut && this.app.cutsOn?.() && this.missionId !== 'bc';   // Boot Camp has no intro scene
+    this.scene.visible = this.missionId !== 'bc';
     this.skip = false;
     this._load();
   }
@@ -51,7 +52,7 @@ export class BriefingScene extends MenuBase {
     const d = this.data;
     if (!d) { drawText(ctx, 'DECRYPTING…', W / 2, H / 2, { align: 'center' }); return; }
     const idx = +this.missionId.slice(1);
-    drawText(ctx, `MISSION ${idx} — "${d.name.toUpperCase()}"`, 10, 8, { color: C.uiAmber, bold: true, scale: 1 });
+    drawText(ctx, this.missionId === 'bc' ? 'TRAINING — "BOOT CAMP"' : `MISSION ${idx} — "${d.name.toUpperCase()}"`, 10, 8, { color: C.uiAmber, bold: true, scale: 1 });
     drawText(ctx, (d.kind || '').toUpperCase().replace('·', '-'), 10, 19, { font: '3x5', color: C.uiTextD });
     // preview map
     const pw = Math.min(Math.floor(W * 0.42), 220), ph = Math.floor(pw * this.preview.height / this.preview.width);
@@ -76,7 +77,7 @@ export class BriefingScene extends MenuBase {
     drawText(ctx, 'START', Math.round(px + d.player.x * sx) + 3, Math.round(py + d.player.y * sy) - 2, { font: '3x5', color: '#FFFFFF', shadow: '#000' });
     // typewriter briefing
     const textW = px - 24;
-    const full = 'OVERWATCH: ' + d.briefing.text;
+    const full = (d.radioName || 'OVERWATCH') + ': ' + d.briefing.text;
     const n = Math.min(full.length, Math.floor(this.t * 40));
     const lines = wrapText(full.slice(0, n), textW, {});
     let y = 32;

@@ -28,7 +28,7 @@ const GLINT = Mt(['#FFFFFF'], { emissive: true, weight: 6 });
 const GODM = {
   helmet: Mt(['#3E4A20', '#66773A', '#9AAE52']), skin: Mt(['#B8734A', '#E8A878', '#FFD6AE']), hair: Mt(['#3A2414', '#5E3A20', '#86562E']),
   jacket: Mt(['#6E6036', '#A69458', '#D6C48A']), pants: Mt(['#343B1A', '#55602A', '#7C8A40']), boot: Mt(['#1E1810', '#3A2E20', '#5A4830']),
-  strap: Mt(['#1E4466', '#2F6FA6', '#5EA2DA']), lens: Mt(['#24588A', '#3E84C2', '#78BEEC'], { weight: 5 }), frame: Mt(['#16181C', '#2A2E34'], { weight: 4 }),
+  strap: Mt(['#1E4466', '#2F6FA6', '#5EA2DA']), lens: Mt(['#6C9CC4', '#9CC6E4', '#D2EAF8'], { weight: 5 }), pack: Mt(['#4A4428', '#6E6640', '#948A5C']), frame: Mt(['#16181C', '#2A2E34'], { weight: 4 }),
   gun: Mt(['#16181A', '#2E3336', '#566066'], { weight: 3 }), scope: Mt(['#22262A', '#3E464C', '#7A8690'], { weight: 3 }),
   eye: Mt(['#1A1620', '#2A2436', '#3A3448'], { weight: 4 }), mouth: Mt(['#8A4A34'], { weight: 3 }), out: '#241C10',
 };
@@ -39,7 +39,7 @@ const NOTM = {
   lens: Mt(['#9FE22E', '#E6FF8A'], { emissive: true, weight: 5 }), mask: Mt(['#2A2E34', '#4A525C', '#7C8692']), metal: Mt(['#3A4048', '#5E6670', '#8D96A0']),
   radio: Mt(['#24282E', '#474D55', '#6C747E']), basket: Mt(['#46341C', '#6E5430', '#9A7A4A']), out: '#1A1022',
 };
-const PILOT = { ...GODM, helmet: Mt(['#8A8A84', '#C8C8C0', '#F2F2EA']), jacket: Mt(['#3E4842', '#646E68', '#8C9890']), pants: Mt(['#343C38', '#545E58', '#747E78']), lens: Mt(['#1A2630', '#26323C', '#5A6E80'], { weight: 5 }) };
+const PILOT = { ...GODM, helmet: Mt(['#6E747A', '#A4AAAE', '#D0D4D2']), jacket: Mt(['#3E4842', '#646E68', '#8C9890']), pants: Mt(['#343C38', '#545E58', '#747E78']), lens: Mt(['#1A2630', '#26323C', '#5A6E80'], { weight: 5 }) };
 const SCI = { ...GODM, jacket: Mt(['#8A8A84', '#C8C8C0', '#F2F2EA']), pants: Mt(['#3A3424', '#5A5038', '#7A6E4E']) };
 const HARV = { ...NOTM, head: Mt(['#464C54', '#6E7680', '#9AA2AC']), body: Mt(['#3A3F46', '#5E6670', '#8A929C']) };
 
@@ -49,7 +49,7 @@ const LANKY = { thigh: 1.9, shin: 2.0, hipZ: 3.9, hipW: 0.75, chest: 2.6, head: 
 
 /** Unit definitions. face: wren | pilot | hair | alien | mask; weapon; gear on the back / waist. */
 export const CHIBI = {
-  operative: { ...HUMAN, mats: GODM, face: 'wren', weapon: 'rifle', gear: [] },
+  operative: { ...HUMAN, mats: GODM, face: 'wren', weapon: 'rifle', gear: ['pack'] },
   pilot: { ...HUMAN, mats: PILOT, face: 'pilot', weapon: 'none', gear: [] },
   scientist: { ...HUMAN, mats: SCI, face: 'hair', weapon: 'none', gear: [] },
   husk: { ...LANKY, mats: NOTM, face: 'alien', weapon: 'rifle', gear: [] },
@@ -118,6 +118,7 @@ function humanoid(r, d, st, opt) {
   if (gear.includes('tank')) { for (const s of [-1, 1]) r.cyl(body.at(-3.6, s * 1.6, -4.4), body.at(-3.6, s * 1.6, 2.2), 1.6, M.tank, Z.fuelTank); r.cap(body.at(-3.4, 0, 2.6), head.at(2.8, 0, -3.4), 0.5, M.hose, Z.fuelTank); }
   if (gear.includes('pod')) { r.box(body.at(-3.6, 0, -0.8), [body.F, body.R], [1.4, 2.6, 3], M.metal, Z.rocketPod); for (const s of [-1, 1]) r.ball(body.at(-3.6, s * 1.3, 2.4), 0.7, M.lime, Z.rocketPod); }
   if (gear.includes('radio')) { r.box(body.at(-3.5, 0, -0.6), [body.F, body.R], [1.3, 2.2, 2.8], M.radio, Z.radio); r.cap(body.at(-3.6, 1.4, 2), body.at(-4.4, 1.6, 11), 0.3, M.gun, 255); r.ball(body.at(-4.4, 1.6, 11.4), 0.55, M.lime, 255); }
+  if (gear.includes('pack')) { r.box(body.at(-3.3, 0, -0.4), [body.F, body.R], [1.3, 2.6, 2.6], M.pack, Z.torso); r.box(body.at(-3.9, 0, -1.6), [body.F, body.R], [0.8, 2, 1], M.pants, Z.torso); }
   if (gear.includes('basket')) r.box(body.at(-3.6, 0, -1), [body.F, body.R], [1.6, 2.8, 3.2], M.basket, Z.torso);
   if (gear.includes('cape')) r.ell(body.at(-3.1, 0, -2.6), [body.F, body.R], [0.8, 4.2, 5.6], M.plate, Z.torso);
   if (gear.includes('belt')) for (const s of [-1.6, 0, 1.6]) r.ball(add(add(pelvis, mul(body.F, 2.6)), add(mul(body.R, s), mul(body.U, 1.2))), 1, M.tank, Z.grenadeBelt);
@@ -157,12 +158,14 @@ function humanoid(r, d, st, opt) {
     } else r.ell(H.at(-0.6, 0, 2.6), [H.F, H.R], [5.8, 6.4, 3.6], M.hair, Z.head);
     if (d.face === 'wren') {
       // round glasses over the eyes: steel-blue lenses in a thin frame, a bridge, arms back to the ears
+      // pale lenses with the eyes showing through, so he keeps his anime eyes behind them
       for (const s of [-1, 1]) {
-        r.ell(H.at(6.0, s * 2.4, -0.4), [H.F, H.R], [0.9, 2.0, 2.0], M.frame, Z.head);
-        r.ell(H.at(6.3, s * 2.4, -0.4), [H.F, H.R], [0.7, 1.6, 1.6], M.lens, Z.head);
-        r.cap(H.at(5.6, s * 4.2, 0), H.at(2.2, s * 5.9, 0.4), 0.35, M.frame, Z.head);
+        r.ell(H.at(5.95, s * 2.25, -0.4), [H.F, H.R], [0.8, 1.85, 1.85], M.frame, Z.head);
+        r.ell(H.at(6.2, s * 2.25, -0.4), [H.F, H.R], [0.6, 1.5, 1.5], M.lens, Z.head);
+        r.ell(H.at(6.65, s * 2.05, -0.6), [H.F, H.R], [0.3, 0.55, 0.95], M.eye, Z.head);
+        r.cap(H.at(5.4, s * 3.9, 0), H.at(2.2, s * 5.8, 0.4), 0.3, M.frame, Z.head);
       }
-      r.cap(H.at(6.3, -0.8, -0.1), H.at(6.3, 0.8, -0.1), 0.35, M.frame, Z.head);
+      r.cap(H.at(6.3, -0.7, -0.1), H.at(6.3, 0.7, -0.1), 0.3, M.frame, Z.head);
     } else if (d.face === 'pilot') {
       r.ell(H.at(5.2, 0, -0.2), [H.F, H.R], [1.4, 5.2, 1.8], M.lens, Z.head);                          // dark visor
     } else {
@@ -182,6 +185,8 @@ function humanoid(r, d, st, opt) {
     if (gear.includes('helmet') && !opt.nohelm) {                                                   // Vrask's helmet
       r.ell(H.at(-0.2, 0, 2.6), [H.F, H.R], [6.2, 6.4, 5.4], M.plate, Z.helmet);
       r.ell(H.at(5.4, 0, 0.4), [H.F, H.R], [0.6, 3.6, 0.7], M.lime, Z.helmet);
+      r.ell(H.at(-0.6, 0, 7.6), [H.F, H.R], [4.6, 0.9, 2], M.head, Z.helmet);                   // a dark crest fin
+      r.ball(H.at(3.4, 0, 7), 0.7, M.lime, Z.helmet);
     }
   }
   return { J, body, tip };
@@ -279,7 +284,7 @@ export function renderChibi(type, pose_, dir, frame = 0, variant = '') {
     }
   }
   if (deadT >= 0 && dk === 'explosion' && !d.beast) {                                     // charred
-    for (let i = 0; i < pix.data.length; i++) { const c = pix.data[i]; if (!(c >>> 24)) continue; const k = 1 - Math.min(0.55, deadT * 0.9); pix.data[i] = ((c & 0xFF000000) | ((((c >>> 16) & 255) * k) << 16) | ((((c >>> 8) & 255) * k) << 8) | ((c & 255) * k)) >>> 0; }
+    for (let i = 0; i < pix.data.length; i++) { const c = pix.data[i]; if (!(c >>> 24)) continue; const k = 1 - Math.min(0.35, deadT * 0.6); pix.data[i] = ((c & 0xFF000000) | ((((c >>> 16) & 255) * k) << 16) | ((((c >>> 8) & 255) * k) << 8) | ((c & 255) * k)) >>> 0; }
   }
   const gl = (v.match(/gl-(\d)/) || [])[1];
   if (gl != null && d.face === 'wren') addGleam(pix, (+gl + 1) / 6);
@@ -287,11 +292,12 @@ export function renderChibi(type, pose_, dir, frame = 0, variant = '') {
 }
 
 /**
- * The sun catching WREN's glasses: a bright diagonal band sweeps across the lens pixels (t 0 → 1), white in the
- * middle with a pale-blue halo, and a little 4-point star flashes on the rim of the far lens.
+ * The sun catching WREN's glasses: a thin bright diagonal band sweeps across the lens pixels only (t 0 → 1), white
+ * in the middle with a pale halo, and a little 4-point star flashes on the rim of the far lens. k: pixels per model
+ * unit (big cutscene renders sweep a proportionally wider band).
  */
 const LENS = new Set(GODM.lens.ramp.map((c) => parseInt(c.slice(1), 16)));
-export function addGleam(pix, t) {
+export function addGleam(pix, t, k = 1) {
   const w = pix.w, h = pix.h, cells = [];
   let x0 = w, x1 = -1, y0 = h;
   for (let i = 0; i < w * h; i++) {
@@ -303,16 +309,23 @@ export function addGleam(pix, t) {
     cells.push([i, x, y]); x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y);
   }
   if (!cells.length) return;
-  const band = x0 - 3 + t * (x1 - x0 + 6);
-  for (const [i, x, y] of cells) {
-    const dd = Math.abs(x - band + (y - y0) * 0.8);
-    if (dd < 1.3) pix.data[i] = 0xFFFFFFFF;
-    else if (dd < 2.4) pix.data[i] = 0xFFFFF0D8;
+  // each lens gets its own sweep (the sun hits both at once)
+  const midX = (x0 + x1) / 2, lenses = [cells.filter((c) => c[1] < midX), cells.filter((c) => c[1] >= midX)];
+  for (const L of lenses) {
+    if (!L.length) continue;
+    let a = w, b = -1, top = h;
+    for (const [, x, y] of L) { a = Math.min(a, x); b = Math.max(b, x); top = Math.min(top, y); }
+    const band = a - 1.5 * k + t * (b - a + 3 * k);
+    for (const [i, x, y] of L) {
+      const dd = Math.abs(x - band + (y - top) * 0.8);
+      if (dd < 1.0 * k) pix.data[i] = 0xFFFFFFFF;
+      else if (dd < 1.8 * k) pix.data[i] = 0xFFFFF8EC;
+    }
   }
-  if (t > 0.45 && t < 0.85) {
-    const R = t > 0.55 && t < 0.75 ? 2 : 1, sx = x1, sy = y0 - 1;
+  if (t > 0.5 && t < 0.8) {
+    const R = Math.round((t > 0.58 && t < 0.72 ? 2 : 1) * k), sx = x1, sy = y0 - 1;
     const put = (x, y) => { if (x >= 0 && y >= 0 && x < w && y < h) pix.data[y * w + x] = 0xFFFFFFFF; };
-    put(sx, sy); for (let k = 1; k <= R; k++) { put(sx + k, sy); put(sx - k, sy); put(sx, sy + k); put(sx, sy - k); }
+    put(sx, sy); for (let j = 1; j <= R; j++) { put(sx + j, sy); put(sx - j, sy); put(sx, sy + j); put(sx, sy - j); }
   }
 }
 

@@ -31,6 +31,7 @@ import { STRUCT_ZONES } from '../render/spriteData/structures.js';
 import '../render/spriteData/godUnits.js';
 import '../render/spriteData/newInfantry.js';
 import '../render/spriteData/newVehicles.js';
+import '../render/spriteData/rtsInfantry.js';
 import { FriendlySystem } from '../entities/friendly.js';
 import { Weather } from '../world/weather.js';
 import { NotConvoy } from '../missions/convoy.js';

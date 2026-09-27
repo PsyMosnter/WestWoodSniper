@@ -35,7 +35,7 @@ export function registerUnitDef(type, def) { UNIT_DEFS[type] = def; }
  */
 export function unitSprite(type, pose, dir, frame = 0, variant = '') {
   const np = Art.painter('unit', type);                  // New art style, if this type has a redesign
-  const key = `${np ? 'new|' : ''}${type}|${pose}|${dir}|${frame}|${variant}`;
+  const key = `${np ? Art.source('unit', type) + '|' : ''}${type}|${pose}|${dir}|${frame}|${variant}`;
   let s = cache.get(key);
   if (s) return s;
   const png = pngCache.get(key);

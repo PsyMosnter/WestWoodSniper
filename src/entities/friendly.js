@@ -8,6 +8,7 @@ import { vehicleSprite } from '../render/spriteData/vehicles.js';
 import { drawText } from '../render/font.js';
 import { angleToDir8 } from '../world/tiles.js';
 import { drive } from './steering.js';
+import { Art } from '../render/artStyle.js';
 import { coverKind, drawCovered } from '../render/terrainCover.js';
 
 const F = BALANCE.friendly;
@@ -254,7 +255,8 @@ export class FriendlySystem {
       ctx.drawImage(f.flashT > 0 ? whiteOf(s.canvas) : s.canvas, X0 - s.ax * z, Y0 - s.ay * z, s.w * z, s.h * z);
     } else {
       const pose = f.dead ? 'dead' : f.captive ? (f.downed ? 'prone' : 'crouch') : f.moving ? 'walk' : f.hiding ? 'crouch' : 'idle';
-      const frame = f.dead ? 3 : Math.floor(f.animT * 5) & 3;
+      const nW = Art.frames('walk');
+      const frame = f.dead ? Art.frames('dead') - 1 : Math.floor(f.animT * 5 * nW / 4) % nW;
       const s = unitSprite(f.type, pose, angleToDir8(f.angle), frame);
       up = markerLift(s, 18) - 18;
       const m = this.world.map, cover = f.dead ? null : coverKind(m, Math.floor(f.x), Math.floor(f.y));

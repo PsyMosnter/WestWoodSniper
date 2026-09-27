@@ -2,6 +2,7 @@
 import { BALANCE } from '../config/balance.js';
 import { dirIndex, angleToDir8, TERRAIN, T as TT } from '../world/tiles.js';
 import { stanceRange } from '../ai/perception.js';
+import { Art } from '../render/artStyle.js';
 
 const S = BALANCE.stances;
 
@@ -306,12 +307,13 @@ export class Operative {
   pose() {
     let pose = 'crouch', frame = 0;
     const st = this.trans ? this.trans.to : this.stance;
-    if (this.dead) return { pose: 'dead', frame: 3 };
+    if (this.dead) return { pose: 'dead', frame: Art.frames('dead') - 1 };
     if (this.busy?.kind === 'takedown') return { pose: 'crouch', frame: 0 };   // up off the ground for the takedown
     if (this.moving) {
-      if (this.mode === 'crawl') { pose = 'crawl'; frame = Math.floor(this.animT * 4) & 3; }
-      else if (this.mode === 'run') { pose = 'run'; frame = Math.floor(this.animT * 7) & 3; }
-      else { pose = this.runGun ? 'pistol' : 'walk'; frame = Math.floor(this.animT * 5) & 3; }
+      const cyc = (p, fps) => { const n = Art.frames(p); return Math.floor(this.animT * fps * n / 4) % n; };
+      if (this.mode === 'crawl') { pose = 'crawl'; frame = cyc('crawl', 4); }
+      else if (this.mode === 'run') { pose = 'run'; frame = cyc('run', 7); }
+      else { pose = this.runGun ? 'pistol' : 'walk'; frame = cyc(pose, 5); }
     } else if (this.trans) {
       const k = this.trans.t / this.trans.dur;
       if (this.trans.to === 'hunker') pose = k < 0.5 ? 'crouch' : 'prone';

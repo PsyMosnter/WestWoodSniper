@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Westwood Sniper — Art Lab</title>
+<style>
+  :root { --bg: #101311; --panel: #1A1F1B; --text: #CFE6C8; --dim: #7F957C; --amber: #FFB23A; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 13px/1.45 ui-monospace, Menlo, monospace; }
+  header { padding: 14px 18px 4px; }
+  h1 { font-size: 16px; margin: 0 0 4px; color: var(--amber); }
+  h2 { font-size: 13px; margin: 18px 0 6px; color: var(--amber); text-transform: uppercase; letter-spacing: .05em; }
+  p { margin: 2px 0 8px; color: var(--dim); max-width: 980px; }
+  section { padding: 4px 18px 10px; }
+  canvas { image-rendering: pixelated; display: block; border: 1px solid #2A322B; }
+  .row { display: flex; gap: 14px; flex-wrap: wrap; align-items: flex-start; }
+  .cap { color: var(--dim); font-size: 11px; margin-top: 3px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>ART LAB — "RTS" proposal, round 2 (1995 C&amp;C baseline)</h1>
+  <p>Dev-only page (not deployed). Every sprite is drawn at game pixels, then shown at 3× (≈ phone screen) and 6× (to inspect). Left of each group: Classic and New as the game draws them today; right: the proposal.</p>
+</header>
+<section id="out"></section>
+<script type="module">
+import * as P from './proposal.js';
+import * as Rig from './rig.js';
+import { unitSprite } from '../../src/render/sprites.js';
+import { vehicleSprite } from '../../src/render/spriteData/vehicles.js';
+import { Art } from '../../src/render/artStyle.js';
+import '../../src/render/spriteData/notUnits.js';
+import '../../src/render/spriteData/newInfantry.js';
+import '../../src/render/spriteData/newVehicles.js';
+import { C } from '../../src/config/palette.js';
+
+const out = document.getElementById('out');
+const GROUND = {
+  sand: [C.sand0, C.sand1, C.sand2, '#CDB27A'],
+  grass: [C.grass1, C.grass2, C.grass3, '#58773A'],
+  snow: [C.snow0, C.snow1, C.snow2, '#D6E2E8'],
+};
+function ground(g, w, h, kind) {
+  const cols = GROUND[kind];
+  let s = 7;
+  const r = () => ((s = (s * 16807) % 2147483647) / 2147483647);
+  g.fillStyle = cols[1]; g.fillRect(0, 0, w, h);
+  for (let i = 0; i < w * h * 0.35; i++) { g.fillStyle = cols[[0, 2, 3, 3][Math.floor(r() * 4)]]; g.fillRect(Math.floor(r() * w), Math.floor(r() * h), 1, 1); }
+}
+const cvs = (w, h, scale) => { const c = document.createElement('canvas'); c.width = w; c.height = h; c.style.width = w * scale + 'px'; c.style.height = h * scale + 'px'; const g = c.getContext('2d'); g.imageSmoothingEnabled = false; return [c, g]; };
+function block(title, note) { const s = document.createElement('div'); s.innerHTML = `<h2>${title}</h2>${note ? `<p>${note}</p>` : ''}`; const r = document.createElement('div'); r.className = 'row'; s.appendChild(r); out.appendChild(s); return r; }
+function figure(row, cap, w, h, scale, draw, anim = false) {
+  const wrap = document.createElement('div');
+  const [c, g] = cvs(w, h, scale);
+  const paint = (t) => { g.clearRect(0, 0, w, h); draw(g, t); };
+  paint(0);
+  if (anim) { const t0 = performance.now(); const loop = () => { paint((performance.now() - t0) / 1000); requestAnimationFrame(loop); }; requestAnimationFrame(loop); }
+  wrap.appendChild(c);
+  const d = document.createElement('div'); d.className = 'cap'; d.textContent = cap; wrap.appendChild(d);
+  row.appendChild(wrap);
+}
+// shadow like the references: a soft dark oval down-right of the feet
+function shadow(g, x, y, w = 7) { g.fillStyle = 'rgba(12,10,6,0.38)'; g.fillRect(x - Math.floor(w / 2) + 2, y, w, 1); g.fillRect(x - Math.floor(w / 2) + 3, y + 1, w - 2, 1); }
+const P2C = new Map();
+const cnv = (img) => { let c = P2C.get(img); if (!c) { c = P.toCanvas(img); P2C.set(img, c); } return c; };
+/** draw a game Sprite {canvas, ax, ay} with feet at (x, y) */
+const gs = (g, s, x, y) => g.drawImage(s.canvas, Math.round(x - s.ax), Math.round(y - s.ay));
+/** draw a proposal image, feet anchor (fx, fy) at (x, y) */
+const pr = (g, img, x, y, fx, fy) => g.drawImage(cnv(img), Math.round(x - fx), Math.round(y - fy));
+
+// ================================================================== round 2: the rig (C&C-1995 baseline)
+const RIGC = new Map();
+// memoise rig frames (each animated tick used to re-render — and re-cache a canvas — every frame)
+const memo = new Map();
+const M = (key, fn) => { let v = memo.get(key); if (!v) { v = fn(); memo.set(key, v); } return v; };
+const RigM = {
+  idle: (t, d) => M(`i|${t}|${d}`, () => Rig.idle(t, d)),
+  walk: (t, d, f, run = false) => M(`w|${t}|${d}|${f}|${run}`, () => Rig.walk(t, d, f, run)),
+};
+const rc = (img) => { let c = RIGC.get(img); if (!c) { c = P.toCanvas(img); RIGC.set(img, c); } return c; };
+/** draw a rig frame with its ground shadow; feet at (x, y) */
+function drawRig(g, r, x, y) {
+  g.globalAlpha = 0.34; g.drawImage(rc(r.shadow), Math.round(x - r.sax), Math.round(y - r.say)); g.globalAlpha = 1;
+  g.drawImage(rc(r.img), Math.round(x - r.ax), Math.round(y - r.ay));
+}
+function drawBlood(g, fx, x, y) {
+  for (const e of fx || []) {
+    if (e.mist) {                                         // dithered burst of slime mist
+      const R = e.r;
+      for (let yy = -Math.ceil(R); yy <= Math.ceil(R); yy++) for (let xx = -Math.ceil(R); xx <= Math.ceil(R); xx++) {
+        const dd = Math.hypot(xx, yy) / R; if (dd > 1) continue;
+        if (((xx + yy) & 1) && dd > 0.5) continue;
+        g.fillStyle = dd < 0.45 ? '#B8F27A' : '#5BD13A'; g.fillRect(Math.round(x + e.x + xx), Math.round(y + e.y + yy), 1, 1);
+      }
+      continue;
+    }
+    if (e.pool) {
+      const R = Math.max(0, e.r); if (R < 0.5) continue;
+      for (let yy = -Math.ceil(R * 0.5); yy <= Math.ceil(R * 0.5); yy++) { const w = Math.round(R * Math.sqrt(Math.max(0, 1 - (yy * yy) / ((R * 0.5) ** 2 + 0.01)))); g.fillStyle = '#2E7A1C'; g.fillRect(Math.round(x + e.x) - w, Math.round(y + e.y) + yy, 2 * w + 1, 1); }
+      g.fillStyle = '#5BD13A'; g.fillRect(Math.round(x + e.x) - Math.max(0, Math.round(R) - 2), Math.round(y + e.y), Math.max(1, 2 * Math.round(R) - 3), 1);
+      continue;
+    }
+    g.fillStyle = e.col; g.fillRect(Math.round(x + e.x), Math.round(y + e.y), e.sz, e.landed ? 1 : e.sz);
+  }
+}
+const FACINGS = [0, 1, 2, 3, 4, 5, 6, 7];
+const TYPES = [['wren', 'WREN'], ['husk', 'Husk'], ['warden', 'Warden'], ['lobber', 'Lobber']];
+
+// ----- A. WREN: Classic vs rig, 8 facings
+{
+  const row = block('WREN — Classic vs the new rig (8 real facings, 4×)', 'Same colour read as Classic — olive helmet, bright blue visor, khaki vest with a blue strap, olive trousers — but with 1995-RTS proportions: a small head, slim body, rifle carried at the hip. Top: Classic (W-facings are mirrored). Bottom: rig.');
+  const Wd = 190, Hd = 60;
+  figure(row, 'N · NE · E · SE · S · SW · W · NW', Wd, Hd, 4, (g) => {
+    ground(g, Wd, Hd, 'sand');
+    Art.setStyle('classic');
+    FACINGS.forEach((d, k) => { const x = 12 + k * 23; const s = unitSprite('operative', 'idle', d, 0); shadow(g, x, 22); gs(g, s, x, 22); drawRig(g, RigM.idle('wren', d), x, 52); });
+  });
+}
+// ----- B. walk cycles, all 8 facings, animated
+{
+  const row = block('Walk cycles — 6 frames, all 8 facings (animated, 3×)', 'Contact → down → passing → up, with the body bobbing half a pixel-row and the rifle swinging a little; the shadow is cast from the limbs, so it stays attached at the feet.');
+  for (const [type, name] of TYPES) {
+    const Wd = 200, Hd = 40;
+    figure(row, name + ' walking', Wd, Hd, 3, (g, t) => {
+      ground(g, Wd, Hd, type === 'wren' ? 'grass' : 'sand');
+      const f = Math.floor(t * 10) % 6;
+      FACINGS.forEach((d, k) => drawRig(g, RigM.walk(type, d, f), 13 + k * 25, 33));
+    }, true);
+  }
+  const row2 = block('Walk frames 1–6 (E and S, 6×)', '');
+  for (const [type, name] of [['wren', 'WREN'], ['husk', 'Husk']]) {
+    figure(row2, name + ': E then S', 6 * 18 + 4, 58, 5, (g) => {
+      ground(g, 112, 58, 'sand');
+      for (let f = 0; f < 6; f++) { drawRig(g, RigM.walk(type, 2, f), 10 + f * 18, 26); drawRig(g, RigM.walk(type, 4, f), 10 + f * 18, 54); }
+    });
+  }
+  const row3 = block('Line-up on three grounds (3×): idle S, E, N + running E', '');
+  for (const bio of ['sand', 'grass', 'snow']) {
+    figure(row3, bio, 226, 36, 3, (g, t) => {
+      ground(g, 226, 36, bio);
+      TYPES.forEach(([type], i) => {
+        [4, 2, 0].forEach((d, k) => drawRig(g, RigM.idle(type, d), 10 + i * 56 + k * 13, 30));
+        drawRig(g, RigM.walk(type, 2, Math.floor(t * 12) % 6, true), 10 + i * 56 + 42, 30);
+      });
+    }, true);
+  }
+}
+// ----- C. deaths, 12 frames
+{
+  const notes = {
+    shot: 'Shot (12 frames): the hit snaps him back and flings his arms up — a burst of slime (never red) sprays out behind him and splats on the ground — he staggers back with his knees going, topples backwards faster and faster, hits the ground and bounces, then settles in a spreading pool. The rifle is gone from his hands on the first frame.',
+    takedown: 'Silent takedown (12 frames): grabbed from behind — he arches back with his hands at his throat — sags, drops to his knees, slumps forward from the knees and goes down face-first; a small pool, no spray.',
+    explosion: 'Explosion (12 frames): thrown up and back, tumbling end over end with his limbs flailing, lands, bounces, settles — charring as it goes.',
+  };
+  for (const kind of ['shot', 'takedown', 'explosion']) {
+    const row = block('Death — ' + kind, notes[kind]);
+    for (const [type, name] of [['husk', 'Husk'], ['wren', 'WREN']]) {
+      if (kind !== 'shot' && type === 'wren') continue;
+      const fr = Rig.death(type, kind, 2);
+      figure(row, name + ': frames 1–12 (facing E)', 12 * 30, 40, 2.5, (g) => {
+        ground(g, 360, 40, 'sand');
+        fr.forEach((f, i) => { g.save(); g.beginPath(); g.rect(i * 30, 0, 30, 40); g.clip(); drawBlood(g, f.fx.filter((e) => e.landed || e.pool), i * 30 + 20, 33); drawRig(g, f, i * 30 + 20, 33); drawBlood(g, f.fx.filter((e) => !e.landed && !e.pool), i * 30 + 20, 33); g.restore(); });
+      });
+      figure(row, name + ': looping at 12 fps', 50, 40, 5, (g, t) => {
+        ground(g, 50, 40, 'sand');
+        const k = Math.min(fr.length - 1, Math.floor((t % 2.2) * 12));
+        const f = fr[k];
+        drawBlood(g, f.fx.filter((e) => e.landed || e.pool), 30, 33); drawRig(g, f, 30, 33); drawBlood(g, f.fx.filter((e) => !e.landed && !e.pool), 30, 33);
+      }, true);
+    }
+  }
+}
+
+// ----- 5. vehicles
+{
+  const row = block('Skitter (NOT buggy)', 'A (hand-drawn, like the infantry): light gunmetal body with a bright top edge, violet team panels, lime headlight, fat dark tyres, orange jerrycans on the rear deck, the driver up high. B (8 facings for free): today\'s New 3D Skitter run through the "RTS" filter — posterised to 3 tones, metal lifted, colours saturated, dark self-coloured edge.');
+  const W = 196, H = 44;
+  figure(row, 'classic E · new E · A proposal E · A wreck', W, H, 4, (g) => {
+    ground(g, W, H, 'sand');
+    const vs = (s, x, y) => { g.fillStyle = 'rgba(12,10,6,0.35)'; g.fillRect(x - Math.round(s.w * 0.35) + 3, y + 1, Math.round(s.w * 0.7), 2); gs(g, s, x, y); };
+    Art.setStyle('classic'); vs(vehicleSprite('skitter', 2, 'ok'), 20, 30);
+    Art.setStyle('new'); vs(vehicleSprite('skitter', 2, 'ok'), 62, 30); Art.setStyle('classic');
+    for (const [img, x] of [[P.skitter(), 96], [P.skitterWreck(), 150]]) { g.fillStyle = 'rgba(12,10,6,0.35)'; g.fillRect(x + 4, 36, img.w - 6, 2); g.drawImage(cnv(img), x, 36 - img.h + 1); }
+  });
+  const row2 = block('Vehicles, option B — New 3D models through the "RTS" filter (all 8 facings)', 'Top: New as today. Bottom: the same pixels, filtered. Skitter, Hauler, Crawler, Brute, Juggernaut.');
+  const W2 = 300, H2 = 150;
+  figure(row2, 'new (top) · filtered (bottom), facings N…NW', W2, H2, 3, (g) => {
+    ground(g, W2, H2, 'sand');
+    Art.setStyle('new');
+    // rows = types, columns = 4 facings as New, then the same 4 filtered
+    const types = ['skitter', 'hauler', 'crawler', 'brute', 'juggernaut'];
+    types.forEach((type, t) => {
+      [2, 3, 4, 1].forEach((d, k) => {
+        const s = vehicleSprite(type, d, 'ok');
+        const y = 22 + t * 28;
+        gs(g, s, 18 + k * 34, y);
+        const f = P.rtsFilter(s.canvas);
+        g.drawImage(cnv(f), Math.round(158 + k * 34 - s.ax - 1), Math.round(y - s.ay - 1));
+      });
+    });
+    Art.setStyle('classic');
+  });
+}
+
+// ----- 6. explosions with debris
+{
+  const row = block('Explosions with debris (animated)', 'Fireball (white core → yellow → orange → smoke), a dust ring, and chunks thrown on real ballistic arcs: they tumble, bounce once, settle and some keep smoking. Vehicle: team-coloured scraps; building: more, heavier chunks.');
+  const veh = P.explosion('vehicle'), bld = P.explosion('building', 11);
+  const wreck = P.skitterWreck();
+  figure(row, 'vehicle (loops every 3 s)', 110, 70, 4, (g, t) => { ground(g, 110, 70, 'sand'); const tt = t % 3; if (tt > 0.15) g.drawImage(cnv(wreck), 42, 34); else g.drawImage(cnv(P.skitter()), 42, 34); veh(g, 55, 46, tt); }, true);
+  figure(row, 'building (loops every 3.5 s)', 130, 80, 4, (g, t) => { ground(g, 130, 80, 'sand'); bld(g, 65, 54, t % 3.5); }, true);
+  const times = [0.05, 0.15, 0.3, 0.5, 0.8, 1.2, 1.8, 2.6];
+  const row2 = block('Vehicle explosion — stills', 'The same effect frozen at ' + times.join(', ') + ' s.');
+  figure(row2, 'stills', times.length * 60, 64, 3, (g) => {
+    ground(g, times.length * 60, 64, 'sand');
+    times.forEach((t, i) => { g.save(); g.beginPath(); g.rect(i * 60, 0, 60, 64); g.clip(); if (t > 0.15) g.drawImage(cnv(wreck), i * 60 + 17, 30); else g.drawImage(cnv(P.skitter()), i * 60 + 17, 30); P.explosion('vehicle')(g, i * 60 + 30, 40, t); g.restore(); g.fillStyle = '#07090A'; g.fillRect(i * 60 + 59, 0, 1, 64); });
+  });
+}
+</script>
+</body>
+</html>

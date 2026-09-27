@@ -257,7 +257,7 @@ const cache = new Map();
  */
 export function scopeSprite(type, view) {
   const np = Art.painter('scopeUnit', type);
-  const key = (np ? 'new|' : '') + type + view;
+  const key = (np ? Art.source('scopeUnit', type) + '|' : '') + type + view;
   let s = cache.get(key);
   if (s) return s;
   if (np) { s = np(view); cache.set(key, s); return s; }

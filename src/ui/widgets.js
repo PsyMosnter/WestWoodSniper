@@ -26,7 +26,7 @@ export class Button {
    * @param {{id:string, icon?:string, label?:string, toggle?:boolean, hold?:boolean, onPress?:Function, onRelease?:Function, color?:string, big?:boolean}} o
    */
   constructor(o) {
-    this.id = o.id; this.iconName = o.icon; this.label = o.label || '';
+    this.id = o.id; this.iconName = o.icon; this.label = o.label || ''; this.short = o.short || '';
     this.toggle = !!o.toggle; this.hold = !!o.hold;
     this.onPress = o.onPress; this.onRelease = o.onRelease;
     this.x = 0; this.y = 0; this.w = 32; this.h = 32;
@@ -73,7 +73,8 @@ export class Button {
     }
     if (hasLabel) {
       const ly = this.iconName ? y + h - 8 : y + Math.floor((h - 5) / 2);
-      drawText(ctx, this.label, x + w / 2 + off, ly + off, { font: '3x5', color: col, align: 'center' });
+      const text = this.short && measureText(this.label, { font: '3x5' }) > w - 4 ? this.short : this.label;   // narrow button → short label
+      drawText(ctx, text, x + w / 2 + off, ly + off, { font: '3x5', color: col, align: 'center' });
     }
     if (this.badge) {
       const bw = measureText(this.badge, { font: '3x5' }) + 3;

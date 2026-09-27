@@ -463,6 +463,8 @@ export class GameScene {
     this.strike.update(dt);
     this.tunnels.update(dt);
     this.noise.update(dt);
+    // the STRIKE button appears (late missions): say what it does, pointing at it
+    if (!this._strikeTip && this.world.operative.designator > 0) { this._strikeTip = true; this.runner.showTutorial('designator', 'Strategic strike', 'This is your laser designator. Press STRIKE, then — crouched or hunkered — tap a point you can see: the dashed ring is your range. Violet hatching is jammer coverage, no strikes there. Hold the laser 6 s without moving; impact 8 s later. Everything within 5 tiles is gone — stay outside the ring!', { button: 'designator' }); }
     // spotted and they're closing in from several sides: time for RUN & GUN
     if (!this._runGunTip && this.awareness?.state === 'detected' && !this.world.operative.runGun) {
       const op = this.world.operative;
@@ -614,6 +616,18 @@ export class GameScene {
     const why = this.saveCheckpoint('quick', 'quick');
     if (why === 'spotted') this.hud.toast("CAN'T SAVE: THEY SEE YOU", C.uiAlert, 1.6);
     else if (why) this.hud.toast("CAN'T SAVE NOW", C.uiAmber, 1.4);
+  }
+  /** A greyed-out action button was tapped: explain it once (as a tip pointing at it), then a short reminder. */
+  explainButton(id) {
+    const op = this.world.operative, r = this.runner;
+    const help = {
+      takedown: ['Silent takedown', 'Sneak or low-crawl within reach of a soldier who has not seen you — the button lights up — then press TAKEDOWN (or tap them). No ammo and barely a sound, but the body stays where it falls.', 'NO ONE IN REACH'],
+      c4: ['C4', op.c4 > 0 ? '' : 'Long-press a building, a disabled vehicle or a bridge to plant a charge; it goes off 10 seconds later. You have no C4 on this mission.', 'NO C4 LEFT'],
+      smoke: ['Smoke', 'Smoke grenades mark the landing zone so the dropship can pick you up, and hide you for a moment. You have none left.', 'NO SMOKE LEFT'],
+    }[id];
+    if (!help) return;
+    if (!r.tutorialSeen.has('btn:' + id) && help[1]) r.showTutorial('btn:' + id, help[0], help[1], { button: id });
+    else this.hud.toast(help[2], C.uiGrey, 1.2);
   }
   quickLoad() {
     if (this.app.checkpoint?.mission !== this.missionId) { this.hud.toast('NO SAVE YET', C.uiAmber, 1.4); return; }

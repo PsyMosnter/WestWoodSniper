@@ -38,7 +38,7 @@ export class Hud {
     b({ id: 'smoke', icon: 'smoke', label: 'SMOKE', onPress: () => game.cmd('smoke') });
     b({ id: 'detonate', icon: 'detonate', label: 'BOOM', onPress: () => game.cmd('detonate') });
     b({ id: 'plant', icon: 'c4', label: 'PLANT', color: C.uiAmber, onPress: () => game.cmd('plantConfirm') });
-    b({ id: 'takedown', icon: 'knife', label: 'TAKEDOWN', color: C.uiAmber, onPress: () => game.cmd('takedown') });
+    b({ id: 'takedown', icon: 'knife', label: 'TAKEDOWN', short: 'T-DOWN', color: C.uiAmber, onPress: () => game.cmd('takedown') });
     this.healthRect = { x: 0, y: 0, w: 0, h: 0 };
     this.objRect = { x: 0, y: 0, w: 0, h: 0 };
     this.active = new Map(); // pointer id → button
@@ -54,26 +54,30 @@ export class Hud {
     const bs = this.buttons;
     const mmW = 96, mmH = 72;
     this.minimap.layout(W - m - mmW - 2, Tt + m + 2, mmW, mmH);
+    // actions: a 2×3 grid under the minimap — R&GUN COVER / HUNKER SMOKE / TAKEDOWN C4 — plus an extra
+    // row for STRIKE (right) and the escort/convoy orders (left) once a mission has them
     const rowY = Tt + m + mmH + 8;
-    const sb = Math.min(B, Math.floor((mmW + 2 - g) / 2));   // full-size touch targets, as wide as the minimap allows
-    bs.centre.place(W - m - sb, rowY, sb, sb);
-    bs.pause.place(W - m - 2 * sb - g, rowY, sb, sb);
-    bs.save.place(W - m - 3 * sb - 2 * g, rowY, sb, sb);
-    bs.zoom.place(W - m - 4 * sb - 3 * g, rowY, sb, sb);
-    // action cluster bottom corner (right-handed: bottom-right)
-    const X = (i) => lefty ? L + m + i * (B + g) : W - m - (i + 1) * (B + g) + g;
-    const y1 = H - m - B, y2 = y1 - B - g, y3 = y2 - B - g;
-    bs.hunker.place(X(0), y1, B, B);
-    bs.cover.place(X(1), y1, B, B);
-    bs.runGun.place(X(2), y1, B, B);
-    bs.c4.place(X(0), y2, B, B);
-    bs.detonate.place(X(0), y2, B, B);
-    bs.designator.place(X(1), y2, B, B);
-    bs.smoke.place(X(2), y2, B, B);
-    bs.convoy.place(X(0), y3, B, B);
-    bs.plant.place(lefty ? W - m - 2 * B - 150 : L + m + 150, H - m - B, 2 * B, B);
-    bs.takedown.place(X(2), y3, B, B);                     // above SMOKE, with the other action buttons
-    bs.follow.place(X(1), y3, B, B);
+    const extraRows = this._extraRows();
+    const rows = 3 + extraRows;
+    const avail = H - m - rowY - (B + g) * 0;              // the system row sits left of the grid, not under it
+    const gs = Math.max(26, Math.min(B, Math.floor((mmW + 2 - g) / 2), Math.floor((avail - (rows - 1) * g) / rows)));
+    const gx0 = W - m - 2 * gs - g, gx1 = W - m - gs;
+    const gy = (r) => rowY + r * (gs + g);
+    bs.runGun.place(gx0, gy(0), gs, gs); bs.cover.place(gx1, gy(0), gs, gs);
+    bs.hunker.place(gx0, gy(1), gs, gs); bs.smoke.place(gx1, gy(1), gs, gs);
+    bs.takedown.place(gx0, gy(2), gs, gs); bs.c4.place(gx1, gy(2), gs, gs); bs.detonate.place(gx1, gy(2), gs, gs);
+    bs.designator.place(gx1, gy(3), gs, gs);
+    const convoyOn = !!this.game.convoy, followOn = (this.game.escortCount?.() || 0) >= 2;
+    bs.convoy.place(gx0, gy(3), gs, gs);
+    bs.follow.place(gx0, gy(convoyOn && followOn ? 4 : 3), gs, gs);
+    bs.plant.place(L + m + 150, H - m - B, 2 * B, B);
+    // system row along the bottom, just left of the grid: ZOOM SAVE PAUSE CENTRE
+    const sb = Math.min(B, 36), sy = H - m - sb, sx1 = gx0 - g - sb;
+    bs.centre.place(sx1, sy, sb, sb);
+    bs.pause.place(sx1 - (sb + g), sy, sb, sb);
+    bs.save.place(sx1 - 2 * (sb + g), sy, sb, sb);
+    bs.zoom.place(sx1 - 3 * (sb + g), sy, sb, sb);
+    this._layoutKey = extraRows;
     this.lefty = lefty;
   }
   toast(text, color = C.uiAmber, dur = 1.6) {
@@ -96,6 +100,7 @@ export class Hud {
       if (b.visible && b.hit(p.x, p.y)) {
         b.pressed = true; this.active.set(p.id, b);
         if (b.enabled) { b.flashT = 0.15; b.onPress?.(); this.game.audio?.click?.(); }
+        else this.game.explainButton?.(b.id);
         return true;
       }
     }
@@ -137,19 +142,27 @@ export class Hud {
     for (const t of this.toasts) t.t -= dt;
     this.toasts = this.toasts.filter((t) => t.t > 0);
   }
+  /** rows needed under the 2×3 grid: STRIKE / ADVANCE / FOLLOW */
+  _extraRows() {
+    const op = this.world.operative, g = this.game;
+    const strike = op.designator > 0, convoy = !!g.convoy, follow = (g.escortCount?.() || 0) >= 2;
+    return (strike || convoy || follow ? 1 : 0) + (convoy && follow ? 1 : 0);
+  }
   syncButtons() {
     const op = this.world.operative, bs = this.buttons, g = this.game;
+    if (this._extraRows() !== this._layoutKey) this.layout(this.W, this.H, this.B, this.lefty, this.safe);
     bs.hunker.active = op.stance === 'hunker' || (!!op.trans && op.trans.to === 'hunker');
     bs.runGun.active = op.runGun;
-    bs.c4.visible = op.c4 > 0 && !g.remoteArmed; bs.c4.badge = '×' + op.c4; bs.c4.active = g.mode === 'c4';
+    // the grid is fixed: C4 / SMOKE / TAKEDOWN stay in place, greyed out when not usable
+    bs.c4.visible = !g.remoteArmed; bs.c4.enabled = op.c4 > 0; bs.c4.badge = op.c4 > 0 ? '×' + op.c4 : ''; bs.c4.active = g.mode === 'c4';
     bs.detonate.visible = !!g.remoteArmed;
     bs.designator.visible = op.designator > 0; bs.designator.badge = '×' + op.designator; bs.designator.active = g.mode === 'designator';
-    bs.smoke.visible = op.smoke > 0; bs.smoke.badge = '×' + op.smoke;
+    bs.smoke.visible = true; bs.smoke.enabled = op.smoke > 0; bs.smoke.badge = op.smoke > 0 ? '×' + op.smoke : '';
     bs.convoy.visible = !!g.convoy; if (g.convoy) { bs.convoy.label = g.convoy.advancing ? 'HOLD' : 'ADVANCE'; bs.convoy.active = g.convoy.advancing; }
     bs.follow.visible = (g.escortCount?.() || 0) >= 2; bs.follow.label = g.escortsHolding?.() ? 'FOLLOW' : 'HOLD';
     bs.cover.active = op.stance === 'cover';
     bs.plant.visible = !!g.c4?.pending;
-    bs.takedown.visible = !g.scopeOpen && !!g.takedown?.target();
+    bs.takedown.visible = true; bs.takedown.enabled = !g.scopeOpen && !!g.takedown?.target();
     bs.c4.active = g.mode === 'c4';
     const hunkerBusy = !!op.trans && (op.trans.to === 'hunker' || op.trans.from === 'hunker');
     bs.hunker.progress = hunkerBusy && op.trans ? op.trans.t / op.trans.dur : -1;
@@ -187,7 +200,7 @@ export class Hud {
     this._countdown(ctx);
     // --- status (bottom-left or right if lefty)
     const sw = 148, sh = 42;
-    const sx = this.lefty ? this.R - sw : this.L, sy = this.Bot - sh;
+    const sx = this.L, sy = this.Bot - sh;
     panel(ctx, sx, sy, sw, sh, { alpha: 0.85 });
     // health bar
     const hx = sx + 4, hy = sy + 4;
@@ -215,10 +228,10 @@ export class Hud {
     if (aw.state === 'suspicious') { ctx.fillStyle = '#26302A'; ctx.fillRect(hx + 12, ey + 9, 36, 2); ctx.fillStyle = C.uiAmber; ctx.fillRect(hx + 12, ey + 9, Math.round(36 * Math.min(1, aw.fill)), 2); }
     // ammo + stance
     const reloading = this.game.reloadT > 0;
-    const ammoTxt = reloading ? 'RELOADING' : `RIFLE ${op.rifleMag}/${BALANCE.weapons.rifle.mag}|${op.rifleReserve}`;
+    const ammoTxt = reloading ? 'RELOADING' : `RIFLE ${op.rifleMag}/${BALANCE.weapons.rifle.mag} | ${op.rifleReserve}`;
     drawText(ctx, ammoTxt, sx + sw - 4, ey + 2, { font: '3x5', color: reloading ? C.uiAmber : C.uiText, align: 'right' });
     const st = op.trans ? op.trans.to : op.stance;
-    drawText(ctx, 'STANCE ' + st.toUpperCase() + (op.runGun ? ' +PISTOL' : ''), sx + sw - 4, ey + 9, { font: '3x5', color: C.uiTextD, align: 'right' });
+    const stance = st.toUpperCase() + (op.runGun ? ' +PISTOL' : '');
     // noise meter: how far WREN's sound carries right now (anyone inside comes to look)
     const nz = this.game.noise?.reading();
     if (nz) {
@@ -230,8 +243,11 @@ export class Hud {
         ctx.fillRect(hx + 12 + i * 5, ny + 7 - bh, 4, bh);
       }
       drawText(ctx, nz.word, hx + 40, ny + 1, { font: '3x5', color: nz.col });
-      if (nz.lv >= 0.5) drawText(ctx, `CARRIES ${+nz.lv.toFixed(1)} TILES`, sx + sw - 4, ny + 1, { font: '3x5', color: C.uiTextD, align: 'right' });
+      if (nz.lv >= 0.5) drawText(ctx, `NOISE CARRIES ${+nz.lv.toFixed(1)} TILES`, sx + sw - 4, ey + 9, { font: '3x5', color: C.uiTextD, align: 'right' });
     }
+    // stance, bottom line, next to the noise meter
+    const stW = measureText('STANCE ' + stance, { font: '3x5' });
+    drawText(ctx, (stW <= sw - 70 ? 'STANCE ' : '') + stance, sx + sw - 4, sy + 32, { font: '3x5', color: C.uiTextD, align: 'right' });
     // --- ticker (hidden while scoped — it would bleed over the scope)
     if (!this.game.scopeOpen) this._ticker(ctx, sx, sy - 13);
     // --- toasts

@@ -16,7 +16,7 @@ import { rasterize, project, Z } from '../model3d.js';
 import { Rig } from '../rig3d.js';
 import { pose, deathState } from './rtsInfantry.js';
 import { BLOOD as BLOODS } from '../../config/palette.js';
-import { makeCanvas } from '../pixel.js';
+import { makeCanvas, pack } from '../pixel.js';
 
 const K = 2.3;                                          // joint units (the Newest rig) → model units (= pixels)
 export const STAND = { w: 48, h: 54, ax: 24, ay: 46 };
@@ -62,6 +62,17 @@ export const CHIBI = {
   sniffer: { beast: true, mats: NOTM },
 };
 
+// cutscene-only cast (never on the map): the voice in WREN's ear, the brass, the shield people
+const OVW = { ...GODM, jacket: Mt(['#2E4A4E', '#46707A', '#72A2AA']), pants: Mt(['#2A3438', '#3E4C52', '#5A6C72']), hair: Mt(['#16100C', '#2A1E16', '#46342A']), skin: Mt(['#7A4A2E', '#A8704A', '#D09A6E']), headset: Mt(['#16181C', '#2E3238', '#565C64'], { weight: 3 }) };
+const GEN = { ...GODM, jacket: Mt(['#34402C', '#52644A', '#7A8E6C']), pants: Mt(['#2A3424', '#40503A', '#5E7054']), helmet: Mt(['#26301E', '#3E4C32', '#5E7048']), hair: Mt(['#6A6660', '#9A968E', '#CAC6BC']), gold: Mt(['#8A6A1A', '#D8A83A', '#FFE08A'], { weight: 3 }), ribbon: Mt(['#1E4466', '#2F6FA6', '#5EA2DA'], { weight: 3 }), skin: Mt(['#B07A5A', '#DCA482', '#F6CCA8']) };
+const ADL = { ...SCI, hair: Mt(['#6A6660', '#A29E96', '#D8D4CC']), frame: Mt(['#3A2A1A', '#5A4430'], { weight: 4 }) };
+export const CAST = {
+  overwatch: { ...HUMAN, mats: OVW, face: 'hair', weapon: 'none', gear: ['headset'] },
+  general: { ...HUMAN, chest: 2.6, hipW: 0.95, mats: GEN, face: 'general', weapon: 'none', gear: ['medals'] },
+  adler: { ...HUMAN, mats: ADL, face: 'hair', weapon: 'none', gear: ['bun'] },
+};
+const defOf = (type) => CHIBI[type] || CAST[type] || CHIBI.husk;
+
 // ------------------------------------------------------------------ vector helpers
 const A = (p) => [p.x * K, p.y * K, p.z * K];
 const add = (a, b) => [a[0] + b[0], a[1] + b[1], a[2] + b[2]];
@@ -82,7 +93,7 @@ const ATTACH = [
 // ------------------------------------------------------------------ humanoid model
 function humanoid(r, d, st, opt) {
   const M = d.mats, J = pose(d, { ...st, attach: ATTACH });
-  const gear = d.gear, human = d.face === 'wren' || d.face === 'pilot' || d.face === 'hair';
+  const gear = d.gear, human = d.face === 'wren' || d.face === 'pilot' || d.face === 'hair' || d.face === 'general';
   // lying down, the round chibi body and big head rest on their surfaces instead of sinking into the ground
   const lift = (keys, dz) => { if (dz > 0) for (const k of keys) J[k] = { ...J[k], z: J[k].z + dz }; };
   const heads = ['head', 'headF', 'headU'];
@@ -90,7 +101,12 @@ function humanoid(r, d, st, opt) {
   lift(heads, 2.5 - J.head.z);
   if (opt.headUp) { J.head = { ...J.head, z: Math.max(J.head.z, 2.9) }; J.headF = { ...J.head, x: J.head.x + 1 }; J.headU = { ...J.head, z: J.head.z + 1 }; }
   const body = frameAt(A(J.chest), sub(A(J.chestF), A(J.chest)), sub(A(J.chestU), A(J.chest)));
-  const head = frameAt(A(J.head), sub(A(J.headF), A(J.head)), sub(A(J.headU), A(J.head)));
+  let head = frameAt(A(J.head), sub(A(J.headF), A(J.head)), sub(A(J.headU), A(J.head)));
+  if (opt.yaw || opt.tilt) {                     // cutscenes: turn the head (yaw), nod or look down (tilt)
+    const cy = Math.cos(opt.yaw || 0), sy = Math.sin(opt.yaw || 0), ct = Math.cos(opt.tilt || 0), stt = Math.sin(opt.tilt || 0);
+    const F1 = add(mul(head.F, cy), mul(head.R, sy));
+    head = frameAt(head.o, sub(mul(F1, ct), mul(head.U, stt)), add(mul(head.U, ct), mul(F1, stt)));
+  }
   const pelvis = mid(A(J.hipL), A(J.hipR));
   const legR = human ? 1.8 : 1.35, armR = human ? 1.35 : 0.95;
   const legMat = human ? M.pants : M.body, armMat = human ? M.jacket : M.body;
@@ -107,7 +123,8 @@ function humanoid(r, d, st, opt) {
   const tc = mid(pelvis, body.o);
   r.ell(tc, [body.F, body.R], human ? [3.1, 4.1, 4.6] : [2.8, 3.4, 4.8], human ? M.jacket : M.body, Z.torso);
   if (human) {
-    r.cap(body.at(2.8, 3.2, 2.2), body.at(2.9, -2.4, -3.2), 0.6, M.strap, Z.torso);
+    if (d.face === 'wren') r.cap(body.at(2.8, 3.2, 2.2), body.at(2.9, -2.4, -3.2), 0.6, M.strap, Z.torso);
+    if (gear.includes('medals')) { for (const [y, m] of [[-1.2, M.ribbon], [-2.2, M.gold], [-3.2, M.ribbon]]) r.box(body.at(3.2, y, 1.4), [body.F, body.R], [0.4, 0.45, 0.6], m, Z.torso); r.ball(body.at(3.1, -2.2, 0.2), 0.6, M.gold, Z.torso); for (const s2 of [-1, 1]) r.box(body.at(0, s2 * 3.6, 3.4), [body.F, body.R], [1.4, 1, 0.35], M.gold, Z.torso); }
     r.cyl(add(pelvis, mul(body.U, 0.9)), add(pelvis, mul(body.U, 1.9)), 3.9, M.boot, Z.torso);
   } else {
     r.ball(body.at(2.3, 0, -0.6), 0.9, M.lime, Z.torso);
@@ -132,6 +149,12 @@ function humanoid(r, d, st, opt) {
   // weapon (zone 255: never takes the hit itself)
   r.part();
   const wp = st.dropGun ? 'none' : st.weapon || d.weapon;
+  // cutscene props in the hands
+  const prop = opt.prop;
+  if (prop === 'rod') { const a = sub(A(J.handR), [1.5, 0, 1.2]), b = add(A(J.handL), [11, 2.5, 12]); r.cap(a, b, 0.35, M.boot, 255); r.ball(a, 0.8, M.boot, 255); opt.rodTip = b; }
+  if (prop === 'pointer') { r.cap(A(J.handR), add(A(J.handR), [9, -1, -3]), 0.3, M.boot, 255); }
+  if (prop === 'handset') r.box(add(A(J.handR), [0.4, 0, 0.6]), [[0, 0, 1], [0, 1, 0]], [2, 0.7, 0.8], M.gun || M.frame, 255);
+  if (prop === 'clipboard') r.box(add(A(J.handL), [0.6, 0.8, 0.8]), [nrm([1, 0, 1.2]), [0, 1, 0]], [2.4, 1.9, 0.2], Mt(['#6E5430', '#9A7A4A', '#C8A870']), 255);
   // guns point the way the unit faces (level when aiming or prone, a little down at the hip)
   const hR = A(J.handR), hL = A(J.handL), F = nrm([1, 0, st.arms === 'hold' || st.arms === 'pistol' ? -0.15 : 0]), UP = [0, 0, 1];
   let tip = null;
@@ -152,10 +175,25 @@ function humanoid(r, d, st, opt) {
   if (human) {
     r.ball(H.o, 6.2, M.skin, Z.head);
     r.ell(H.at(-1.4, 0, -0.6), [H.F, H.R], [5.4, 6.2, 5.6], M.hair, Z.head);
-    if (d.face !== 'hair') {
+    if (d.face === 'general') {                                                                     // peaked cap
+      r.ell(H.at(-0.6, 0, 3.8), [H.F, H.R], [6.6, 6.8, 3.4], M.helmet, Z.head);
+      r.ell(H.at(4.4, 0, 1.6), [H.F, H.R], [2.8, 5.6, 0.5], M.boot, Z.head);
+      r.ball(H.at(5.6, 0, 4.2), 0.9, M.gold, Z.head);
+      for (const s2 of [-1, 1]) r.ell(H.at(5.7, s2 * 1.3, -2.2), [H.F, H.R], [0.9, 1.6, 0.8], M.hair, Z.head);   // moustache
+    } else if (d.face !== 'hair') {
       r.ell(H.at(-1.1, 0, 3.1), [H.F, H.R], [6.4, 6.9, 4.2], M.helmet, Z.head);
       r.cyl(H.at(-1.1, 0, 1.4), H.at(-1.1, 0, 2.1), 7, M.helmet, Z.head);
     } else r.ell(H.at(-0.6, 0, 2.6), [H.F, H.R], [5.8, 6.4, 3.6], M.hair, Z.head);
+    if (gear.includes('bun')) r.ball(H.at(-5.4, 0, 3), 2.4, M.hair, Z.head);
+    if (gear.includes('headset')) {
+      r.cap(H.at(0, -6.2, 0.6), H.at(0, -3.6, 5.8), 0.55, M.headset, Z.head); r.cap(H.at(0, -3.6, 5.8), H.at(0, 3.6, 5.8), 0.55, M.headset, Z.head); r.cap(H.at(0, 3.6, 5.8), H.at(0, 6.2, 0.6), 0.55, M.headset, Z.head);
+      for (const s2 of [-1, 1]) r.ell(H.at(0, s2 * 6.3, -0.4), [H.F, H.R], [1.8, 0.9, 2], M.headset, Z.head);
+      r.cap(H.at(0.6, 6.6, -1.4), H.at(5.2, 2.6, -3.8), 0.3, M.headset, Z.head); r.ball(H.at(5.4, 2.4, -3.9), 0.7, M.headset, Z.head);
+    }
+    if (opt.brow != null && d.face !== 'pilot') {                                                  // cutscenes: eyebrows (−1 cross … +1 raised)
+      const b = opt.brow, bz = d.face === 'wren' ? 2.5 : 2.1;
+      for (const s2 of [-1, 1]) r.cap(H.at(5.4, s2 * 1.3, bz - b * 0.2 - (b < 0 ? 0.5 : 0)), H.at(5.0, s2 * 3.4, bz + b * 0.7), 0.42, d.face === 'wren' ? M.hair : M.hair, Z.head);
+    }
     if (d.face === 'wren') {
       // round glasses over the eyes: steel-blue lenses in a thin frame, a bridge, arms back to the ears
       // pale lenses with the eyes showing through, so he keeps his anime eyes behind them
@@ -172,6 +210,7 @@ function humanoid(r, d, st, opt) {
       for (const s of [-1, 1]) { r.ell(H.at(5.5, s * 2.3, -0.6), [H.F, H.R], [0.9, 1.35, 2.1], M.eye, Z.head); r.ball(H.at(6.2, s * 1.9, 0.3), 0.55, GLINT, Z.head); }
     }
     r.ell(H.at(5.9, 0, -3.3), [H.F, H.R], [0.4, 0.9, 0.35], M.mouth, Z.head);
+    opt.anch = { mouth: H.at(6.1, 0, -3.3), eyeL: H.at(6.0, -2.3, -0.4), eyeR: H.at(6.0, 2.3, -0.4), top: H.at(0, 0, 10), eyes: d.face === 'wren' || d.face === 'pilot' ? '' : 'anime' };
   } else {
     r.ell(H.o, [add(H.F, mul(H.U, 0.25)), H.R], [5.4, 5.6, 7], M.head, Z.head);
     if (d.face === 'mask') {
@@ -182,6 +221,7 @@ function humanoid(r, d, st, opt) {
       for (const s of [-1, 1]) { r.ell(H.at(4.6, s * 2.5, -0.6), [H.F, H.R], [1, 1.5, 2.2], M.eye, Z.head); r.ball(H.at(5.4, s * 2.1, 0.4), 0.5, GLINT, Z.head); }
     }
     if (gear.includes('crest')) r.ell(H.at(-1, 0, 5), [H.F, H.R], [2.4, 1, 1.8], M.plate, Z.head);
+    opt.anch = { mouth: null, eyeL: H.at(5.0, -2.5, -0.6), eyeR: H.at(5.0, 2.5, -0.6), top: H.at(0, 0, 11), eyes: 'glow' };
     if (gear.includes('helmet') && !opt.nohelm) {                                                   // Vrask's helmet
       r.ell(H.at(-0.2, 0, 2.6), [H.F, H.R], [6.2, 6.4, 5.4], M.plate, Z.helmet);
       r.ell(H.at(5.4, 0, 0.4), [H.F, H.R], [0.6, 3.6, 0.7], M.lime, Z.helmet);
@@ -189,6 +229,7 @@ function humanoid(r, d, st, opt) {
       r.ball(H.at(3.4, 0, 7), 0.7, M.lime, Z.helmet);
     }
   }
+  opt.faceF = H.F;
   return { J, body, tip };
 }
 

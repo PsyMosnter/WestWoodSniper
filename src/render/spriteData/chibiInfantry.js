@@ -261,14 +261,59 @@ function sniffer(rig, st) {
   if (st.bite) r.ell([h[0] + 4.4, 0, h[2] - 2.2], [[1, 0, 0], [0, 1, 0]], [1.6, 2, 0.8], Mt(['#DDE8C0'], { weight: 3 }), 255);
 }
 
+// ------------------------------------------------------------------ cutscene poses (hands from the chest, mini units)
+const H2 = (R, L) => ({ R, L });
+/** @type {Record<string, (d: any, f: number) => any>} */
+const CUT_POSES = {
+  sit: () => ({ sit: 1.7, arms: 'custom', hands: H2([1.3, 0.9, -1.9], [1.3, -0.9, -1.9]), weapon: 'none', lean: 0.2 }),
+  fish: (d, f) => ({ sit: 1.7, arms: 'custom', hands: H2([1.6, 0.4, -1.3 + (f & 1) * 0.3], [2.0, -0.2, -1.0 + (f & 1) * 0.3]), weapon: 'none', lean: 0.3, prop: 'rod' }),
+  yank: () => ({ sit: 1.7, arms: 'custom', hands: H2([0.9, 0.5, 0.6], [1.3, -0.2, 1.0]), weapon: 'none', lean: -0.5, prop: 'rod' }),
+  doze: () => ({ sit: 1.7, arms: 'custom', hands: H2([0.9, -0.3, -1.4], [0.9, 0.3, -1.2]), weapon: 'none', lean: -0.2 }),
+  point: (d, f) => ({ arms: 'custom', hands: H2([2.4, 0.5, 0.1 - (f & 1) * 0.5], [0.4, -1.3, -2.2]), weapon: 'none', lean: 0.3, prop: 'pointer' }),
+  lean: () => ({ arms: 'custom', hands: H2([2.2, 1.1, -1.7], [2.2, -1.1, -1.7]), weapon: 'none', lean: 0.8 }),
+  radio: () => ({ arms: 'custom', hands: H2([0.7, 1.2, 1.6], [0.5, -1.3, -2.2]), weapon: 'none', prop: 'handset' }),
+  talk: (d, f) => ({ arms: 'custom', hands: [H2([1.2, 1.5, -1.6], [0.5, -1.3, -2.2]), H2([1.8, 1.6, -0.6], [0.6, -1.4, -2.1]), H2([1.6, 1.9, -1.0], [1.4, -1.8, -1.2])][f % 3], weapon: 'none' }),
+  shrug: () => ({ arms: 'custom', hands: H2([0.8, 2.3, -0.9], [0.8, -2.3, -0.9]), weapon: 'none' }),
+  fold: () => ({ arms: 'custom', hands: H2([1.2, -0.5, -0.9], [1.2, 0.5, -1.1]), weapon: 'none' }),
+  clip: () => ({ arms: 'custom', hands: H2([1.3, 0.6, -1.3], [1.4, -0.4, -0.9]), weapon: 'none', prop: 'clipboard' }),
+  stand: () => ({ arms: 'hold' }),
+};
+export const CUT_POSE_NAMES = Object.keys(CUT_POSES);
+
+/** Thicken the outline by `n` pixels (cutscene figures get a comic-book ink line). */
+function inkLine(pix, col, n) {
+  const v = pack(col), w = pix.w, h = pix.h;
+  for (let k = 0; k < n; k++) {
+    const src = Uint32Array.from(pix.data);
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      const i = y * w + x;
+      if (src[i] >>> 24) continue;
+      if ((x > 0 && src[i - 1] >>> 24) || (x < w - 1 && src[i + 1] >>> 24) || (y > 0 && src[i - w] >>> 24) || (y < h - 1 && src[i + w] >>> 24)) pix.data[i] = v;
+    }
+  }
+}
+
+/** A box framing a figure's head and upper body (a bust) at `zoom` px per model unit. */
+export function bustBox(type, zoom, margin = 6) {
+  const d = defOf(type), k = K * (d.scale || 1), CEL = 0.83;
+  const top = ((d.hipZ + d.chest + d.head) * k + 11) * CEL * zoom + margin, bottom = (d.hipZ * k - 1) * CEL * zoom;
+  return { w: Math.round(30 * zoom), h: Math.round(top - bottom), ax: Math.round(15 * zoom), ay: Math.round(top) };
+}
+/** A box for a whole standing (or sitting) figure at `zoom`. */
+export function figureBox(type, zoom) {
+  const d = defOf(type), k = K * (d.scale || 1);
+  const top = ((d.hipZ + d.chest + d.head) * k + 12) * 0.83 * zoom;
+  return { w: Math.round(56 * zoom), h: Math.round(top + 8 * zoom), ax: Math.round(28 * zoom), ay: Math.round(top) };
+}
+
 // ------------------------------------------------------------------ frames
 /**
  * Render one frame. variant: 'nohelm', 'dk-shot' | 'dk-takedown' | 'dk-explosion', 'bl-<blood>', 'gl-0'…'gl-4'
  * (WREN's glasses catching the sun), '|'-separated.
  * @returns {{pix: import('../pixel.js').Pix, zone: Uint8Array, w: number, h: number, ax: number, ay: number, top: number, lying: boolean}}
  */
-export function renderChibi(type, pose_, dir, frame = 0, variant = '') {
-  const d = CHIBI[type] || CHIBI.husk;
+export function renderChibi(type, pose_, dir, frame = 0, variant = '', o = {}) {
+  const d = defOf(type);
   const v = String(variant || '');
   let dk = (v.match(/dk-(\w+)/) || [])[1] || 'shot';
   if (dk === 'headshot') dk = 'shot';
@@ -285,7 +330,7 @@ export function renderChibi(type, pose_, dir, frame = 0, variant = '') {
     case 'prone': st = { pitch: rad(86), pivotZ: 0, arms: 'prone', lean: 0, rootX: -d.hipZ * 0.35 }; lying = true; break;
     case 'crawl': st = { pitch: rad(86), pivotZ: 0, arms: 'prone', lean: 0, rootX: -d.hipZ * 0.35, crawl: (frame & 3) * (Math.PI / 2) }; lying = true; break;
     case 'dead': deadT = Math.min(1, frame / 11); st = d.beast ? {} : deathState(d, dk, deadT); lying = true; break;
-    default: st = { arms: armsIdle };
+    default: st = CUT_POSES[pose_] ? CUT_POSES[pose_](d, frame) : { arms: armsIdle };
   }
   // the Sniffer rolls onto its side when it dies
   const xf = d.beast && deadT >= 0 ? (p) => {
@@ -293,11 +338,15 @@ export function renderChibi(type, pose_, dir, frame = 0, variant = '') {
     return [p[0] - 3 * Math.min(1, deadT / 0.4), y * Math.cos(a) - z * Math.sin(a), Math.max(0.5, 3 + y * Math.sin(a) + z * Math.cos(a) - 2 * Math.min(1, deadT / 0.6))];
   } : null;
   const r = new Rig(rad(dir * 45 - 90), xf);
-  const built = d.beast ? (sniffer(r, st), null) : humanoid(r, d, st, { nohelm: v.includes('nohelm'), headUp: pose_ === 'prone' || pose_ === 'crawl' });
-  const box = lying || (d.beast && deadT >= 0) ? LIE : STAND;
-  const out = rasterize(r.m, { w: box.w, h: box.h, ax: box.ax, ay: box.ay, outline: d.mats.out, scale: 1 });
+  const opt = { nohelm: v.includes('nohelm'), headUp: pose_ === 'prone' || pose_ === 'crawl', yaw: o.yaw, tilt: o.tilt, brow: o.brow, prop: o.prop ?? st.prop, anch: null, rodTip: null, faceF: null };
+  const built = d.beast ? (sniffer(r, st), null) : humanoid(r, d, st, opt);
+  // cutscenes render big (zoom = pixels per model unit) into a box of their choosing, with a heavier ink line
+  const Zm = o.zoom || 1;
+  const box = o.box || (lying || (d.beast && deadT >= 0) ? LIE : STAND);
+  const out = rasterize(r.m, { w: box.w, h: box.h, ax: box.ax, ay: box.ay, outline: d.mats.out, scale: Zm, ss: Zm > 2 ? 2 : undefined });
   const { pix, zone } = out;
   const put = (x, y, c) => { x = Math.round(x); y = Math.round(y); if (x >= 0 && y >= 0 && x < box.w && y < box.h) pix.set(x, y, c); };
+  const scr = (p) => { const [sx, sy] = project(r.W(p)); return [box.ax + sx * Zm, box.ay + sy * Zm]; };
   // muzzle flash on the first 'fire' frame
   if (built && pose_ === 'fire' && !(frame & 1) && built.tip) {
     const [sx, sy] = project(r.W(add(built.tip, [1.5, 0, 0])));
@@ -328,8 +377,15 @@ export function renderChibi(type, pose_, dir, frame = 0, variant = '') {
     for (let i = 0; i < pix.data.length; i++) { const c = pix.data[i]; if (!(c >>> 24)) continue; const k = 1 - Math.min(0.35, deadT * 0.6); pix.data[i] = ((c & 0xFF000000) | ((((c >>> 16) & 255) * k) << 16) | ((((c >>> 8) & 255) * k) << 8) | ((c & 255) * k)) >>> 0; }
   }
   const gl = (v.match(/gl-(\d)/) || [])[1];
-  if (gl != null && d.face === 'wren') addGleam(pix, (+gl + 1) / 6);
-  return { pix, zone, w: box.w, h: box.h, ax: box.ax, ay: box.ay, top: box.ay - out.top, lying };
+  if (gl != null && d.face === 'wren') addGleam(pix, (+gl + 1) / 6, Zm);
+  if (o.ink) inkLine(pix, d.mats.out, o.ink);
+  // face anchors in sprite pixels (cutscenes: lip-sync, blinks, speech above the head); vis: the face looks our way
+  let anch = null;
+  if (opt.anch) {
+    const a = opt.anch, vis = r.D(opt.faceF)[1] > 0.15;
+    anch = { mouth: a.mouth && vis ? scr(a.mouth) : null, eyeL: vis ? scr(a.eyeL) : null, eyeR: vis ? scr(a.eyeR) : null, top: scr(a.top), eyes: a.eyes, zoom: Zm, rodTip: opt.rodTip ? scr(opt.rodTip) : null };
+  }
+  return { pix, zone, w: box.w, h: box.h, ax: box.ax, ay: box.ay, top: box.ay - out.top, lying, anch };
 }
 
 /**

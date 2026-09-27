@@ -157,6 +157,18 @@ Format: date · milestone · decision · reason.
 - **Speech above the head** (SCUMM style): lines typed out in the speaker's colour with a black outline, kept on screen and below the letterbox. A voice with nobody on screen (and no radio prop) still gets the subtitle bar. On the dock, Overwatch's lines come out of the radio on the crate.
 - **The cast** are the Chibi models ray-cast at 4–8× with a heavier ink line. New cutscene-only members: **Overwatch** (a radio operator with a headset), **GOD Command** (a general with a peaked cap, moustache and medals) and **Dr. Adler** (grey hair in a bun). New cutscene poses on the shared skeleton: `sit` (a seat height, feet forward) and free hand placement: fish, yank, doze, point, lean, radio, talk×3, shrug, fold, clip. Eyebrows, head turn and tilt make expressions. Close-ups tilt faces up towards the camera, which the game angle otherwise looks down on.
 - **Cheap animation**: mouths (0 closed / 1 half / 2 open, picked from the letters being spoken — vowels open), blinks and WREN's glasses gleam are 2D overlays on cached renders. A close-up needs about five renders, done when the cut starts.
+- **Critic review (medium depth, pass ≥ 6): 6/10, PASS.** Fixed from its list:
+  - WREN's 3/4 face in close-ups: the temple arm read as a bar across the cheek and the far lens floated off the head. Close-ups now turn the body to the camera and only the head ~25° towards the radio; cutscene glasses have no temple arms.
+  - Speech kept 16 px from the frame edge; speech from the radio screen wraps to the screen's width.
+  - Leaves only frame close-ups where something grows; the blizzard gets wind-driven snow streaks.
+  - The NOT's eyes smoulder in a silent cutaway.
+  - Dr. Adler gets wild side tufts, which survive the green screen.
+  - The general stands taller behind the table and folds his arms after his line.
+  - WREN keeps his rod after the boot, and the boot is bigger.
+  - Pines reflect in the river.
+  - The ending bench has a plank and legs, and WREN sits 3/4-on; the z's rise from his helmet.
+
+  Left: phone-size text (the whole game uses the same pixel font) and more painterly backdrops.
 - **Restaged scripts**: every mission intro now runs nature close-up → arrival → establishing shot with the title (4 s) → briefing close-up. M3 cuts away to Vrask in the blizzard while Overwatch talks about him; M7's screen shows Dr. Adler. The intro plays the GOD tent ("We can't send an army…") → the map pin → WREN fishing at dawn. The radio squawks, he's "retired", he's "bored", and he reels in an old boot. The ending puts WREN on the dropship bench for "Wake me up for the sequel." — then he's asleep (z z z). The older shots now use the Chibi cast too (6-frame cycles).
 
 ## Hosting

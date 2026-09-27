@@ -214,7 +214,7 @@ export class CutsceneScene {
       const n = Math.floor((this.t - at) * 45);
       const shown = text.slice(0, n);
       const on = this.talkers?.[who];
-      if (on) { drawSpeech(ctx, shown, on[0] * this.P, on[1] * this.P, SPEAKER[who] || '#E8F0E0', W, lbPx); continue; }
+      if (on) { drawSpeech(ctx, shown, on[0] * this.P, on[1] * this.P, SPEAKER[who] || '#E8F0E0', W, lbPx, on[2] ? on[2] * this.P : undefined); continue; }
       const maxW = Math.min(W - 24, 420);
       const rows = wrapText(shown, maxW - measureSpeaker(who));
       const y0 = H - lbPx - 4 - rows.length * 9;

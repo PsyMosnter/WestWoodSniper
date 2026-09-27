@@ -53,13 +53,13 @@ export const CUTS = {
       { kind: 'macro', dur: 8.4, biome: 'temperate', time: 'night', bug: 'firefly', approach: 'pods' },
       // GOD field HQ: the general leans on the map table; Overwatch at the radio desk
       { kind: 'stage', dur: 4.8, set: 'tent', actors: [
-        { who: 'GOD COMMAND', x: 0.34, y: 0.9, dir: 4, pose: 'lean', brow: -1, beats: [{ t: 3.2, pose: 'stand' }] },
+        { who: 'GOD COMMAND', x: 0.34, y: 0.84, dir: 4, pose: 'stand', brow: -1, beats: [{ t: 3.4, pose: 'fold' }] },
         { who: 'OVERWATCH', x: 0.78, y: 0.9, dir: 2, pose: 'fold', beats: [{ t: 1.4, dir: 5 }] },
       ] },
       { kind: 'mapTable', dur: 3.6 },
       // the Varna at dawn: WREN has gone fishing. The radio on the crate has other ideas.
       { kind: 'stage', dur: 10.4, set: 'dock', seatX: 0.36, seatY: 0.86, radio: 'OVERWATCH', gag: 7.2, actors: [
-        { who: 'WREN', x: 0.36, y: 0.86, dir: 3, pose: 'fish', beats: [{ t: 1.4, yaw: 0.8 }, { t: 3.0, yaw: 0 }, { t: 5.6, brow: 0.8 }, { t: 7.7, pose: 'yank', brow: 1 }, { t: 9.0, pose: 'sit', brow: -0.4, yaw: 0.5 }] },
+        { who: 'WREN', x: 0.36, y: 0.86, dir: 3, pose: 'fish', beats: [{ t: 1.4, yaw: 0.8 }, { t: 3.0, yaw: 0 }, { t: 5.6, brow: 0.8 }, { t: 7.7, pose: 'yank', brow: 1 }, { t: 8.9, pose: 'fish', brow: -0.5, yaw: 0.6 }] },
       ] },
       { kind: 'titleSlam', dur: 3.4 },
     ],
@@ -115,7 +115,7 @@ export const CUTS = {
       { kind: 'establish', dur: 3.8, biome: 'temperate', time: 'dawn', scene: 'dropship', wren: 'none' },
       // the ride home: WREN on the bench, and then not for long awake
       { kind: 'stage', dur: 6.2, set: 'cabin', seatX: 0.5, seatY: 0.84, actors: [
-        { who: 'WREN', x: 0.5, y: 0.84, dir: 4, pose: 'sit', brow: 0.4, beats: [{ t: 2.8, pose: 'doze', tilt: 0.55, brow: 0, zzz: true }] },
+        { who: 'WREN', x: 0.5, y: 0.84, dir: 3, pose: 'sit', brow: 0.4, beats: [{ t: 2.8, pose: 'doze', tilt: 0.55, brow: 0, zzz: true }] },
       ] },
       { kind: 'credits', dur: 13 },
     ],

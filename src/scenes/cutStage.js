@@ -101,8 +101,8 @@ function face(g, f, x0, y0, st) {
       g.fillStyle = green ? '#0A1A08' : '#241C10'; g.fillRect(Math.round(ex - 1.2 * z), Math.round(ey + 0.4 * z), Math.round(2.4 * z), Math.max(1, Math.round(0.35 * z)));
     }
   }
-  if (a.eyes === 'glow' && st.talking && a.eyeL) {
-    g.globalAlpha = 0.25 + 0.2 * Math.sin(st.T * 18);
+  if (a.eyes === 'glow' && a.eyeL) {
+    g.globalAlpha = st.talking ? 0.25 + 0.2 * Math.sin(st.T * 18) : 0.12 + 0.1 * Math.sin(st.T * 2.5);
     for (const e of [a.eyeL, a.eyeR]) oval(g, x0 + e[0], y0 + e[1], 2.6 * z, 2.2 * z, '#C6FF5A');
     g.globalAlpha = 1;
   }
@@ -130,14 +130,14 @@ function drawActor(scene, g, S, who, f, x, y, o = {}) {
 
 // ------------------------------------------------------------------ speech (SCUMM style)
 /** Speech typed out above a speaker's head, in their colour with a black outline, kept on screen. */
-export function drawSpeech(ctx, text, x, y, color, W, top) {
-  const maxW = Math.min(W - 16, 230);
+export function drawSpeech(ctx, text, x, y, color, W, top, wrap = 230) {
+  const M = 16, maxW = Math.min(W - 2 * M, wrap);
   const rows = wrapText(text, maxW);
   const lh = 9;
   let yy = Math.max(top + 2, y - 6 - rows.length * lh);
   for (const row of rows) {
     const rw = measureText(row);
-    const cx = Math.max(rw / 2 + 4, Math.min(W - rw / 2 - 4, x));
+    const cx = Math.max(rw / 2 + M, Math.min(W - rw / 2 - M, x));
     for (const [dx, dy] of [[-1, 0], [1, 0], [0, -1], [0, 1], [1, 1]]) drawText(ctx, row, cx + dx, yy + dy, { color: '#000', align: 'center' });
     drawText(ctx, row, cx, yy, { color, align: 'center' });
     yy += lh;
@@ -254,8 +254,10 @@ export function makeStageShots(K) {
         const Rp = rng(9);
         for (let x = 0; x < w; x += 7 + Rp() * 9) { const ph = 12 + Rp() * 22; g.beginPath(); g.moveTo(x, hy + 2); g.lineTo(x + 4, hy - ph); g.lineTo(x + 8, hy + 2); g.fill(); }
         g.globalAlpha = 0.35; g.fillStyle = '#F2C8A8'; g.fillRect(0, hy - 6, w, 6); g.globalAlpha = 1;
-        // the river: sky colours reflected in bands, the sun's broken path, drifting ripples
+        // the river: sky colours reflected in bands, the far pines upside down, the sun's broken path, drifting ripples
         bands(g, 0, hy, h, w, ['#C8806A', '#8A5A6E', '#5A4A6A', '#3A3A5A', '#2A2E48']);
+        const Rq = rng(9); g.fillStyle = 'rgba(42,34,56,0.45)';
+        for (let x = 0; x < w; x += 7 + Rq() * 9) { const ph = (12 + Rq() * 22) * 0.7; g.beginPath(); g.moveTo(x, hy + 2); g.lineTo(x + 4 + Math.sin(T * 1.5 + x) * 1.5, hy + 2 + ph); g.lineTo(x + 8, hy + 2); g.fill(); }
         for (let i = 0; i < 26; i++) { const y = hy + 3 + i * i * 0.28, len = 4 + i * 1.3, x = w * 0.7 - len / 2 + Math.sin(T * 2 + i * 1.7) * (2 + i * 0.4); g.fillStyle = i < 12 ? '#FFE0A0' : '#E8A878'; g.fillRect(Math.round(x), Math.round(y), Math.round(len), 1); }
         const Rr = rng(15); g.fillStyle = '#6A5A7E';
         for (let i = 0; i < 40; i++) { const y = hy + 6 + Rr() * (h - hy), x = (Rr() * w + (reduced ? 0 : T * (6 + (y - hy) * 0.08))) % w; g.fillRect(Math.round(x), Math.round(y), 3 + Math.round((y - hy) * 0.06), 1); }
@@ -306,7 +308,7 @@ export function makeStageShots(K) {
           const bx = lerp(fx, w * 0.46, fl), by = fl < 1 ? lerp(fy, h * 0.78, fl) - Math.sin(fl * Math.PI) * h * 0.42 : h * 0.78 - Math.abs(Math.sin(Math.min(1, (q - 1.1) / 0.4) * Math.PI)) * 8 * (q < 1.5 ? 1 : 0);
           if (tip && q < 1.3) { g.strokeStyle = 'rgba(230,230,210,0.7)'; g.lineWidth = 1; g.beginPath(); g.moveTo(tip[0], tip[1]); g.lineTo(bx, by - 8); g.stroke(); }
           const rot = fl < 1 ? q * 7 : 0.2;
-          g.save(); g.translate(bx, by); g.rotate(rot);
+          g.save(); g.translate(bx, by); g.rotate(rot); g.scale(1.7, 1.7);
           g.fillStyle = '#2A1C10'; g.fillRect(-7, -12, 8, 12); g.fillRect(-7, -3, 16, 6); g.fillStyle = '#4A3420'; g.fillRect(-6, -11, 3, 10); g.fillStyle = '#6A8A3A'; g.fillRect(2, -4, 5, 2);
           g.restore();
           if (q < 0.6) for (let i = 0; i < 8; i++) { const a = (i / 8) * Math.PI - Math.PI; disc(g, fx + Math.cos(a) * q * 40, fy - Math.sin(-a) * q * 30 + q * q * 60, 1.5, '#E8D8C8'); }
@@ -341,8 +343,9 @@ export function makeStageShots(K) {
         // the jump light, amber, blinking
         disc(g, w * 0.92, h * 0.16, 4, Math.floor(T * 1.5) & 1 ? '#FFB23A' : '#5A3A10');
         // bench
-        g.fillStyle = '#34401E'; g.fillRect(0, S.seat[1] - S.seatH, w, S.seatH);
-        g.fillStyle = '#4A5A2A'; g.fillRect(0, S.seat[1] - S.seatH, w, 3);
+        g.fillStyle = '#26301A'; g.fillRect(0, S.seat[1] - S.seatH - 4, w, 6);
+        g.fillStyle = '#56682E'; g.fillRect(0, S.seat[1] - S.seatH - 6, w, 3);
+        g.fillStyle = '#1C2414'; for (let x = 20; x < w; x += 70) g.fillRect(x, S.seat[1] - S.seatH, 4, S.seatH);
         g.fillStyle = '#15181A'; g.fillRect(0, S.seat[1], w, h - S.seat[1]);
       },
       front(g, S) {
@@ -372,9 +375,9 @@ export function makeStageShots(K) {
       const x = R() * (w + 80) - 40 - pan * (0.5 + R()), y = h * 0.3 + R() * h * 0.6, r = 8 + R() * 16, c = B.g[1 + Math.floor(R() * 3)];
       g.globalAlpha = 0.12 + R() * 0.12; disc(g, x, y, r, c); g.globalAlpha *= 0.8; disc(g, x - r * 0.2, y - r * 0.2, r * 0.6, B.g[4]); g.globalAlpha = 1;
     }
-    // a frame of dark leaves hanging into the corner opposite the speaker
+    // a frame of dark leaves hanging into the corner opposite the speaker (where anything grows)
     const lx = shot.side === 'right' ? 0 : w, sgn = shot.side === 'right' ? 1 : -1;
-    for (let i = 0; i < 9; i++) {
+    for (let i = 0; i < (['temperate', 'jungle', 'swamp'].includes(shot.biome) ? 9 : 0); i++) {
       const a = (i / 9) * 1.3 + 0.2, len = 30 + R() * 30, x = lx + sgn * (Math.cos(a) * len * 0.8), y = -6 + Math.sin(a) * len + Math.sin(T * 0.8 + i) * (reduced ? 0 : 1.5);
       g.fillStyle = i & 1 ? B.g[0] : B.g[1];
       g.beginPath(); g.ellipse(x, y, 16 + R() * 8, 6 + R() * 3, sgn * (a - 0.2), 0, Math.PI * 2); g.fill();
@@ -385,6 +388,10 @@ export function makeStageShots(K) {
       g.globalAlpha = 1;
     }
     weather(g, S, shot, B);
+    if (shot.weather === 'blizzard' && !reduced) {       // wind-driven snow streaks across the close-up
+      const Rs = rng(77); g.fillStyle = 'rgba(240,248,255,0.55)';
+      for (let i = 0; i < 40; i++) { const y = Rs() * h, len = 10 + Rs() * 24, x = ((Rs() * w - T * (260 + Rs() * 200)) % (w + 60) + w + 60) % (w + 60) - 30; g.fillRect(Math.round(x), Math.round(y + Math.sin(T * 3 + i) * 2), Math.round(len), 1); }
+    }
   }
 
   /** A field-radio screen with whoever is on the other end, in green */
@@ -409,7 +416,7 @@ export function makeStageShots(K) {
     drawText(g, who, x + 2, y + ph + 3, { font: '3x5', color: '#9CFF8A' });
     for (let i = 0; i < 4; i++) { const on = talking ? (Math.floor(T * 9) + i) % 4 !== 0 : i < 2; g.fillStyle = on ? '#9CFF8A' : '#2E4A2A'; g.fillRect(x + pw - 18 + i * 4, y + ph + 8 - i * 2, 3, 2 + i * 2); }
     // speech goes above the screen
-    scene.talkers[who] = [x + pw / 2, y - 2];
+    scene.talkers[who] = [x + pw / 2, y - 2, pw + 30];
   }
 
   return {
@@ -427,7 +434,7 @@ export function makeStageShots(K) {
         const x = Math.round(w * st.x), y = Math.round(h * (st.y ?? 0.9)) + bob;
         const { x0, y0 } = drawActor(this, g, S, a.who, f, x, y);
         if (f.anch?.rodTip) S.rodTip = [x0 + f.anch.rodTip[0], y0 + f.anch.rodTip[1]];
-        if (st.zzz && !S.reduced) for (let i = 0; i < 3; i++) { const q = (S.t * 0.5 + i / 3) % 1; g.globalAlpha = 1 - q; drawText(g, 'z', x0 + f.anch.top[0] + 10 + q * 14 + Math.sin(q * 6) * 3, y0 + f.anch.top[1] + 16 - q * 30, { color: '#E8F0E0', scale: 1 + Math.round(q), shadow: '#000' }); g.globalAlpha = 1; }
+        if (st.zzz && !S.reduced) for (let i = 0; i < 3; i++) { const q = (S.t * 0.5 + i / 3) % 1; g.globalAlpha = 1 - q; drawText(g, 'z', x0 + f.anch.top[0] + 10 + q * 14 + Math.sin(q * 6) * 3, y0 + f.anch.top[1] - 2 - q * 28, { color: '#E8F0E0', scale: 1 + Math.round(q), shadow: '#000' }); g.globalAlpha = 1; }
       }
       // off-screen voices come from a prop (the radio on the dock)
       if (shot.radio && S.radio) this.talkers[shot.radio] = S.radio;
@@ -444,7 +451,7 @@ export function makeStageShots(K) {
       const pose = talking ? 'talk' : listen, frame = talking ? Math.floor(S.speaking.lt / 0.45) % 3 : 0;
       const zoom = shot.zoom || Math.max(6, Math.round(h / 34));
       const brow = (shot.beats || []).reduce((b, x) => (t >= x.t && x.brow != null ? x.brow : b), shot.brow ?? 0);
-      const f = figure(type, pose, shot.dir ?? (shot.side === 'right' ? 5 : 3), frame, zoom, { bust: true, brow, yaw: shot.yaw, tilt: shot.tilt ?? -0.32 });
+      const f = figure(type, pose, shot.dir ?? 4, frame, zoom, { bust: true, brow, yaw: shot.yaw ?? (shot.inset ? (shot.side === 'right' ? 0.45 : -0.45) : 0), tilt: shot.tilt ?? -0.32 });
       const lb = Math.round(h * 0.1);
       const cx = shot.inset ? (shot.side === 'right' ? w * 0.7 : w * 0.3) : w * 0.5;
       const breath = S.reduced ? 0 : Math.round(Math.sin(S.T * 1.8) * 1);
@@ -461,8 +468,8 @@ export function makeStageShots(K) {
 /** Everything a cut's stage and close-up shots will render, done up front (a few tens of ms each). */
 export function preloadStage(shot, h) {
   if (shot.kind === 'closeup') {
-    const type = CAST_OF[shot.who] || shot.who, zoom = shot.zoom || Math.max(6, Math.round(h / 34)), dir = shot.dir ?? (shot.side === 'right' ? 5 : 3);
-    const o = { bust: true, brow: shot.brow ?? 0, yaw: shot.yaw, tilt: shot.tilt ?? -0.32 };
+    const type = CAST_OF[shot.who] || shot.who, zoom = shot.zoom || Math.max(6, Math.round(h / 34)), dir = shot.dir ?? 4;
+    const o = { bust: true, brow: shot.brow ?? 0, yaw: shot.yaw ?? (shot.inset ? (shot.side === 'right' ? 0.45 : -0.45) : 0), tilt: shot.tilt ?? -0.32 };
     figure(type, shot.listen || 'stand', dir, 0, zoom, o);
     for (let f = 0; f < 3; f++) figure(type, 'talk', dir, f, zoom, o);
     if (shot.inset) for (const [p, fr] of [['stand', 0], ['talk', 0], ['talk', 1], ['talk', 2]]) figure(CAST_OF[shot.inset] || shot.inset, p, 4, fr, 4.2, { bust: true, brow: 0, tilt: -0.3 });

@@ -184,7 +184,7 @@ function humanoid(r, d, st, opt) {
       r.ell(H.at(-1.1, 0, 3.1), [H.F, H.R], [6.4, 6.9, 4.2], M.helmet, Z.head);
       r.cyl(H.at(-1.1, 0, 1.4), H.at(-1.1, 0, 2.1), 7, M.helmet, Z.head);
     } else r.ell(H.at(-0.6, 0, 2.6), [H.F, H.R], [5.8, 6.4, 3.6], M.hair, Z.head);
-    if (gear.includes('bun')) r.ball(H.at(-5.4, 0, 3), 2.4, M.hair, Z.head);
+    if (gear.includes('bun')) { r.ball(H.at(-5.4, 0, 3), 2.4, M.hair, Z.head); for (const s2 of [-1, 1]) { r.ell(H.at(-0.5, s2 * 6.4, 1.2), [H.F, H.R], [2.6, 2.2, 3], M.hair, Z.head); r.ell(H.at(-2.4, s2 * 5.6, 3.8), [H.F, H.R], [2, 1.8, 2], M.hair, Z.head); } }
     if (gear.includes('headset')) {
       r.cap(H.at(0, -6.2, 0.6), H.at(0, -3.6, 5.8), 0.55, M.headset, Z.head); r.cap(H.at(0, -3.6, 5.8), H.at(0, 3.6, 5.8), 0.55, M.headset, Z.head); r.cap(H.at(0, 3.6, 5.8), H.at(0, 6.2, 0.6), 0.55, M.headset, Z.head);
       for (const s2 of [-1, 1]) r.ell(H.at(0, s2 * 6.3, -0.4), [H.F, H.R], [1.8, 0.9, 2], M.headset, Z.head);
@@ -201,7 +201,7 @@ function humanoid(r, d, st, opt) {
         r.ell(H.at(5.95, s * 2.25, -0.4), [H.F, H.R], [0.8, 1.85, 1.85], M.frame, Z.head);
         r.ell(H.at(6.2, s * 2.25, -0.4), [H.F, H.R], [0.6, 1.5, 1.5], M.lens, Z.head);
         r.ell(H.at(6.65, s * 2.05, -0.6), [H.F, H.R], [0.3, 0.55, 0.95], M.eye, Z.head);
-        r.cap(H.at(5.4, s * 3.9, 0), H.at(2.2, s * 5.8, 0.4), 0.3, M.frame, Z.head);
+        if (opt.brow == null) r.cap(H.at(5.4, s * 3.9, 0), H.at(2.2, s * 5.8, 0.4), 0.3, M.frame, Z.head);   // temple arms (map sprites only)
       }
       r.cap(H.at(6.3, -0.7, -0.1), H.at(6.3, 0.7, -0.1), 0.3, M.frame, Z.head);
     } else if (d.face === 'pilot') {

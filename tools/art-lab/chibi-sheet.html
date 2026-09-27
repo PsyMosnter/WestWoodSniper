@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Westwood Sniper — Chibi sprite sheet</title>
+<style>
+  body { margin: 0; background: #101311; color: #CFE6C8; font: 13px/1.45 ui-monospace, Menlo, monospace; }
+  section { padding: 6px 18px; }
+  h1 { font-size: 16px; color: #FFB23A; margin: 14px 18px 4px; }
+  h2 { font-size: 13px; color: #FFB23A; margin: 12px 0 4px; text-transform: uppercase; letter-spacing: .05em; }
+  canvas { image-rendering: pixelated; display: block; border: 1px solid #2A322B; }
+  .cap { color: #7F957C; font-size: 11px; margin-top: 2px; }
+</style>
+</head>
+<body>
+<h1>Chibi style — the game's sprites (src/render/spriteData/chibiInfantry.js)</h1>
+<section id="out"></section>
+<script type="module">
+import { renderChibi, CHIBI } from '../../src/render/spriteData/chibiInfantry.js';
+const out = document.getElementById('out');
+const q = new URLSearchParams(location.search), SC = +(q.get('sc') || 2);
+const TYPES = q.get('types') ? q.get('types').split(',') : Object.keys(CHIBI);
+const SAND = ['#A88B52', '#C2A56A', '#D8BF86', '#CDB27A'];
+function ground(g, w, h) { let s = 7; const r = () => ((s = (s * 16807) % 2147483647) / 2147483647); g.fillStyle = SAND[1]; g.fillRect(0, 0, w, h); for (let i = 0; i < w * h * 0.3; i++) { g.fillStyle = SAND[[0, 2, 3][Math.floor(r() * 3)]]; g.fillRect(Math.floor(r() * w), Math.floor(r() * h), 1, 1); } }
+const cache = new Map();
+function cv(t, p, d, f, v) { const k = [t, p, d, f, v].join('|'); let c = cache.get(k); if (c) return c; const r = renderChibi(t, p, d, f, v); c = r.pix.toCanvas(); c.ax = r.ax; c.ay = r.ay; cache.set(k, c); return c; }
+function strip(title, cells, cw, ch, anim) {
+  const s = document.createElement('div'); s.innerHTML = `<h2>${title}</h2>`; out.appendChild(s);
+  const c = document.createElement('canvas'); c.width = cells.length * cw; c.height = ch; c.style.width = c.width * SC + 'px'; c.style.height = ch * SC + 'px'; s.appendChild(c);
+  const g = c.getContext('2d'); g.imageSmoothingEnabled = false;
+  const paint = (t) => { ground(g, c.width, ch); cells.forEach((fn, i) => { const [ty, p, d, f, v] = fn(t); const im = cv(ty, p, d, f, v); g.drawImage(im, i * cw + cw / 2 - im.ax, ch - 12 - im.ay); }); };
+  paint(0);
+  if (anim) { const t0 = performance.now(); const loop = () => { paint((performance.now() - t0) / 1000); requestAnimationFrame(loop); }; requestAnimationFrame(loop); }
+}
+const POSES = [['idle', 0], ['walk', 6], ['run', 6], ['crouch', 0], ['cover', 0], ['fire', 2], ['pistol', 6], ['prone', 0], ['crawl', 4]];
+for (const ty of TYPES) {
+  strip(ty + ' — 8 facings idle · walk S · run E · crouch · cover · fire · pistol · prone · crawl',
+    [...[0, 1, 2, 3, 4, 5, 6, 7].map((d) => () => [ty, 'idle', d, 0, d === 4 ? 'gl-2' : '']),
+     ...POSES.slice(1).map(([p, n], i) => (t) => [ty, p, [4, 2, 3, 3, 5, 4, 2, 2][i], n ? Math.floor(t / 0.1) % n : 0, ''])], 40, 58, true);
+  for (const dk of ['shot', 'takedown', 'explosion'])
+    strip(ty + ' — death: ' + dk + ' (12 frames, facing SE)', Array.from({ length: 12 }, (_, f) => () => [ty, 'dead', 3, f, 'dk-' + dk + '|bl-coolant']), 56, 76, false);
+}
+</script>
+</body>
+</html>

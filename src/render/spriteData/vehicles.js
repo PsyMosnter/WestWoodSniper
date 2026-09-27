@@ -96,7 +96,7 @@ const worldCache = new Map();
 /** 8-direction stacked sprite. dir 0..7 (N..NW); state: 'ok'|'nodriver'|'wreck' (Classic draws 'nodriver' as 'ok') */
 export function vehicleSprite(type, dir, state = 'ok') {
   const np = Art.painter('vehicle', type);               // New art style, if this type has a redesign
-  const key = (np ? 'new|' : '') + type + dir + state;
+  const key = (np ? Art.source('vehicle', type) + '|' : '') + type + dir + state;
   let s = worldCache.get(key);
   if (s) return s;
   if (np) { s = np(dir, state); worldCache.set(key, s); return s; }
@@ -227,7 +227,7 @@ function scopeVehicle(type, view) {
 const scopeCache = new Map();
 export function vehicleScopeSprite(type, view) {
   const np = Art.painter('scopeVehicle', type);
-  const key = (np ? 'new|' : '') + type + view;
+  const key = (np ? Art.source('scopeVehicle', type) + '|' : '') + type + view;
   let s = scopeCache.get(key);
   if (s) return s;
   if (np) { s = np(view); scopeCache.set(key, s); return s; }

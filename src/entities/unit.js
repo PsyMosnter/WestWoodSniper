@@ -3,6 +3,7 @@ import { BALANCE } from '../config/balance.js';
 import { BLOOD } from '../config/palette.js';
 import { unitDef } from './defs.js';
 import { angleToDir8, dirIndex, dir8ToAngle } from '../world/tiles.js';
+import { Art } from '../render/artStyle.js';
 
 let NEXT_ID = 1;
 
@@ -118,8 +119,12 @@ export class Unit {
     return this.path.length === 0;
   }
   pose() {
-    if (this.dead) return { pose: 'dead', frame: Math.min(3, Math.floor(this.deathT / 0.12)) };
-    if (this.moving) return { pose: this.moveMode === 'run' ? 'run' : 'walk', frame: Math.floor(this.animT * (this.moveMode === 'run' ? 7 : 5)) & 3 };
+    if (this.dead) return { pose: 'dead', frame: Math.min(Art.frames('dead') - 1, Math.floor(this.deathT / Art.deadStep)) };
+    if (this.moving) {
+      // a cycle takes as long in every style; Newest just draws it in 6 frames instead of 4
+      const pose = this.moveMode === 'run' ? 'run' : 'walk', n = Art.frames(pose);
+      return { pose, frame: Math.floor(this.animT * (pose === 'run' ? 7 : 5) * n / 4) % n };
+    }
     if (this.firingT > 0) return { pose: 'fire', frame: 0 };
     if (this.state === 'combat' && this.coverSpot && this.tx === this.coverSpot.x && this.ty === this.coverSpot.y) return { pose: 'crouch', frame: 0 };
     return { pose: 'idle', frame: 0 };

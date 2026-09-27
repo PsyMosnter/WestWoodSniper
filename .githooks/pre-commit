@@ -1,0 +1,9 @@
+#!/bin/sh
+# Runs the unit tests and the map validator before every commit.
+# Skip once with `git commit --no-verify`.
+set -e
+echo "pre-commit: npm test"
+npm test --silent >/tmp/westwood-precommit.log 2>&1 || { tail -40 /tmp/westwood-precommit.log; echo "pre-commit: tests failed"; exit 1; }
+echo "pre-commit: npm run validate"
+npm run validate --silent >/tmp/westwood-precommit.log 2>&1 || { tail -40 /tmp/westwood-precommit.log; echo "pre-commit: map validator failed"; exit 1; }
+echo "pre-commit: ok"

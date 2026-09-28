@@ -463,6 +463,8 @@ export class EnemySystem {
       }
     }
     if (witnessed) this.alerts.raise(v.alertGroup, 'caution', 'kill witnessed', v);
+    // nobody noticed (and it wasn't fighting back): a clean kill
+    else if (v.killedByPlayer && v.state !== 'combat' && cause.by !== 'explosion') w.events.emit('cleanKill', { unit: v, cause });
   }
 
   /** Unaware enemies whose LOS passes over a corpse discover it (once). */

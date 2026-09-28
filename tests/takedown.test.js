@@ -26,6 +26,7 @@ function setup(o = {}) {
   g.combat = new CombatSystem(g); g.vehicles = new VehicleSystem(g); g.structures = new StructureSystem(g); g.enemies = new EnemySystem(g);
   g.takedown = new Takedown(g);
   g.world.events.on('noise', (n) => g.noises.push(n));
+  g.cleanKills = 0; g.world.events.on('cleanKill', () => g.cleanKills++);
   return g;
 }
 const tick = (g, secs) => { for (let t = 0; t < secs; t += DT) { g.world.time += DT; g.world.operative.update(DT); g.enemies.update(DT); } };
@@ -75,6 +76,7 @@ test('takedown ring: flat WREN crawls up on an unaware soldier and takes them do
   for (let t = 0; t < 30 && !u.dead; t += DT) { g.world.time += DT; op.update(DT); g.takedown.update(DT); }
   assert.ok(u.dead, 'taken down');
   assert.equal(g.takedown.stalking, null);
+  assert.ok(g.cleanKills >= 1, 'nobody saw: a clean kill');
   assert.equal(op.stance, 'hunker', 'stayed low all the way');
 });
 

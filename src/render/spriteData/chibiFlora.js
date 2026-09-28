@@ -67,7 +67,8 @@ function pine(seed, pal, bark, o = {}) {
 }
 
 function acacia(seed, pal, bark) {
-  const r = new Rng(seed), W = 44, H = 40, k = new Ink(W, H), ax = W / 2, ay = H - 3;
+  const r = new Rng(seed), W = 64, H = 62, k = new Ink(W, H), ax = W / 2, ay = H - 3;
+  k.scale(1.45); k.translate(-(ax - ax / 1.45), -(ay - ay / 1.45));
   for (const [dx, h2] of [[-9, 20], [8, 22]]) { k.stroke([[ax, ay], [ax + dx * 0.4, ay - 10], [ax + dx, ay - h2]], [4, 3, 2], OUT); k.stroke([[ax, ay], [ax + dx * 0.4, ay - 10], [ax + dx, ay - h2]], [2.4, 1.8, 1], bark[1]); }
   const crown = [[ax - 20, ay - 22], [ax - 12, ay - 30 - r.range(0, 3)], [ax, ay - 32], [ax + 12, ay - 31], [ax + 20, ay - 24], [ax + 10, ay - 20], [ax - 10, ay - 20]];
   const m = k.shape(crown, { fill: pal[2], line: OUT, lw: 2 });

@@ -52,7 +52,10 @@ export const CUTS = {
     shots: [
       { kind: 'caption', dur: 2.8, text: 'THE CONTINENT. 199X.' },
       { kind: 'ink', id: 'meteors', dur: 9.0, card: { at: 5.0, dur: 3.8, text: 'NULL OBJECTION TARGETS' } },
-      { kind: 'ink', id: 'tent', dur: 13.3 },
+      { kind: 'ink', id: 'tent', dur: 5.0 },
+      { kind: 'ink', id: 'tent', view: 'secretary', dur: 3.2 },
+      { kind: 'ink', id: 'tent', dur: 2.6 },
+      { kind: 'ink', id: 'tent', view: 'secretary', dur: 2.5 },
       { kind: 'ink', id: 'pin', dur: 8.4, slam: 7.2 },
       { kind: 'ink', id: 'dock', dur: 12.0, gag: 7.2 },
       { kind: 'titleSlam', dur: 3.4 },

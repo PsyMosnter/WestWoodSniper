@@ -1,4 +1,5 @@
 // @ts-check
+import { Art } from './artStyle.js';
 import { TERRAIN, OVERLAY, T, O } from '../world/tiles.js';
 import { buildTextures, BIOMES, TEX, EDGE_NOISE, EDGE_NOISE2 } from './tileArt.js';
 import { pack, shade, mix, unpack, packRgba, makeCanvas, Pix } from './pixel.js';
@@ -21,6 +22,7 @@ export class TerrainRenderer {
   constructor(map) {
     this.map = map;
     this.biome = BIOMES[map.biome] ? map.biome : 'temperate';
+    this.chibi = Art.style === 'chibi';
     this.B = BIOMES[this.biome];
     this.tex = buildTextures(this.biome);
     this.cw = Math.ceil(map.w / CH); this.ch = Math.ceil(map.h / CH);
@@ -223,6 +225,8 @@ export class TerrainRenderer {
           if (hash2(X + x, Y + y, 3) < 0.05) P.px(X + x, Y + y, floor[(hash2(X + x, Y + y, 4) * 3) | 0]);
         }
       }
+      // raised ground catches more light: a touch lighter per level
+      if (e > 0 && !m.cliff[ti]) for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) P.mulPx(X + x, Y + y, 1 + Math.min(2, e) * 0.07);
       // cliff faces
       if (m.cliff[ti]) this._cliff(P, tx, ty, e);
       // lips on N / W plateau edges and creases on the lower side
@@ -351,7 +355,8 @@ export class TerrainRenderer {
     }
     if (eDiff > 0) {
       const faceW = eDiff >= 2 ? 8 : 6;
-      const contU = eastAt(tx, ty - 1), contD = eastAt(tx, ty + 1);
+      const contU = eastAt(tx, ty - 1) || eastAt(tx + 1, ty - 1) || eastAt(tx - 1, ty - 1) || southAt(tx + 1, ty - 1);
+      const contD = eastAt(tx, ty + 1) || eastAt(tx - 1, ty + 1) || eastAt(tx + 1, ty + 1);
       const yEnd = sDiff > 0 ? 16 + Math.round(ext * 0.7) : 16;
       for (let y = 0; y < yEnd; y++) {
         const wy = Y + y;
@@ -385,27 +390,32 @@ export class TerrainRenderer {
     const d = m.rampDir[ty * W + tx];
     const X = tx * TILE, Y = ty * TILE;
     const R = this.rock;
-    const earth = [pack('#4E3C28'), pack('#76603E'), pack('#9C8256'), pack('#C4A874')];
+    const earth = [pack('#5A452C'), pack('#7E6644'), pack('#9C8256'), pack('#BCA072')];
     const vertical = d === 0 || d === 2;
-    // stone curbs on the ramp's outer edges only (a wide ramp is one slope), walls where higher ground flanks it
     const nb = (sx, sy) => { const nx = tx + sx, ny = ty + sy; return m.inb(nx, ny) ? ny * W + nx : -1; };
     const [a, b] = vertical ? [nb(-1, 0), nb(1, 0)] : [nb(0, -1), nb(0, 1)];
     const rampA = a >= 0 && m.rampDir[a] === d, rampB = b >= 0 && m.rampDir[b] === d;
     const wallA = a >= 0 && m.elev[a] > e, wallB = b >= 0 && m.elev[b] > e;
+    // a worn earth slope: darker at the foot, sunlit near the top, soft irregular treads, ragged edges that fade
+    // into the ground; where higher ground flanks it, a rock wedge shows the rise
     for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
-      const along = d === 0 ? 1 - y / 15 : d === 2 ? y / 15 : d === 1 ? x / 15 : 1 - x / 15;   // 0 at the foot, 1 at the top
-      const across = vertical ? x : y;
-      const stepPos = Math.floor(along * 16);
-      let c = mix(P.get(X + x, Y + y), earth[2], 0.75);
-      if (hash2(X + x, Y + y, 190) < 0.1) c = earth[3];
-      if (stepPos % 4 === 0) c = earth[0];                                   // terrace edge
-      else if (stepPos % 4 === 1) c = earth[3];                              // its lit tread
-      c = shade(c, 0.82 + along * 0.3);
-      if (!rampA && across <= 1) c = wallA ? (across === 0 ? R[0] : R[2]) : (across === 0 ? R[1] : R[3]);
-      if (!rampB && across >= 14) c = wallB ? (across === 15 ? R[0] : R[2]) : (across === 15 ? R[1] : R[3]);
-      P.px(X + x, Y + y, c);
+      const along = d === 0 ? 1 - y / 15 : d === 2 ? y / 15 : d === 1 ? x / 15 : 1 - x / 15;
+      const across = vertical ? x : y, wx = X + x, wy = Y + y;
+      const n = EDGE_NOISE[(wy & 63) * TEX + (wx & 63)];
+      const edgeA = rampA ? 99 : across, edgeB = rampB ? 99 : 15 - across, edge = Math.min(edgeA, edgeB);
+      const fade = edge < 3 ? edge / 3 + n * 0.3 : 1;                              // blend out at the outer edges
+      if (fade < 0.5 && hash2(wx, wy, 191) > fade * 1.6) continue;
+      let c = along > 0.72 ? earth[3] : along > 0.35 ? earth[2] : earth[1];
+      if (n < 0.28) c = earth[Math.max(0, (along > 0.35 ? 2 : 1) - 1)];
+      const tread = (along * 3 + n * 0.35) % 1;                                    // three soft treads, wavy
+      if (tread < 0.08) c = earth[0];
+      if (hash2(wx, wy, 190) < 0.06) c = earth[3];
+      const wedge = Math.round(along * 5);                                          // the rise: a wedge of rock
+      if ((wallA && !rampA && across < wedge) || (wallB && !rampB && 15 - across < wedge)) c = R[(across + wy) % 3 === 0 ? 1 : 2];
+      P.px(wx, wy, c);
     }
   }
+
 
 
   _decorate(P, tx, ty, t) {
@@ -501,6 +511,7 @@ export class TerrainRenderer {
     } else {
       bag(X, Y + 9, 6); bag(X + 5, Y + 9, 6); bag(X + 10, Y + 9, 6);
       bag(X + 2, Y + 6, 6); bag(X + 8, Y + 6, 6);
+      if (this.chibi) { bag(X, Y + 3, 6); bag(X + 5, Y + 3, 6); bag(X + 10, Y + 3, 6); bag(X + 3, Y, 6); bag(X + 8, Y, 6); }   // stacked high for chibi-sized soldiers
     }
   }
 

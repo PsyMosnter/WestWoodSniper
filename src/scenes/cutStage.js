@@ -134,7 +134,13 @@ export function drawSpeech(ctx, text, x, y, color, W, top, wrap = 230) {
   const M = 16, maxW = Math.min(W - 2 * M, wrap);
   const rows = wrapText(text, maxW);
   const lh = 9;
-  let yy = Math.max(top + 2, y - 6 - rows.length * lh);
+  let yy = Math.max(top + 8, y - 6 - rows.length * lh);
+  // a dark plate behind the lines so they read over any background
+  const widest = Math.max(0, ...rows.map((r) => measureText(r)));
+  if (widest && ctx.fillRect) {
+    const px = Math.max(M, Math.min(W - widest / 2 - M, x) - widest / 2) - 4;
+    ctx.fillStyle = 'rgba(6,6,10,0.55)'; ctx.fillRect(Math.round(px), yy - 3, widest + 8, rows.length * lh + 4);
+  }
   for (const row of rows) {
     const rw = measureText(row);
     const cx = Math.max(rw / 2 + M, Math.min(W - rw / 2 - M, x));

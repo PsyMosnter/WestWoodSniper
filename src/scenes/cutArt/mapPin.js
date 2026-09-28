@@ -48,11 +48,13 @@ export function pinShot(k, t, st, shot) {
   const tip = t < slam ? [lerp(hover[0] - 90, target[0], down), lerp(hover[1] + 60, target[1], down)] : target;
   const pinStuck = t >= slam;
   if (pinStuck) {
-    k.stroke([[target[0], target[1]], [target[0] - 3, target[1] - 16]], 2, INK);
-    k.ellipse(target[0] - 3, target[1] - 17, 4.5, 4.5, 0, { fill: '#C8B070', line: INK, lw: 1 });
-    const fl = k.shape([[target[0] - 2, target[1] - 16, 1], [target[0] + 14, target[1] - 13, 1], [target[0] - 1, target[1] - 9, 1]], { fill: '#7C8A44', line: INK, lw: 1, smooth: false });
-    void fl;
-    if (t < slam + 0.5) { for (let i = 0; i < 6; i++) { const a = (i / 6) * Math.PI * 2, r = 6 + (t - slam) * 40; k.stroke([[target[0] + Math.cos(a) * r * 0.6, target[1] + Math.sin(a) * r * 0.35], [target[0] + Math.cos(a) * r, target[1] + Math.sin(a) * r * 0.6]], 1.5, '#FFF0C8'); } st.shake = 2; }
+    // one big red-flagged pin, still quivering, a ring of dust knocked off the map
+    const q = t - slam, wob = Math.sin(q * 30) * 3 * Math.exp(-q * 4);
+    if (q < 0.9) { for (let i = 0; i < 10; i++) { const a = (i / 10) * Math.PI * 2, r = 8 + q * 60; k.ellipse(target[0] + Math.cos(a) * r, target[1] + Math.sin(a) * r * 0.5, 3 * (1 - q), 2 * (1 - q), 0, { fill: '#D8C898' }); } k.ellipse(target[0], target[1], 10 + q * 40, 5 + q * 20, 0, { line: '#FFF0C8', lw: 1 }); }
+    if (q < 0.3) st.shake = 3;
+    k.stroke([[target[0], target[1]], [target[0] - 5 + wob, target[1] - 30]], 3, INK);
+    k.ellipse(target[0] - 5 + wob, target[1] - 32, 7, 7, 0, { fill: '#D8C080', line: INK, lw: 2 });
+    k.shape([[target[0] - 4 + wob, target[1] - 30, 1], [target[0] + 26 + wob, target[1] - 25, 1], [target[0] - 2 + wob, target[1] - 16, 1]], { fill: '#D0402E', line: INK, lw: 2, smooth: false });
   }
   if (leave < 1) {
     const hx = pinStuck ? hover[0] - 60 : tip[0] + 38, hy = pinStuck ? hover[1] + 20 : tip[1] - 34;
@@ -73,6 +75,6 @@ export function pinShot(k, t, st, shot) {
   }
   // cigar smoke drifting across the light
   for (let i = 0; i < 7; i++) { const q = (t * 0.06 + i / 7) % 1; k.tint(k.ellipse(480 - q * 560, 60 + Math.sin(q * 6 + i) * 20 + i * 8, 30 + q * 20, 8 + q * 6, 0.1, { paint: false }), '#D8D0C0', 0.18 * Math.sin(q * Math.PI)); }
-  st.talkers = { COLONEL: [360, 40], SECRETARY: [120, 40] };
+  st.talkers = { COLONEL: [120, 232], SECRETARY: [120, 232] };
   return st;
 }

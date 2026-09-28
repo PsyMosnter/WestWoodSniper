@@ -177,6 +177,21 @@ Format: date · milestone · decision · reason.
 - **Intro, hand-inked** (Ink illustrator, `src/scenes/cutArt/`): the night they came (NOT pods falling like meteors on the far bank, fires, the N.O.T. title card) → the Colonel, lamp-lit, looming over the map table with his secretary chiming in (his shadow huge on the canvas, a flap open onto the night) → one khaki pin slammed into the west bank → WREN fishing at dawn (god rays, mist, pollen), the radio calls, he's "retired", he's "bored", he reels in a boot. New cutscene shot kind `'ink'`; shots fit any aspect (contain), speech anchors come from the drawing.
 - **Chibi is the default and final look** (saves move to it once — save v3; a later choice sticks). Vehicles at chibi scale (the New models rendered 1.75×, cel-filtered, hit zones scaled with them); buildings get south walls twice as tall (1.5× for already-tall faces) so doors fit the soldiers — footprints and gameplay unchanged, snipeable zones move with the wall. Trees redrawn with the Ink illustrator at the soldiers' scale: round cel-shaded crowns, tiered pines (snow-capped in the Alpine), acacias, palms, dead trees.
 - **Mountains**: south rock faces run on down into the tile below (a one-level step reads as a wall ~2 tiles thick), with ragged feet, vertical ridges and striations (no bricks), varied heights, rounded where a face really ends; east faces spill over too. **Ramps** are widened to 3 tiles on every map (automatically, where the ground beside them meets the same step) and drawn as bright terraced earth slopes with curbs on their outer edges only. **From a ramp** you see up to 3 tiles over the crest, as if one level higher.
+- **Critic review (one pass, medium depth; pass mark 8): 6.5/10.** Fixed afterwards from its list:
+  - Ramps no longer look like pallets: worn earth with soft wavy treads, edges that fade into the ground, and a rock wedge where higher ground flanks them.
+  - Staircase edges join into one wall instead of separate stubs.
+  - Raised ground is lit a little lighter per level, so hills read.
+  - Building walls are 3× for short faces and 2.5× for medium ones, so doors fit the soldiers.
+  - One-tile towers and pylons stand 1.8× taller, and sandbags stack two rows high.
+  - Acacias are 1.45× bigger.
+  - The Colonel's lamp hangs off his cap's axis, with a stronger pool of light and a darker vignette.
+  - The secretary's lines cut to an over-the-shoulder close-up of her.
+  - The fists have knuckles, and warmer skin.
+  - The pin is big, with a red flag, and quivers in a ring of dust.
+  - The dock eases in on the boot.
+  - Speech sits 8 px below the letterbox on a dark plate; on the map shot it goes to the clear lower left.
+
+  Still open: east/west ramps read as a strip seen from above, diagonal cliff edges still step tile by tile, and trees in front of a cliff hide its face.
 - **Gameplay**: the minimap marks every objective on every mission (areas; structures to destroy; people to free or escort; a unit to kill while it is in sight). The briefing can be read again from the pause menu (BRIEFING; the pause menu falls back to two columns on short screens). First Light: a dirt trail leads from the start up to the hill's ramp; a tall-grass spur of the hill now reaches down to the river, and the ford sentry stands in the shallows — 8 tiles from the spur's tip, in range for a hunkered shot.
 
 ## Hosting

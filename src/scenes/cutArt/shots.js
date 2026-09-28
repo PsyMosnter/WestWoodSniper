@@ -7,7 +7,7 @@
 import { INK, rng, vgrad, cloud, streakPts, cloudPts, forest, reeds, rim, crescent, screen, clamp01 } from './paint.js';
 import { wrenHead, wrenBody, wrenRodArm, WC } from './wren.js';
 import { vraskShot } from './vrask.js';
-import { tentShot } from './tent.js';
+import { tentShot, secretaryShot } from './tent.js';
 import { meteorShot } from './meteors.js';
 import { pinShot } from './mapPin.js';
 
@@ -35,7 +35,7 @@ export const SHOTS = {
   /** Intro: GOD field HQ — the Colonel leans over the map table at us; his secretary chimes in. */
   tent: {
     demo: [[0.4, 'COLONEL', "...because the whole world agrees that we don't like them very much."], [5.0, 'SECRETARY', "Yeah, they're not too nice, are they?"], [8.2, 'COLONEL', "So it's OK to shoot them."], [10.8, 'SECRETARY', 'Yeah. Shoot them.']],
-    draw(k, t, st) { frame(k, () => tentShot(k, t, st), st); return st; },
+    draw(k, t, st, shot) { frame(k, () => (shot?.view === 'secretary' ? secretaryShot(k, t, st) : tentShot(k, t, st)), st); return st; },
   },
   /** M3 cutaway: Vrask from the snow at his boots, arms folded, the storm and his Husks behind him. */
   vrask: {
@@ -48,6 +48,9 @@ export const SHOTS = {
     draw(k, t, st, shot) {
       const gag = shot?.gag ?? 99, yank = Math.max(0, Math.min(1, (t - gag - 0.5) / 0.3)), caught = t > gag + 0.5;
       frame(k, () => {
+        // after the catch the camera eases in on the boot and WREN's face
+        const push = 1 + 0.14 * Math.min(1, Math.max(0, (t - gag - 0.6) / 1.6)) ** 2;
+        k.translate(380, 110); k.scale(push); k.translate(-380, -110);
         // --- sky, sun, clouds
         k.rect(-60, -10, 600, 190, { fill: { grad: [[0, '#1E1840'], [0.28, '#3E2A5E'], [0.52, '#8E466C'], [0.72, '#D8705C'], [0.87, '#F4A866'], [1, '#FCDC98']], from: [0, 0], to: [0, 172 * k.h / 270] } });
         k.tint(k.ellipse(412, 168, 38, 26, 0, { paint: false }), '#FFD890', 0.5);

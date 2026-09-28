@@ -9,7 +9,7 @@ export const GC = {
   canvas: ['#6E6844', '#524C30', '#3A3620', '#24200F'],
   uniform: ['#A6AC74', '#747C4C', '#50562F', '#32361C'],
   gold: ['#FFEEA8', '#E2B444', '#9A7020', '#5E4410'],
-  skin: ['#FFD8B8', '#EAA084', '#BA6A5A', '#80403E'],
+  skin: ['#FFD4AC', '#DE9670', '#A85E48', '#6E3A30'],
   tache: ['#FAFAF2', '#CFCFC6', '#94948C', '#5E5E58'],
   wood: ['#9A6A3E', '#74482A', '#4E2E1A', '#2E1A0E'],
   paper: ['#F2E6BC', '#DACA96', '#B4A474', '#857650'],
@@ -63,11 +63,11 @@ export function tentShot(k, t, st) {
   // --- the secretary, clipboard at the ready (background right)
   secretary(k, t, st);
   // --- the lamp's light falls on him: a visible cone with dust turning in it
-  const lxs = 214 + Math.sin(swing) * 60;
+  const lxs = 318 + Math.sin(swing) * 60;
   const cone = k.shape([[lxs - 14, 40], [lxs + 14, 40], [lxs + 150, 214], [lxs - 150, 214]], { paint: false });
   k.tint(cone, '#FFE0A0', 0.13);
   for (let i = 0; i < 26; i++) { const q = (t * 0.05 + R()) % 1, x = lxs - 90 + R() * 180 + Math.sin(t + i) * 6, y = 60 + q * 150; if (cone.has(Math.round(k.T([x, y])[0]), Math.round(k.T([x, y])[1]))) k.rect(Math.round(x), Math.round(y), 1, 1, { fill: '#FFF0C8' }); }
-  glow(k, 214, 70, 170, 150, '#FFD890', 0.24);
+  glow(k, 318 - 40, 90, 190, 150, '#FFD890', 0.3);
   // --- THE GENERAL
   general(k, t, mouth, talking);
   // --- the table in front: the map of the Varna, pins, a mug, his fists
@@ -90,11 +90,11 @@ export function tentShot(k, t, st) {
   for (let i = 0; i < 4; i++) { const q = (t * 0.5 + i / 4) % 1; k.tint(k.ellipse(416 + Math.sin(q * 6 + i) * 4, 184 - q * 40, 3 + q * 5, 2 + q * 3, 0, { paint: false }), '#D8D0C0', 0.5 * (1 - q)); }
   // lamp-lit: the corners fall away into the dark
   const all = k.rect(-60, -10, 600, 290, { paint: false });
-  const c0 = k.T([220, 120]);
-  k.tint(all, '#0C0906', (X, Y) => Math.min(0.7, Math.max(0, (Math.hypot((X - c0[0]) / 1.3, Y - c0[1]) - 130 * k.k) / (180 * k.k))));
+  const c0 = k.T([318 - 60, 130]);
+  k.tint(all, '#0C0906', (X, Y) => Math.min(0.8, Math.max(0, (Math.hypot((X - c0[0]) / 1.3, Y - c0[1]) - 110 * k.k) / (150 * k.k))));
   // the lamp itself, swinging on its flex, in front of it all
-  const lx = 214 + Math.sin(swing) * 60, ly = 22;
-  k.stroke([[214, -10], [lx, ly]], 1.4, INK);
+  const lx = 318 + Math.sin(swing) * 60, ly = 22;
+  k.stroke([[318, -10], [lx, ly]], 1.4, INK);
   const shade = k.shape([[lx - 7, ly, 1], [lx + 7, ly, 1], [lx + 20, ly + 16, 1], [lx - 20, ly + 16, 1]], { fill: '#2E3226', line: INK, lw: 2, smooth: false });
   k.save(); k.clip(shade); rim(k, shade, 0, -2, '#6E765A'); k.restore();
   k.ellipse(lx, ly + 17, 7, 3, 0, { fill: '#FFF6C8' });
@@ -145,7 +145,7 @@ function fist(k, x, y, side) {
   const f = k.shape([[-30, -9], [-10, -12], [12, -12], [30, -9], [34, 6], [30, 20], [-30, 20], [-34, 6]], { fill: GC.skin[1], line: INK, lw: 3 });
   k.save(); k.clip(f);
   k.shape([[-40, 10], [40, 10], [40, 24], [-40, 24]], { fill: GC.skin[2] });                     // fingertips curled under, in shade
-  for (let i = 0; i < 4; i++) { const fx = -30 + i * 15; k.ellipse(fx + 7.5, -6, 6, 4, 0, { fill: GC.skin[0] }); if (i) k.stroke([[fx, -10], [fx + 1, 8], [fx, 20]], [2, 1.6, 1], GC.skin[3]); }
+  for (let i = 0; i < 4; i++) { const fx = -30 + i * 15; k.ellipse(fx + 7.5, -5, 6.5, 4.5, 0, { fill: GC.skin[0] }); k.ellipse(fx + 7.5, -3, 4, 2, 0, { fill: GC.skin[1] }); if (i) k.stroke([[fx, -11], [fx + 1, 8], [fx, 20]], [2.4, 2, 1.2], GC.skin[3]); k.stroke([[fx + 3, 6], [fx + 12, 6]], 1, GC.skin[2]); }
   rim(k, f, 0, -2, GC.skin[0]);
   k.restore();
   const th = k.shape([[side * -36, 0], [side * -14, -2], [side * 4, 4], [side * 6, 12], [side * -6, 16], [side * -34, 14]], { fill: GC.skin[1], line: INK, lw: 2 });
@@ -221,4 +221,31 @@ function general(k, t, mouth, talking) {
   for (const sd of [-1, 1]) k.shape([[240 + sd * 10, 58], [240 + sd * 30, 52], [240 + sd * 28, 60], [240 + sd * 12, 64]], { fill: C.gold[1], line: INK, lw: 1 });
   const peak = k.shape([[182, 84], [298, 84], [292, 94], [240, 102], [188, 94]], { fill: '#18181C', line: INK, lw: 2 });
   k.save(); k.clip(peak); k.stroke([[204, 88], [240, 92], [270, 88]], [1, 2.5, 1], '#7A7A86'); k.restore();
+}
+
+/** The cut-in for the secretary's lines: over the Colonel's shoulder, she beams at him, clipboard up. */
+export function secretaryShot(k, t, st) {
+  const R = rng(8);
+  k.rect(-60, -10, 600, 290, { fill: { grad: [[0, GC.canvas[3]], [0.5, GC.canvas[2]], [1, GC.canvas[1]]], from: [0, 0], to: [0, 270 * k.k] } });
+  for (let i = -1; i < 9; i++) { const x = i * 70 + 30; k.stroke([[x, -10], [x + 4, 290]], [2, 3], GC.canvas[3]); k.stroke([[x + 5, -10], [x + 9, 290]], 1, GC.canvas[0]); }
+  // the wall map behind her, soft and dark; the lamp glow on the canvas
+  const wm = k.shape([[300, 40], [440, 34], [444, 150], [304, 156]], { fill: GC.paper[2], line: INK, lw: 2 });
+  k.save(); k.clip(wm); k.stroke([[380, 30], [366, 90], [384, 160]], 4, '#4A6E88'); for (let i = 0; i < 10; i++) k.ellipse(400 + R() * 36, 50 + R() * 90, 2.4, 2.4, 0, { fill: '#6A3AA8' }); k.restore();
+  glow(k, 250, 60, 240, 160, '#FFD890', 0.3);
+  // her, big: a nod when she speaks
+  k.save(); k.translate(-470, -44); k.scale(1.9);
+  secretary(k, t, st);
+  k.restore();
+  // the Colonel's shoulder and cap in the near left, in silhouette with a warm rim
+  const sh = k.shape([[-60, 290], [-60, 150], [20, 120], [110, 132], [150, 190], [160, 290]], { fill: '#2A2E1A', line: INK, lw: 3 });
+  k.save(); k.clip(sh); k.stroke([[0, 128], [100, 136], [140, 180]], 3, '#8A6A3A'); k.restore();
+  k.shape([[30, 124, 1], [96, 128, 1], [92, 140, 1], [34, 138, 1]], { fill: GC.gold[2], line: INK, lw: 2, smooth: false });
+  const cap = k.shape([[-20, 60], [0, 20], [60, 6], [120, 20], [140, 60], [120, 76], [0, 76]], { fill: '#262A18', line: INK, lw: 3 });
+  k.save(); k.clip(cap); k.stroke([[20, 18], [80, 10], [130, 40]], 3, '#8A7A4A'); k.restore();
+  k.shape([[-30, 74], [150, 74], [140, 86], [-20, 86]], { fill: '#101010', line: INK, lw: 2 });
+  for (let i = 0; i < 5; i++) { const q = (t * 0.3 + i / 5) % 1; k.tint(k.ellipse(150 + q * 120, 110 - q * 90 + Math.sin(q * 6 + i) * 8, 6 + q * 14, 4 + q * 8, 0, { paint: false }), '#C8C0B0', 0.4 * (1 - q)); }
+  const all = k.rect(-60, -10, 600, 290, { paint: false }), c0 = k.T([300, 120]);
+  k.tint(all, '#0C0906', (X, Y) => Math.min(0.75, Math.max(0, (Math.hypot((X - c0[0]) / 1.3, Y - c0[1]) - 120 * k.k) / (170 * k.k))));
+  st.talkers = { SECRETARY: [318, 56], COLONEL: [70, 40] };
+  return st;
 }

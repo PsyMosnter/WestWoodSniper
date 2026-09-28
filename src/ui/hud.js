@@ -1,4 +1,5 @@
 // @ts-check
+import { missionLevel } from '../strike/recon.js';
 import { C } from '../config/palette.js';
 import { drawText, measureText, wrapText } from '../render/font.js';
 import { icon } from '../render/spriteData/icons.js';
@@ -30,6 +31,7 @@ export class Hud {
     b({ id: 'c4', icon: 'c4', label: 'C4', onPress: () => game.cmd('c4') });
     b({ id: 'designator', icon: 'designator', label: 'STRIKE', onPress: () => game.cmd('designator') });
     b({ id: 'recon', icon: 'recon', label: 'RECON', onPress: () => game.cmd('recon') });
+    b({ id: 'medkit', icon: 'medkit', label: 'MEDKIT', onPress: () => game.cmd('medkit') });
     b({ id: 'centre', icon: 'centre', label: '', onPress: () => game.cmd('centre') });
     b({ id: 'pause', icon: 'pause', label: '', onPress: () => game.cmd('pause') });
     b({ id: 'save', icon: 'save', label: '', onPress: () => game.cmd('quicksave') });
@@ -55,20 +57,21 @@ export class Hud {
     const bs = this.buttons;
     const mmW = 96, mmH = 72;
     this.minimap.layout(W - m - mmW - 2, Tt + m + 2, mmW, mmH);
-    // actions: a 3×2 grid under the minimap — R&GUN COVER TAKEDOWN / HUNKER SMOKE C4 — plus a row under it,
-    // filled from the right, for STRIKE / ADVANCE / FOLLOW once a mission has them
+    // actions: a 3×3 grid under the minimap, the most used down the right-hand column (under the thumb):
+    //   SMOKE  COVER  HUNKER / MEDKIT  C4  TAKEDOWN / STRIKE (mission 5+)  RECON (mission 2+)  R&GUN
+    // plus a row under it, filled from the right, for ADVANCE / FOLLOW once a mission has them
     const rowY = Tt + m + mmH + 8;
     const extras = this._extras();
-    const rows = 2 + (extras.length ? 1 : 0);
+    const rows = 3 + (extras.length ? 1 : 0);
     const sb = Math.min(B, 36), sy = H - m - sb;              // system row, bottom right
     const avail = sy - g - rowY;
     const gs = Math.max(24, Math.min(B, Math.floor((mmW + 2 - 2 * g) / 3), Math.floor((avail - (rows - 1) * g) / rows)));
     const gx = (c) => W - m - (3 - c) * gs - (2 - c) * g;
     const gy = (r) => rowY + r * (gs + g);
-    bs.runGun.place(gx(0), gy(0), gs, gs); bs.cover.place(gx(1), gy(0), gs, gs); bs.takedown.place(gx(2), gy(0), gs, gs);
-    bs.hunker.place(gx(0), gy(1), gs, gs); bs.smoke.place(gx(1), gy(1), gs, gs);
-    bs.c4.place(gx(2), gy(1), gs, gs); bs.detonate.place(gx(2), gy(1), gs, gs);
-    extras.forEach((id, i) => bs[id].place(gx(2 - i), gy(2), gs, gs));
+    bs.smoke.place(gx(0), gy(0), gs, gs); bs.cover.place(gx(1), gy(0), gs, gs); bs.hunker.place(gx(2), gy(0), gs, gs);
+    bs.medkit.place(gx(0), gy(1), gs, gs); bs.c4.place(gx(1), gy(1), gs, gs); bs.detonate.place(gx(1), gy(1), gs, gs); bs.takedown.place(gx(2), gy(1), gs, gs);
+    bs.designator.place(gx(0), gy(2), gs, gs); bs.recon.place(gx(1), gy(2), gs, gs); bs.runGun.place(gx(2), gy(2), gs, gs);
+    extras.forEach((id, i) => bs[id].place(gx(2 - i), gy(3), gs, gs));
     bs.plant.place(L + m + 150, H - m - B, 2 * B, B);
     // system row along the bottom edge, flush right: ZOOM SAVE PAUSE CENTRE
     const sx = (i) => W - m - (4 - i) * sb - (3 - i) * g;
@@ -143,7 +146,8 @@ export class Hud {
   /** mission buttons under the grid, right to left: STRIKE, ADVANCE, FOLLOW */
   _extras() {
     const op = this.world.operative, g = this.game;
-    return [op.designator > 0 && 'designator', op.recon > 0 && 'recon', !!g.convoy && 'convoy', (g.escortCount?.() || 0) >= 2 && 'follow'].filter(Boolean);
+    void op;
+    return [!!g.convoy && 'convoy', (g.escortCount?.() || 0) >= 2 && 'follow'].filter(Boolean);
   }
   syncButtons() {
     const op = this.world.operative, bs = this.buttons, g = this.game;
@@ -153,8 +157,11 @@ export class Hud {
     // the grid is fixed: C4 / SMOKE / TAKEDOWN stay in place, greyed out when not usable
     bs.c4.visible = !g.remoteArmed; bs.c4.enabled = op.c4 > 0; bs.c4.badge = op.c4 > 0 ? '×' + op.c4 : ''; bs.c4.active = g.mode === 'c4';
     bs.detonate.visible = !!g.remoteArmed;
-    bs.designator.visible = op.designator > 0; bs.designator.badge = '×' + op.designator; bs.designator.active = g.mode === 'designator';
-    bs.recon.visible = op.recon > 0; bs.recon.badge = '×' + (op.recon || 0); bs.recon.active = g.mode === 'recon';
+    // the last row fills in as the campaign goes on; used up, a button stays, greyed out
+    const lvl = missionLevel(g.missionId);
+    bs.designator.visible = lvl >= 5 || op.designator > 0; bs.designator.enabled = op.designator > 0; bs.designator.badge = op.designator > 0 ? '×' + op.designator : ''; bs.designator.active = g.mode === 'designator';
+    bs.recon.visible = lvl >= 2 || op.recon > 0; bs.recon.enabled = op.recon > 0; bs.recon.badge = op.recon > 0 ? '×' + op.recon : ''; bs.recon.active = g.mode === 'recon';
+    bs.medkit.visible = true; bs.medkit.enabled = op.medkits > 0; bs.medkit.badge = op.medkits > 0 ? '×' + op.medkits : '';
     bs.smoke.visible = true; bs.smoke.enabled = op.smoke > 0; bs.smoke.badge = op.smoke > 0 ? '×' + op.smoke : '';
     bs.convoy.visible = !!g.convoy; if (g.convoy) { bs.convoy.label = g.convoy.advancing ? 'HOLD' : 'ADVANCE'; bs.convoy.active = g.convoy.advancing; }
     bs.follow.visible = (g.escortCount?.() || 0) >= 2; bs.follow.label = g.escortsHolding?.() ? 'FOLLOW' : 'HOLD';

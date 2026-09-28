@@ -205,11 +205,29 @@ Format: date · milestone · decision · reason.
   - Ramps widen to 3 tiles. At plateau corners, where there's no ground beside them, they carve the neighbouring edge tile down instead.
 - **Rock**: faces are rounded boulder chunks lit from the upper left, with dark crevices, boulders bulging over the rim and grass tufts at the foot. Plateau north edges get a rocky rim. West-facing side faces show on the lower tile. Raised ground is 11 % lighter per level, applied before any rock is drawn, so spilled faces stay dark.
 
+## Terrain relief, rebuilt (owner playtest 5)
+
+- **A smooth height field instead of tile-by-tile rock** (`TerrainRenderer._levelAt / _relief`):
+  - Every pixel has a height. Tile corners are rounded (outer corners cut back, inner corners filled in, radius ~8 px) and every edge wobbles a little, so nothing is ruler-straight.
+  - A ramp is a fraction between its levels over two tiles: the tile at its foot takes 40 % of the climb.
+  - Ground tone follows the height: 14 % lighter per level, and ramps dither from one tone to the next, dark below and light above.
+  - Only an abrupt drop is an edge. From there a rock face rises into the higher ground, 22 px per level: lit boulders with a bright crown, a shaded base, occasional deep cracks, and a foot that melts into the ground below (no band at the tile's bottom). Scree, tufts and a soft contact shadow sit at the foot.
+  - Drops to the east and west show narrower side walls. Along a ramp the drop shrinks, so its walls taper to nothing. North edges get a dark line and a lit rim.
+- **Every terrain type is rounded**: a pixel takes the type that dominates the four tiles around it (bilinear weights, a slight wobble, same level only). Patches, roads and shores become soft blobs, while one-tile roads and rivers keep their width. Where a rounded height edge moves a pixel onto a neighbouring level, the pixel wears that level's ground.
+- **Ramps are wider**: two widening passes (up to 5 tiles), with corner carving in the first.
+- **HUD, a 3×3 grid** with the most-used buttons down the right-hand column, under the thumb:
+  - SMOKE · COVER · HUNKER
+  - MEDKIT (new) · C4 · TAKEDOWN
+  - STRIKE (from mission 5) · RECON (from mission 2) · R&GUN
+
+  ADVANCE and FOLLOW go on a row below. A used-up consumable stays, greyed out.
+
 ## Hosting
 
 - **Cloudflare Workers (static assets)**: `wrangler.jsonc` in the repo; `npx wrangler deploy` runs `node tools/build-site.js`, which copies only `index.html`, `icon.svg`, `manifest.webmanifest` and `src/` into `dist/` (git-ignored), and only `dist/` is uploaded. Without a committed config, Wrangler's auto-setup served the repo root and tried to upload `node_modules/` (its own 128 MiB `workerd` binary → "Asset too large"); an allow-list also keeps tests, tools and docs off the site, and a separate folder stops `wrangler dev` from reload-looping on its own `.wrangler/` state. Still no bundling and no runtime dependencies; `npm run serve` keeps serving the source tree directly.
 
 ## Changelog
+- **Playtest 5**: terrain relief rebuilt on a rounded height field (natural boulder faces that melt into their foot, tapering ramp walls, lighter-when-higher tones, 5-wide ramps), rounded shapes for every terrain type; 3×3 action grid with MEDKIT; RECON/STRIKE stay (greyed) when used up.
 - **Playtest 4**: satellite recon (from M2; rewards from M3; tactical strike rewards from M5); ramps as two-tile slopes with tapering boulder walls, carved 3-wide even at corners; boulder rock faces with rims and tufts.
 - **Playtest 3 — Chibi final**: Chibi is the default look; vehicles and buildings rescaled to the chibi soldiers; new trees; thick, natural rock faces; 3-wide ramps with a view over the crest; hand-inked intro (meteors, the Colonel and his secretary, the pin, WREN's boot) with the N.O.T. / G.O.D. story; objectives on every minimap; briefing from the pause menu; First Light trail and sniping spur.
 - **Cutscenes, LucasArts style**: acted scenes at full resolution — painted sets (HQ tent, dawn jetty, dropship cabin) and big talking-head close-ups with a green field-radio screen; the chibi cast lip-syncs, blinks, gestures and emotes; speech typed above the speaker's head in their colour. New cast: Overwatch, GOD Command, Dr. Adler. Every mission briefing is now a close-up; the intro gets the tent and the fishing gag, the ending the ride home.

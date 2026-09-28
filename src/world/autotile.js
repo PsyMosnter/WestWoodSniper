@@ -10,7 +10,7 @@ import { O, TERRAIN } from './tiles.js';
  * @param {import('./map.js').GameMap} m
  */
 export function computeAutotile(m) {
-  if (!m.rampsWidened) { m.rampsWidened = true; rampDirs(m); widenRamps(m); }
+  if (!m.rampsWidened) { m.rampsWidened = true; rampDirs(m); widenRamps(m); rampDirs(m); widenRamps(m, false); }   // up to 5 wide
   rampDirs(m);
   cliffs(m);
 }
@@ -37,7 +37,7 @@ function rampDirs(m) {
  * Every ramp grows one tile to each side wherever the ground there is open, on the same level, and meets the
  * same step up — so a 1-tile ramp becomes 3 wide.
  */
-export function widenRamps(m) {
+export function widenRamps(m, carveEdges = true) {
   const { w } = m, add = [], carve = [];
   for (let i = 0; i < m.rampDir.length; i++) {
     const d = m.rampDir[i];
@@ -52,7 +52,7 @@ export function widenRamps(m) {
       if (m.elev[j] === e) {
         // open ground beside it, meeting the same step up: the ramp grows sideways
         if (m.elev[u] === e + 1 && (m.overlay[u] === O.none || m.overlay[u] === O.trees)) add.push(j);
-      } else if (m.elev[j] === e + 1 && m.elev[u] === e + 1 && m.overlay[u] === O.none) {
+      } else if (carveEdges && m.elev[j] === e + 1 && m.elev[u] === e + 1 && m.overlay[u] === O.none) {
         // the plateau's edge beside it (a corner): carve that edge tile down into the ramp
         const [bx, by] = [px - DIRS[d][0], py - DIRS[d][1]];
         if (m.inb(bx, by) && m.elev[by * w + bx] === e) carve.push(j);

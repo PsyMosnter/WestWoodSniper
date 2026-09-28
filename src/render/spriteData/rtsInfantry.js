@@ -76,7 +76,8 @@ function joint(a, t, l1, l2, bend) {
  * s.attach: extra named points fixed to the body ([name, 'head'|'chest'|'pelvis', [x, y, z]] in the unit's
  * frame) that follow it through leans, falls and tumbles — eyes, glasses, back tanks.
  * s: gait 'walk'|'run' + ph (0..1) · kneel (0..1) · arms 'hold'|'aim'|'pistol'|'swing'|'shoulder'|'fling'|'up'|'limp'|'prone'
- * · armT · lean · pitch/pivotZ/pitchKnees · rootX/rootZ · crawl (phase) · recoil
+ * |'custom' (s.hands = {R: [x, y, z], L: [x, y, z]} from the chest — cutscene gestures) · armT · lean
+ * · pitch/pivotZ/pitchKnees · rootX/rootZ · crawl (phase) · recoil · sit (seat height: hips there, feet forward)
  */
 export function pose(d, s) {
   const k = d.scale || 1, L = (v) => v * k;
@@ -92,10 +93,11 @@ export function pose(d, s) {
   const bob = gait ? Math.abs(Math.cos(a)) * (run ? 0.7 : 0.4) : 0;
   const sway = gait ? Math.sin(a) * (run ? 0.4 : 0.25) : 0;
   const kneel = s.kneel || 0;
-  const hipZ = L(d.hipZ) * (1 - kneel * 0.5) + bob;
+  const hipZ = s.sit != null ? L(s.sit) : L(d.hipZ) * (1 - kneel * 0.5) + bob;
   const J = {};
   J.hipL = { x: 0.2, y: sway - L(d.hipW), z: hipZ }; J.hipR = { x: 0.2, y: sway + L(d.hipW), z: hipZ };
   J.footL = foot(0, -1); J.footR = foot(Math.PI, 1);
+  if (s.sit != null) { const fx = 0.2 + L(d.thigh) * 0.9; J.footL = { x: fx, y: -L(d.hipW + 0.35), z: 0 }; J.footR = { x: fx + 0.3, y: L(d.hipW + 0.35), z: 0 }; }
   if (kneel) {                                        // one knee down (left shin flat behind), right foot forward
     J.footL = { x: lerp(J.footL.x, -L(d.shin) * 0.9, kneel), y: J.footL.y, z: 0 };
     J.footR = { x: lerp(J.footR.x, L(0.9), kneel), y: J.footR.y, z: 0 };
@@ -115,6 +117,7 @@ export function pose(d, s) {
   else if (arms === 'shoulder') set({ x: C.x + 0.9, y: C.y + L(1), z: C.z - 0.1 }, { x: C.x + 2, y: C.y + 0.3, z: C.z - 0.3 });
   else if (arms === 'fling') set({ x: C.x - 0.8 - at * 1.4, y: C.y + L(1.4), z: C.z + 0.8 + at * 1.4 }, { x: C.x - 0.4 - at * 1.1, y: C.y - L(1.4), z: C.z + 1 + at * 1.2 });
   else if (arms === 'up') set({ x: C.x + 0.7, y: 0.4, z: J.head.z - 1.2 }, { x: C.x + 0.7, y: -0.4, z: J.head.z - 1.1 });
+  else if (arms === 'custom') { const R = s.hands.R, Lh = s.hands.L; set({ x: C.x + R[0], y: C.y + R[1], z: C.z + R[2] }, { x: C.x + Lh[0], y: C.y + Lh[1], z: C.z + Lh[2] }); }
   else if (arms === 'prone') { const c = s.crawl ?? 0; set({ x: C.x + ua + fa - 0.6 + Math.sin(c) * 0.9, y: C.y + 0.6, z: C.z - 0.2 }, { x: C.x + ua + fa - 0.2 - Math.sin(c) * 0.9, y: C.y - 0.5, z: C.z - 0.2 }); }
   else set({ x: C.x + 0.4 + at, y: C.y + L(1.2) + at * 0.6, z: C.z - ua - fa + 0.6 }, { x: C.x - 0.3 - at, y: C.y - L(1.2) - at * 0.4, z: C.z - ua - fa + 0.6 });
   J.elbR = joint(J.shR, J.handR, ua, fa, -1); J.elbL = joint(J.shL, J.handL, ua, fa, -1);

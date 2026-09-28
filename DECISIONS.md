@@ -150,11 +150,33 @@ Format: date · milestone · decision · reason.
 - **Explosions for every non-Classic style**: the fireball / debris blasts (`rtsBlast.js`) now play in New (the default), Newest and Chibi; Classic keeps its original explosion particles.
 - **Originality**: every Chibi sprite is modelled from primitives in our own code; no external sprite sheet is used or traced (SPEC §2). Study pages: `tools/art-lab/chibi.html` (the approved study) and `tools/art-lab/chibi-sheet.html` (every type, pose and death straight from the game module).
 
+## Cutscenes, LucasArts style (after the Chibi pass)
+
+- **Goal** (owner): the new characters deserve better cutscenes — early LucasArts (Day of the Tentacle, Full Throttle). The scripts stay; the lines are the same, but they are now acted out.
+- **Acted scenes at full resolution** (`src/scenes/cutStage.js`): two new shot kinds are drawn at the display's full resolution, while nature close-ups and establishing shots keep their half-resolution pixel look. **'stage'** is a painted set with chibi actors who walk, gesture while talking, blink and lip-sync. The sets are GOD's field HQ tent (a swinging lamp, the map table, a radio desk and steaming coffee), a dawn jetty on the Varna, and the dropship cabin going home. **'closeup'** is a big head-and-shoulders shot on a painted biome backdrop, with whoever is on the radio shown in green on a field-radio screen beside them (scanlines, signal bars, a label strip). A close-up with no screen is a voice-over cutaway.
+- **Speech above the head** (SCUMM style): lines typed out in the speaker's colour with a black outline, kept on screen and below the letterbox. A voice with nobody on screen (and no radio prop) still gets the subtitle bar. On the dock, Overwatch's lines come out of the radio on the crate.
+- **The cast** are the Chibi models ray-cast at 4–8× with a heavier ink line. New cutscene-only members: **Overwatch** (a radio operator with a headset), **GOD Command** (a general with a peaked cap, moustache and medals) and **Dr. Adler** (grey hair in a bun). New cutscene poses on the shared skeleton: `sit` (a seat height, feet forward) and free hand placement: fish, yank, doze, point, lean, radio, talk×3, shrug, fold, clip. Eyebrows, head turn and tilt make expressions. Close-ups tilt faces up towards the camera, which the game angle otherwise looks down on.
+- **Cheap animation**: mouths (0 closed / 1 half / 2 open, picked from the letters being spoken — vowels open), blinks and WREN's glasses gleam are 2D overlays on cached renders. A close-up needs about five renders, done when the cut starts.
+- **Critic review (medium depth, pass ≥ 6): 6/10, PASS.** Fixed from its list:
+  - WREN's 3/4 face in close-ups: the temple arm read as a bar across the cheek and the far lens floated off the head. Close-ups now turn the body to the camera and only the head ~25° towards the radio; cutscene glasses have no temple arms.
+  - Speech kept 16 px from the frame edge; speech from the radio screen wraps to the screen's width.
+  - Leaves only frame close-ups where something grows; the blizzard gets wind-driven snow streaks.
+  - The NOT's eyes smoulder in a silent cutaway.
+  - Dr. Adler gets wild side tufts, which survive the green screen.
+  - The general stands taller behind the table and folds his arms after his line.
+  - WREN keeps his rod after the boot, and the boot is bigger.
+  - Pines reflect in the river.
+  - The ending bench has a plank and legs, and WREN sits 3/4-on; the z's rise from his helmet.
+
+  Left: phone-size text (the whole game uses the same pixel font) and more painterly backdrops.
+- **Restaged scripts**: every mission intro now runs nature close-up → arrival → establishing shot with the title (4 s) → briefing close-up. M3 cuts away to Vrask in the blizzard while Overwatch talks about him; M7's screen shows Dr. Adler. The intro plays the GOD tent ("We can't send an army…") → the map pin → WREN fishing at dawn. The radio squawks, he's "retired", he's "bored", and he reels in an old boot. The ending puts WREN on the dropship bench for "Wake me up for the sequel." — then he's asleep (z z z). The older shots now use the Chibi cast too (6-frame cycles).
+
 ## Hosting
 
 - **Cloudflare Workers (static assets)**: `wrangler.jsonc` in the repo; `npx wrangler deploy` runs `node tools/build-site.js`, which copies only `index.html`, `icon.svg`, `manifest.webmanifest` and `src/` into `dist/` (git-ignored), and only `dist/` is uploaded. Without a committed config, Wrangler's auto-setup served the repo root and tried to upload `node_modules/` (its own 128 MiB `workerd` binary → "Asset too large"); an allow-list also keeps tests, tools and docs off the site, and a separate folder stops `wrangler dev` from reload-looping on its own `.wrangler/` state. Still no bundling and no runtime dependencies; `npm run serve` keeps serving the source tree directly.
 
 ## Changelog
+- **Cutscenes, LucasArts style**: acted scenes at full resolution — painted sets (HQ tent, dawn jetty, dropship cabin) and big talking-head close-ups with a green field-radio screen; the chibi cast lip-syncs, blinks, gestures and emotes; speech typed above the speaker's head in their colour. New cast: Overwatch, GOD Command, Dr. Adler. Every mission briefing is now a close-up; the intro gets the tent and the fishing gag, the ending the ride home.
 - **Art style Chibi**: detailed anime-chibi infantry for all 11 types on the shared Newest skeleton (8 facings, 6-frame walks/runs, 12-frame deaths in the unit's own blood, per-pixel hit zones, soft shadows); WREN's round glasses catch the sun now and then. Explosions with fireballs and debris now also play in the default New style. `?art=chibi`.
 - **Art style Newest**: original ~11 px "mini" infantry for all 11 types (8 facings, 6-frame walks/runs, 12-frame shot/takedown/explosion deaths in the unit's own blood colour, per-pixel hit zones, cast shadows; WREN keeps his Classic helmet and visor); RTS-filtered vehicles; fireball explosions with ballistic debris for vehicles and buildings. Selectable in Settings or with `?art=newest`.
 - **Playtest 2**: cone-in-cone vision (outer sight rim + inner detection cone that shrinks with stance and tall grass); takedown reach 2 tiles with a lunge; tile-wide snow and grass trails; car-like vehicle steering (and a fix for vehicles stuck behind parked ones); Boot Camp training course with Lt. Vale (offered once, replayable); campaign map wired up; read tips remembered across sessions; M2/M5 approaches eased; pre-commit hook + CI; all-missions regression test.

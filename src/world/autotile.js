@@ -38,7 +38,7 @@ function rampDirs(m) {
  * same step up — so a 1-tile ramp becomes 3 wide.
  */
 export function widenRamps(m) {
-  const { w } = m, add = [];
+  const { w } = m, add = [], carve = [];
   for (let i = 0; i < m.rampDir.length; i++) {
     const d = m.rampDir[i];
     if (d < 0) continue;
@@ -47,13 +47,20 @@ export function widenRamps(m) {
       const [px, py] = d === 0 || d === 2 ? [x + s, y] : [x, y + s];
       if (!m.inb(px, py)) continue;
       const j = py * w + px, [ux, uy] = [px + DIRS[d][0], py + DIRS[d][1]];
-      if (m.elev[j] !== e || m.overlay[j] !== O.none || TERRAIN[m.terrain[j]]?.water || !m.inb(ux, uy)) continue;
+      if (m.overlay[j] !== O.none || TERRAIN[m.terrain[j]]?.water || !m.inb(ux, uy)) continue;
       const u = uy * w + ux;
-      if (m.elev[u] !== e + 1 || (m.overlay[u] !== O.none && m.overlay[u] !== O.trees)) continue;
-      add.push(j);
+      if (m.elev[j] === e) {
+        // open ground beside it, meeting the same step up: the ramp grows sideways
+        if (m.elev[u] === e + 1 && (m.overlay[u] === O.none || m.overlay[u] === O.trees)) add.push(j);
+      } else if (m.elev[j] === e + 1 && m.elev[u] === e + 1 && m.overlay[u] === O.none) {
+        // the plateau's edge beside it (a corner): carve that edge tile down into the ramp
+        const [bx, by] = [px - DIRS[d][0], py - DIRS[d][1]];
+        if (m.inb(bx, by) && m.elev[by * w + bx] === e) carve.push(j);
+      }
     }
   }
   for (const j of add) m.overlay[j] = O.ramp;
+  for (const j of carve) { m.elev[j] -= 1; m.overlay[j] = O.ramp; }
 }
 
 function cliffs(m) {

@@ -216,6 +216,8 @@ export const BALANCE = {
     noise: 20,
   },
 
+  // satellite recon: one uplink from mission 2; field rewards from mission 3 (tactical strikes from mission 5)
+  recon: { fromLevel: 2, start: 1, max: 3, maxStrikes: 3, sweep: 1.2, show: 6, rewardsFrom: 3, strikesFrom: 5, cleanRange: 8, cleanChain: 3 },
   strike: {
     range: 12, rangePerElev: 1,
     jammerRadius: 14,

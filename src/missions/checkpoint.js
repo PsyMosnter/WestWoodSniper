@@ -28,7 +28,7 @@ export function snapshot(game) {
   return {
     time: w.time,
     stats: clone(w.stats),
-    op: pick(op, ['x', 'y', 'hp', 'rifleMag', 'rifleReserve', 'c4', 'medkits', 'designator', 'smoke', 'facing']),
+    op: pick(op, ['x', 'y', 'hp', 'rifleMag', 'rifleReserve', 'c4', 'medkits', 'designator', 'recon', 'smoke', 'facing']),
     units: w.units.filter((u) => u.kind !== 'emplacement' && u.kind !== 'turret' && u.kind !== 'structure').map((u) => ({
       id: u.id, type: u.type, x: u.x, y: u.y, hp: u.hp, dead: !!u.dead, hidden: !!u.hidden, helmet: u.helmet,
       alertGroup: u.alertGroup, behaviour: clone(u.behaviour), disabled: !!u.disabled, angle: u.angle, home: clone(u.home),

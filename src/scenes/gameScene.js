@@ -42,6 +42,7 @@ import { wrapText, measureText } from '../render/font.js';
 import { Particles } from '../render/particles.js';
 import { Lighting } from '../render/lighting.js';
 import { StrikeSystem } from '../strike/strike.js';
+import { ReconSystem } from '../strike/recon.js';
 import { TunnelSystem } from '../world/tunnels.js';
 import { snapshot, restore } from '../missions/checkpoint.js';
 import { NoiseIndicator } from '../ui/noise.js';
@@ -97,6 +98,7 @@ export class GameScene {
     this.c4 = new C4System(this);
     this.lighting = new Lighting(this);                  // night/dusk darkness, light pools, searchlights (answers world.isLit)
     this.strike = new StrikeSystem(this);                // laser designator (SPEC §14)
+    this.recon = new ReconSystem(this);                  // satellite recon uplink + field rewards
     this.tunnels = new TunnelSystem(this);               // culverts (M6) — hides their guards
     this.noise = new NoiseIndicator(this);               // noise rings + HUD meter (how far a sound carries)
     this.trails = new TerrainTrails(this);               // WREN's fading trail through tall grass / shallow water
@@ -121,7 +123,7 @@ export class GameScene {
     this.renderer.layers.effects.push((ctx, r) => this._drawSmoke(ctx, r));
     // darkness goes over the sprites but under muzzle flashes, tracers and explosions
     this.renderer.layers.effects.unshift((ctx, r) => this.lighting.draw(ctx, r));
-    this.renderer.layers.overFog.push((ctx, r) => { this.noise.draw(ctx, r); this.tunnels.draw(ctx, r); this.strike.draw(ctx, r); this.takedown.draw(ctx, r); });
+    this.renderer.layers.overFog.push((ctx, r) => { this.noise.draw(ctx, r); this.tunnels.draw(ctx, r); this.strike.draw(ctx, r); this.recon?.draw(ctx, r); this.takedown.draw(ctx, r); });
     this.gestures = new Gestures(this._gestureHandlers());
     this.resize(this.app.display.W, this.app.display.H);
     // the mission's latest save (autosave on objectives, QUICK SAVE, scripted checkpoints) stays loadable
@@ -237,7 +239,8 @@ export class GameScene {
         this.world.noise(op.x, op.y, 3, 'smoke');
         break;
       case 'detonate': this.c4.detonateRemote(); break;
-      case 'designator': this.strike.toggleTargeting(); break;
+      case 'designator': if (this.recon?.state === 'targeting') this.recon.toggleTargeting(); this.strike.toggleTargeting(); break;
+      case 'recon': this.recon?.toggleTargeting(); break;
       case 'takedown': this.takedown.perform(); break;
       case 'convoy': this.convoy?.toggle(); break;
       case 'followAll': this.friendlies.toggleAll(); break;
@@ -271,6 +274,7 @@ export class GameScene {
     if (this.tunnels.transit) return;                     // WREN is underground
     if (this.onTapWorld && this.onTapWorld(t, info)) return;
     if (this.mode === 'designator') { this.strike.tapTarget(t.x, t.y); return; }
+    if (this.mode === 'recon') { this.recon.tapTarget(t.x, t.y); return; }
     // C4 button mode: the next tap picks the target
     const c4t = this.c4TargetAt(sx, sy, t);
     if (this.mode === 'c4') {
@@ -383,6 +387,7 @@ export class GameScene {
     const t = this.worldTile(sx, sy);
     if (this.tunnels.transit) return;
     if (this.mode === 'designator') { this.strike.tapTarget(t.x, t.y); return; }
+    if (this.mode === 'recon') { this.recon.tapTarget(t.x, t.y); return; }
     if (this.onLongPressWorld && this.onLongPressWorld(t)) return;
     // long-press a building or a disabled vehicle: plant C4 there
     const c4t = this.c4TargetAt(sx, sy, t);
@@ -419,6 +424,7 @@ export class GameScene {
     if (this.scope.open || this.scope.active.has(p.id)) { this.scope.move(p); return; }
     if (this.hud.move(p)) return;
     if (this.overlayMove && this.overlayMove(p)) return;
+    if (this.mode === 'recon' && this.recon) { const t = this.worldTile(p.x, p.y); this.recon.hover = { x: t.fx, y: t.fy }; }
     if (p.owner === 'world') this.gestures.move(p);
   }
   onPointerUp(p, cancel) {
@@ -449,8 +455,10 @@ export class GameScene {
     else if (code === K.runGun) this.cmd('runGun');
     else if (code === K.c4) this.cmd('c4');
     else if (code === K.designator) this.cmd('designator');
+    else if (code === K.recon) this.cmd('recon');
     else if (code === K.centre) this.cmd('centre');
-    else if (code === K.pause && this.mode === 'designator') this.strike.toggleTargeting();   // Esc leaves targeting first
+    else if (code === K.pause && this.mode === 'designator') this.strike.toggleTargeting();
+    else if (code === K.pause && this.mode === 'recon') this.recon.toggleTargeting();   // Esc leaves targeting first
     else if (code === K.pause) this.cmd('pause');
     else if (code === K.quickSave) this.quickSave();
     else if (code === K.quickLoad) this.quickLoad();
@@ -477,9 +485,11 @@ export class GameScene {
     this.props.update(dt);
     this.c4.update(dt);
     this.strike.update(dt);
+    this.recon?.update(dt);
     this.tunnels.update(dt);
     this.noise.update(dt);
     // the STRIKE button appears (late missions): say what it does, pointing at it
+    if (!this._reconTip && this.world.operative.recon > 0 && this.runner) { this._reconTip = true; this.runner.showTutorial('recon', 'Satellite recon', 'You have a satellite uplink. Press RECON (R), then tap anywhere: the satellite sweeps an area the size of your screen and for a few seconds you see everything in it, as if you stood in the middle. Then it goes back to fog. Take out Wardens, cut their comms or chain clean kills to earn more.', { button: 'recon' }); }
     if (!this._strikeTip && this.world.operative.designator > 0) { this._strikeTip = true; this.runner.showTutorial('designator', 'Strategic strike', 'This is your laser designator. Press STRIKE, then — crouched or hunkered — tap a point you can see: the dashed ring is your range. Violet hatching is jammer coverage, no strikes there. Hold the laser 6 s without moving; impact 8 s later. Everything within 5 tiles is gone — stay outside the ring!', { button: 'designator' }); }
     // spotted and they're closing in from several sides: time for RUN & GUN
     if (!this._runGunTip && this.awareness?.state === 'detected' && !this.world.operative.runGun) {
@@ -692,6 +702,7 @@ export class GameScene {
       case 'convoy': { const f = (w.friendlies || []).find((q) => q.kind === 'vehicle' && !q.dead); return f ? { ref: f } : 'op'; }
       case 'vrask': { const u = w.units.find((q) => q.type === 'vrask' && !q.dead); return u ? { ref: u } : 'op'; }
       case 'designator': return { button: 'designator' };
+      case 'recon': return { button: 'recon' };
       default: return 'op';
     }
   }

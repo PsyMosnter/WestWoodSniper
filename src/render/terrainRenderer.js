@@ -24,6 +24,7 @@ export class TerrainRenderer {
     this.biome = BIOMES[map.biome] ? map.biome : 'temperate';
     this.chibi = Art.style === 'chibi';
     this.B = BIOMES[this.biome];
+    this.tuft = this.B.tall ? [pack(this.B.tall[1]), pack(this.B.tall[2] || this.B.tall[1])] : null;
     this.tex = buildTextures(this.biome);
     this.cw = Math.ceil(map.w / CH); this.ch = Math.ceil(map.h / CH);
     /** @type {(HTMLCanvasElement|null)[]} */
@@ -209,6 +210,13 @@ export class TerrainRenderer {
 
     // --- pass 3: per-tile features: forest floor, cliffs, ramps, lips, shadows
     const tx0 = cx * CH, ty0 = cy * CH;
+    // raised ground catches more light: a touch lighter per level (before any rock spills over it)
+    for (let ty = ty0; ty < ty0 + CH; ty++) for (let tx = tx0; tx < tx0 + CH; tx++) {
+      const ti = tile(tx, ty);
+      if (ti < 0 || !m.elev[ti]) continue;
+      const k = 1 + Math.min(2, m.elev[ti]) * 0.11;
+      for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) P.mulPx(tx * TILE + x, ty * TILE + y, k);
+    }
     for (let ty = ty0 - 1; ty < ty0 + CH + 1; ty++) for (let tx = tx0 - 1; tx < tx0 + CH + 1; tx++) {
       const ti = tile(tx, ty);
       if (ti < 0) continue;
@@ -216,7 +224,7 @@ export class TerrainRenderer {
       const e = m.elev[ti];
       const o = m.overlay[ti];
       const X = tx * TILE, Y = ty * TILE;
-      if (!inChunk) { if (m.cliff[ti]) this._cliff(P, tx, ty, e); continue; }
+      if (!inChunk) { if (m.cliff[ti]) this._cliff(P, tx, ty, e); if (o === O.ramp) this._ramp(P, tx, ty, e, true); continue; }
       if (o === O.forest || o === O.pine) {
         const floor = B.forestFloor.map((c) => pack(c));
         for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
@@ -225,18 +233,13 @@ export class TerrainRenderer {
           if (hash2(X + x, Y + y, 3) < 0.05) P.px(X + x, Y + y, floor[(hash2(X + x, Y + y, 4) * 3) | 0]);
         }
       }
-      // raised ground catches more light: a touch lighter per level
-      if (e > 0 && !m.cliff[ti]) for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) P.mulPx(X + x, Y + y, 1 + Math.min(2, e) * 0.07);
       // cliff faces
       if (m.cliff[ti]) this._cliff(P, tx, ty, e);
       // lips on N / W plateau edges and creases on the lower side
       const n = tile(tx, ty - 1), wv = tile(tx - 1, ty);
-      if (n >= 0 && m.elev[n] < e && m.overlay[n] !== O.ramp) {
-        for (let x = 0; x < 16; x++) { P.mulPx(X + x, Y, 1.42); P.mulPx(X + x, Y + 1, 1.2); P.mulPx(X + x, Y + 2, 1.07); }
-      }
-      if (wv >= 0 && m.elev[wv] < e && m.overlay[wv] !== O.ramp && !m.cliff[ti]) {
-        for (let y = 0; y < 16; y++) { P.mulPx(X, Y + y, 1.38); P.mulPx(X + 1, Y + y, 1.16); P.mulPx(X + 2, Y + y, 1.05); }
-      }
+      if (n >= 0 && m.elev[n] < e && m.overlay[n] !== O.ramp && o !== O.ramp) this._rim(P, X, Y, true);
+      const evH = tile(tx + 1, ty);
+      if (evH >= 0 && m.elev[evH] > e && m.overlay[evH] !== O.ramp && o !== O.ramp) this._westFace(P, X, Y, m.elev[evH] - e);
       const s = tile(tx, ty + 1), ev = tile(tx + 1, ty);
       if (s >= 0 && m.elev[s] > e && m.overlay[ti] !== O.ramp) for (let x = 0; x < 16; x++) { P.mulPx(X + x, Y + 15, 0.5); P.mulPx(X + x, Y + 14, 0.8); }
       if (ev >= 0 && m.elev[ev] > e && m.overlay[ti] !== O.ramp) for (let y = 0; y < 16; y++) { P.mulPx(X + 15, Y + y, 0.55); P.mulPx(X + 14, Y + y, 0.85); }
@@ -317,8 +320,9 @@ export class TerrainRenderer {
       const vary = Math.round((hash2(tx, ty, 23) - 0.5) * 8);                // faces are not all the same height
       for (let x = 0; x < 16; x++) {
         const wx = X + x;
-        const jag = Math.round(EDGE_NOISE2[(Y & 63) * TEX + (wx & 63)] * 6 + EDGE_NOISE[(Y & 63) * TEX + (wx & 63)] * 2) - 4;
-        const top = 16 - topH + jag;
+        const jag = Math.round(EDGE_NOISE2[(Y & 63) * TEX + (wx & 63)] * 4 + EDGE_NOISE[(Y & 63) * TEX + (wx & 63)] * 2) - 3;
+        const u = ((wx + ty * 3) % 9) / 4.5 - 1, seg = Math.floor((wx + ty * 3) / 9);
+        const top = 16 - topH + jag - Math.round((1.5 + hash2(seg, ty, 31) * 2) * Math.sqrt(Math.max(0, 1 - u * u)));   // boulders bulge over the rim
         let foot = 16 + ext + vary + Math.round(EDGE_NOISE[((Y + 29) & 63) * TEX + (wx & 63)] * 7) - 3;
         if (!contL && x < 7) foot -= Math.round((7 - x) ** 2 / 3.2);
         if (!contR && x > 8) foot -= Math.round((x - 8) ** 2 / 3.2);
@@ -332,15 +336,13 @@ export class TerrainRenderer {
           else if (k === 0) c = snowy ? pack('#EEF6FA') : R[4];              // lit rim
           else if (k === 1) c = R[3];
           else {
-            // vertical ridges: each column has its own tone that drifts slowly down the face; light on top
+            // rounded boulder chunks lit from the upper left, dark crevices between; darker towards the foot
             const depth = k / total;
-            const ridge = EDGE_NOISE[(((wy >> 2) + ty * 5) & 63) * TEX + ((wx * 2) & 63)];
-            let ri = ridge > 0.7 ? 4 : ridge > 0.45 ? 3 : ridge > 0.22 ? 2 : 1;
-            if (depth < 0.18 && ri < 4) ri++;
-            if (depth > 0.5) ri--;
-            if (depth > 0.8) ri--;
+            let ri = rockCell(wx, wy, 10, 8);
+            if (ri > 0 && depth > 0.55) ri--;
+            if (ri > 0 && depth > 0.82) ri--;
             c = R[Math.max(0, Math.min(4, ri))];
-            if ((wy + band) % 9 === 0 && hash2(wx >> 1, wy, 24) < 0.5 && ri > 1) c = R[ri - 1];   // a ledge now and then
+            void band;
             if (y >= foot - 2) c = R[0];                                       // the dark foot
             if (crack && k > 2 && ri < 3) c = R[0];
             if (snowy && k === 2 && hash2(wx, wy, 14) < 0.6) c = pack('#C8D6DE');
@@ -348,8 +350,9 @@ export class TerrainRenderer {
           }
           P.px(wx, wy, c);
         }
-        // scree and pebbles below the foot
+        // scree and pebbles below the foot, grass tufts growing against it
         if (hash2(wx, ty, 15) < 0.45) P.px(wx, Y + foot + (hash2(wx, ty, 16) < 0.5 ? 0 : 1), R[2]);
+        if (!snowy && this.tuft && hash2(wx, ty, 33) < 0.22) for (let j = 1; j <= 2 + ((hash2(wx, ty, 34) * 3) | 0); j++) P.px(wx, Y + foot - j + 1, j > 2 ? this.tuft[1] : this.tuft[0]);
         if (hash2(wx, ty, 18) < 0.14) { P.px(wx, Y + foot + 1, R[1]); P.px(wx + 1, Y + foot + 1, R[3]); P.px(wx, Y + foot + 2, R[0]); }
       }
     }
@@ -372,10 +375,8 @@ export class TerrainRenderer {
           if (k === -1) c = y < 16 ? turf : R[1];
           else if (k === 0) c = R[3];
           else {
-            const n = EDGE_NOISE[((wy >> 1) & 63) * TEX + ((wx >> 1) & 63)];
-            const ri = rockCell(wx, wy, 4, 6);
+            const ri = rockCell(wx, wy, 8, 9);
             c = R[Math.max(0, ri - 1)];
-            if (n < 0.25) c = R[0];
             if (x >= right - 1) c = R[0];
           }
           if (sDiff > 0 && y >= 16 - (sDiff >= 2 ? 15 : 13) && y < 16 && k > 0 && x < 16) c = R[0];
@@ -385,36 +386,87 @@ export class TerrainRenderer {
     }
   }
 
-  _ramp(P, tx, ty, e) {
+  /** A rocky rim along a plateau's north (top) or west edge: a band of lit boulders bulging over the edge. */
+  _rim(P, X, Y, north) {
+    const R = this.rock;
+    for (let i = 0; i < 16; i++) {
+      const wx = north ? X + i : X, wy = north ? Y : Y + i, along = north ? wx : wy;
+      const u = (along % 8) / 4 - 1, bump = Math.round((1 + hash2(along >> 3, north ? Y : X, 35) * 2) * Math.sqrt(Math.max(0, 1 - u * u)));
+      const depth = (north ? 3 : 2) + bump;
+      for (let j = 0; j < depth; j++) {
+        const px = north ? wx : X + j, py = north ? Y + j : wy;
+        const ri = rockCell(px, py, 8, 7);
+        P.px(px, py, j === 0 ? R[4] : R[Math.max(2, ri)]);
+      }
+      if (north) P.px(wx, Y - 1, R[1]);
+    }
+  }
+
+  /** A west-facing side face, seen obliquely on the lower tile's right edge (sun side: lighter than east faces). */
+  _westFace(P, X, Y, diff) {
+    const R = this.rock, w = (diff >= 2 ? 8 : 6);
+    for (let y = 0; y < 16; y++) {
+      const wy = Y + y, jag = Math.round(EDGE_NOISE2[(wy & 63) * TEX + (X & 63)] * 3);
+      for (let x = 16 - w + jag; x < 16; x++) {
+        const wx = X + x, ri = rockCell(wx, wy, 8, 9);
+        P.px(wx, wy, x === 16 - w + jag ? R[0] : R[Math.max(1, Math.min(3, ri))]);
+      }
+    }
+  }
+
+  /**
+   * A ramp that reads as a slope: the ground texture of both levels worn into a trodden path, dark at the foot and
+   * lit at the crest, soft contour lines across it, boulder walls tapering down its flanks where higher ground
+   * stands, and a worn apron fanning out into the tile below its foot.
+   */
+  _ramp(P, tx, ty, e, apronOnly = false) {
     const m = this.map, W = m.w;
     const d = m.rampDir[ty * W + tx];
+    if (d < 0) return;
     const X = tx * TILE, Y = ty * TILE;
-    const R = this.rock;
-    const earth = [pack('#5A452C'), pack('#7E6644'), pack('#9C8256'), pack('#BCA072')];
+    const R = this.rock, trod = pack(this.biome === 'alpine' ? '#C8D4DC' : ['temperate', 'jungle', 'swamp'].includes(this.biome) ? '#7A6446' : this.B.groundDark);
     const vertical = d === 0 || d === 2;
     const nb = (sx, sy) => { const nx = tx + sx, ny = ty + sy; return m.inb(nx, ny) ? ny * W + nx : -1; };
     const [a, b] = vertical ? [nb(-1, 0), nb(1, 0)] : [nb(0, -1), nb(0, 1)];
     const rampA = a >= 0 && m.rampDir[a] === d, rampB = b >= 0 && m.rampDir[b] === d;
     const wallA = a >= 0 && m.elev[a] > e, wallB = b >= 0 && m.elev[b] > e;
-    // a worn earth slope: darker at the foot, sunlit near the top, soft irregular treads, ragged edges that fade
-    // into the ground; where higher ground flanks it, a rock wedge shows the rise
-    for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
-      const along = d === 0 ? 1 - y / 15 : d === 2 ? y / 15 : d === 1 ? x / 15 : 1 - x / 15;
-      const across = vertical ? x : y, wx = X + x, wy = Y + y;
-      const n = EDGE_NOISE[(wy & 63) * TEX + (wx & 63)];
-      const edgeA = rampA ? 99 : across, edgeB = rampB ? 99 : 15 - across, edge = Math.min(edgeA, edgeB);
-      const fade = edge < 3 ? edge / 3 + n * 0.3 : 1;                              // blend out at the outer edges
-      if (fade < 0.5 && hash2(wx, wy, 191) > fade * 1.6) continue;
-      let c = along > 0.72 ? earth[3] : along > 0.35 ? earth[2] : earth[1];
-      if (n < 0.28) c = earth[Math.max(0, (along > 0.35 ? 2 : 1) - 1)];
-      const tread = (along * 3 + n * 0.35) % 1;                                    // three soft treads, wavy
-      if (tread < 0.08) c = earth[0];
-      if (hash2(wx, wy, 190) < 0.06) c = earth[3];
-      const wedge = Math.round(along * 5);                                          // the rise: a wedge of rock
-      if ((wallA && !rampA && across < wedge) || (wallB && !rampB && 15 - across < wedge)) c = R[(across + wy) % 3 === 0 ? 1 : 2];
-      P.px(wx, wy, c);
+    const [fx, fy] = [[0, 1], [-1, 0], [0, -1], [1, 0]][d];                          // towards the foot
+    const px = (x, y, c) => P.px(x, y, c);
+    // the apron: a worn fan into the tile below the foot, fading out
+    for (let s2 = 0; s2 < 9; s2++) for (let q = -2; q < 18; q++) {
+      const k = s2 / 9;
+      const ax = vertical ? X + q : (fx < 0 ? X - 1 - s2 : X + 16 + s2), ay = vertical ? (fy > 0 ? Y + 16 + s2 : Y - 1 - s2) : Y + q;
+      if (hash2(ax, ay, 192) < k * 1.1 + (q < 0 || q > 15 ? 0.5 : 0)) continue;
+      px(ax, ay, mix(P.get(ax, ay), trod, 0.45 * (1 - k)));
+    }
+    if (apronOnly) return;
+    // the slope runs over two tiles: the ramp itself (lower half) and its landing (upper half)
+    const [ux, uy] = [[0, -1], [1, 0], [0, 1], [-1, 0]][d];
+    const light = pack(this.B.groundLight || '#D8C8A0');
+    for (const half of [0, 1]) {
+      const HX = X + ux * 16 * half, HY = Y + uy * 16 * half;
+      for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
+        const local = d === 0 ? 1 - y / 15 : d === 2 ? y / 15 : d === 1 ? x / 15 : 1 - x / 15;
+        const along = (local + half) / 2;                                              // 0 foot … 1 crest
+        if (half === 1 && along > 0.8 + EDGE_NOISE[((HY + y) & 63) * TEX + ((HX + x) & 63)] * 0.2) continue;   // melts into the top
+        const across = vertical ? x : y, wx = HX + x, wy = HY + y;
+        const n = EDGE_NOISE[(wy & 63) * TEX + (wx & 63)];
+        let c = mix(P.get(wx, wy), mix(trod, light, along), 0.55 + n * 0.15);
+        c = shade(c, 0.78 + along * 0.4);                                            // dark at the foot, lit near the top
+        const step = (along * 7 + Math.sin(across * 0.45 + tx) * 0.08) % 1;
+        if (step < 0.1) c = shade(c, 0.7);                                             // step edges across the slope
+        else if (step < 0.2) c = shade(c, 1.16);
+        // boulder walls down the flanks where higher ground stands: tall at the crest, nothing at the foot
+        const wedge = Math.round(1 + along * 9 + n * 2);
+        if ((wallA && !rampA && across < wedge) || (wallB && !rampB && 15 - across < wedge)) {
+          const ri = rockCell(wx, wy, 8, 7), rim = wallA && !rampA ? across === wedge - 1 : 15 - across === wedge - 1;
+          c = rim ? R[0] : R[Math.max(1, ri)];
+        }
+        px(wx, wy, c);
+      }
     }
   }
+
 
 
 

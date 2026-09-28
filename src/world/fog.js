@@ -22,6 +22,11 @@ export class Fog {
   state(i) { return this.revealAll ? 2 : this.visGen[i] === this.gen ? 2 : this.seen[i] ? 1 : 0; }
   isVisible(x, y) { if (!this.map.inb(x, y)) return false; return this.revealAll || this.visGen[y * this.map.w + x] === this.gen; }
   isSeen(x, y) { if (!this.map.inb(x, y)) return false; return this.revealAll || this.seen[y * this.map.w + x] === 1; }
+  /**
+   * Satellite recon: for t seconds, everything inside rect that someone standing at (x, y) could see.
+   * @param {{x0:number,y0:number,x1:number,y1:number}} rect
+   */
+  revealArea(x, y, rect, t) { this.reveals.push({ x, y, r: Math.hypot(rect.x1 - rect.x0, rect.y1 - rect.y0) / 2 + 1, t, rect }); this.lastKey = ''; }
   /** Temporary reveal (flares, scripts, strike flash). */
   reveal(x, y, r, t) { this.reveals.push({ x, y, r, t }); this.lastKey = ''; }
   tick(dt) {
@@ -43,6 +48,11 @@ export class Fog {
     for (const s of sources) visibleTiles(this.map, s.x, s.y, s.r, mark, s.elev);
     const { w, h } = this.map;
     for (const rv of this.reveals) {
+      if (rv.rect) {
+        const q = rv.rect, cx = Math.max(0, Math.min(w - 1, rv.x)), cy = Math.max(0, Math.min(h - 1, rv.y));
+        visibleTiles(this.map, cx, cy, rv.r, (i) => { const x = i % w, y = (i / w) | 0; if (x >= q.x0 && x < q.x1 && y >= q.y0 && y < q.y1) mark(i); });
+        continue;
+      }
       const r2 = rv.r * rv.r;
       for (let y = Math.max(0, Math.floor(rv.y - rv.r)); y <= Math.min(h - 1, Math.ceil(rv.y + rv.r)); y++)
         for (let x = Math.max(0, Math.floor(rv.x - rv.r)); x <= Math.min(w - 1, Math.ceil(rv.x + rv.r)); x++)

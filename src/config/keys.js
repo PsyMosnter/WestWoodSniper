@@ -6,6 +6,7 @@ export const KEYS = {
   runGun: 'KeyG',
   c4: 'Digit4',
   designator: 'KeyN',
+  recon: 'KeyR',
   centre: 'Space',
   pause: 'Escape',
   debug: 'Backquote',

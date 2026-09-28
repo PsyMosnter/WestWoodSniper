@@ -194,11 +194,23 @@ Format: date · milestone · decision · reason.
   Still open: east/west ramps read as a strip seen from above, diagonal cliff edges still step tile by tile, and trees in front of a cliff hide its face.
 - **Gameplay**: the minimap marks every objective on every mission (areas; structures to destroy; people to free or escort; a unit to kill while it is in sight). The briefing can be read again from the pause menu (BRIEFING; the pause menu falls back to two columns on short screens). First Light: a dirt trail leads from the start up to the hill's ramp; a tall-grass spur of the hill now reaches down to the river, and the ford sentry stands in the shallows — 8 tiles from the spur's tip, in range for a hunkered shot.
 
+## Satellite recon; ramps & rock, second pass (owner playtest 4)
+
+- **Satellite recon** (`src/strike/recon.js`): one uplink from mission 2 (RECON button / R). Tap anywhere and a satellite sweeps a screen-sized area for 1.2 s. For 6 s everything in it is visible, with line of sight from its middle as if WREN stood there. Then it goes back to fog: explored, not visible (`Fog.revealArea`). Charges are saved in checkpoints and listed in the briefing loadout.
+- **Field rewards**, up to 3 of each:
+  - From mission 3, +1 recon for a Warden's radio codes, a comms array or jammer brought down, or 3 clean kills. A clean kill is a takedown, or a headshot from 8+ tiles on a target that never saw WREN coming.
+  - From mission 5, sabotage (power plant, generator, fuel depot, shield generator) and heavy armour (Juggernaut, Crawler) earn a **tactical strike**. Before mission 5, sabotage earns recon.
+- **Ramps, second pass** (StarCraft reads as the target):
+  - Each ramp is drawn as a slope over two tiles, the ramp and its landing. It is dark at the foot and lit at the crest, with step edges across it, boulder walls tapering from the crest down its flanks, and a worn apron fanning into the ground below.
+  - Ramps widen to 3 tiles. At plateau corners, where there's no ground beside them, they carve the neighbouring edge tile down instead.
+- **Rock**: faces are rounded boulder chunks lit from the upper left, with dark crevices, boulders bulging over the rim and grass tufts at the foot. Plateau north edges get a rocky rim. West-facing side faces show on the lower tile. Raised ground is 11 % lighter per level, applied before any rock is drawn, so spilled faces stay dark.
+
 ## Hosting
 
 - **Cloudflare Workers (static assets)**: `wrangler.jsonc` in the repo; `npx wrangler deploy` runs `node tools/build-site.js`, which copies only `index.html`, `icon.svg`, `manifest.webmanifest` and `src/` into `dist/` (git-ignored), and only `dist/` is uploaded. Without a committed config, Wrangler's auto-setup served the repo root and tried to upload `node_modules/` (its own 128 MiB `workerd` binary → "Asset too large"); an allow-list also keeps tests, tools and docs off the site, and a separate folder stops `wrangler dev` from reload-looping on its own `.wrangler/` state. Still no bundling and no runtime dependencies; `npm run serve` keeps serving the source tree directly.
 
 ## Changelog
+- **Playtest 4**: satellite recon (from M2; rewards from M3; tactical strike rewards from M5); ramps as two-tile slopes with tapering boulder walls, carved 3-wide even at corners; boulder rock faces with rims and tufts.
 - **Playtest 3 — Chibi final**: Chibi is the default look; vehicles and buildings rescaled to the chibi soldiers; new trees; thick, natural rock faces; 3-wide ramps with a view over the crest; hand-inked intro (meteors, the Colonel and his secretary, the pin, WREN's boot) with the N.O.T. / G.O.D. story; objectives on every minimap; briefing from the pause menu; First Light trail and sniping spur.
 - **Cutscenes, LucasArts style**: acted scenes at full resolution — painted sets (HQ tent, dawn jetty, dropship cabin) and big talking-head close-ups with a green field-radio screen; the chibi cast lip-syncs, blinks, gestures and emotes; speech typed above the speaker's head in their colour. New cast: Overwatch, GOD Command, Dr. Adler. Every mission briefing is now a close-up; the intro gets the tent and the fishing gag, the ending the ride home.
 - **Art style Chibi**: detailed anime-chibi infantry for all 11 types on the shared Newest skeleton (8 facings, 6-frame walks/runs, 12-frame deaths in the unit's own blood, per-pixel hit zones, soft shadows); WREN's round glasses catch the sun now and then. Explosions with fireballs and debris now also play in the default New style. `?art=chibi`.

@@ -29,6 +29,7 @@ export class Hud {
     b({ id: 'runGun', icon: 'runGun', label: 'R&GUN', toggle: true, onPress: () => game.cmd('runGun') });
     b({ id: 'c4', icon: 'c4', label: 'C4', onPress: () => game.cmd('c4') });
     b({ id: 'designator', icon: 'designator', label: 'STRIKE', onPress: () => game.cmd('designator') });
+    b({ id: 'recon', icon: 'recon', label: 'RECON', onPress: () => game.cmd('recon') });
     b({ id: 'centre', icon: 'centre', label: '', onPress: () => game.cmd('centre') });
     b({ id: 'pause', icon: 'pause', label: '', onPress: () => game.cmd('pause') });
     b({ id: 'save', icon: 'save', label: '', onPress: () => game.cmd('quicksave') });
@@ -142,7 +143,7 @@ export class Hud {
   /** mission buttons under the grid, right to left: STRIKE, ADVANCE, FOLLOW */
   _extras() {
     const op = this.world.operative, g = this.game;
-    return [op.designator > 0 && 'designator', !!g.convoy && 'convoy', (g.escortCount?.() || 0) >= 2 && 'follow'].filter(Boolean);
+    return [op.designator > 0 && 'designator', op.recon > 0 && 'recon', !!g.convoy && 'convoy', (g.escortCount?.() || 0) >= 2 && 'follow'].filter(Boolean);
   }
   syncButtons() {
     const op = this.world.operative, bs = this.buttons, g = this.game;
@@ -153,6 +154,7 @@ export class Hud {
     bs.c4.visible = !g.remoteArmed; bs.c4.enabled = op.c4 > 0; bs.c4.badge = op.c4 > 0 ? '×' + op.c4 : ''; bs.c4.active = g.mode === 'c4';
     bs.detonate.visible = !!g.remoteArmed;
     bs.designator.visible = op.designator > 0; bs.designator.badge = '×' + op.designator; bs.designator.active = g.mode === 'designator';
+    bs.recon.visible = op.recon > 0; bs.recon.badge = '×' + (op.recon || 0); bs.recon.active = g.mode === 'recon';
     bs.smoke.visible = true; bs.smoke.enabled = op.smoke > 0; bs.smoke.badge = op.smoke > 0 ? '×' + op.smoke : '';
     bs.convoy.visible = !!g.convoy; if (g.convoy) { bs.convoy.label = g.convoy.advancing ? 'HOLD' : 'ADVANCE'; bs.convoy.active = g.convoy.advancing; }
     bs.follow.visible = (g.escortCount?.() || 0) >= 2; bs.follow.label = g.escortsHolding?.() ? 'FOLLOW' : 'HOLD';

@@ -78,7 +78,7 @@ export class Vehicle extends Unit {
       let da = this.targetAngle - this.angle;
       while (da > Math.PI) da -= Math.PI * 2;
       while (da < -Math.PI) da += Math.PI * 2;
-      if (this.disabled && !this.def.armoured) return false;
+      if (this.disabled && (!this.def.armoured || this.silenced)) return false;   // (armour with blown tracks: turret jammed too)
       const turn = (this.def.armoured ? 1.6 : 1.0) * dt;
       this.angle += Math.abs(da) <= turn ? da : Math.sign(da) * turn;
       return false;
@@ -135,6 +135,7 @@ export class VehicleSystem {
     // turret keeps working with vision radius 3 (slit) — stored apart from visionMult, which the FSM resets
     if (why === 'slit') v.disabledVision = 3 / Math.max(1, BALANCE.ai.vision[v.profile].radius);
     else if (why === 'driver' && !v.def.armoured) { v.disabledVision = 0; v.silenced = true; v.det = 0; }
+    else if (why === 'c4') { v.disabledVision = 0; v.silenced = true; v.det = 0; v.tag = { text: 'TRACKS BLOWN', t: 3 }; }   // armour: immobile, turret jammed
     if (v.passengers > 0) v.dismountT = U.dismountDelay;
     this.world.events.emit('vehicleDisabled', { vehicle: v, why });
     this.game.enemies.alertFromHit(v, this.world.operative);
@@ -167,8 +168,14 @@ export class VehicleSystem {
     v.passengers = 0;
   }
   update(dt) {
-    for (const v of this.world.units) {
-      if (v.kind !== 'vehicle' || v.dead) continue;
+    const w = this.world;
+    for (const v of w.units) {
+      if (v.kind !== 'vehicle') continue;
+      if (v.dead) {
+        // wrecks aren't forever: after a while one is hauled off, the next time nobody is looking at it
+        if (!v.cleared && v.deathT > U.wreckLife && !w.fog?.isVisible(v.tx, v.ty)) { v.cleared = true; v.hidden = true; w.map.setBlocked(v.tx, v.ty, false); }
+        continue;
+      }
       if (v.dismountT > 0) { v.dismountT -= dt; if (v.dismountT <= 0) this.dismount(v); }
       if (v.hp <= 0) this.destroy(v, { by: 'damage' });
     }

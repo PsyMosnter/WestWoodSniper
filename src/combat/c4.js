@@ -32,7 +32,8 @@ export class C4System {
       const s = w.structures[si];
       if (s && !s.dead && s.def.c4 && !(s.type === 'hiveSpire' && s.hardened)) return { kind: 'structure', s, x: s.cx, y: s.cy, name: s.def.name };
     }
-    for (const v of w.units) if (v.kind === 'vehicle' && v.disabled && !v.dead && Math.floor(v.x) === tx && Math.floor(v.y) === ty) return { kind: 'vehicle', v, x: v.x, y: v.y, name: v.name };
+    // a disabled vehicle (destroy it) — or armour, which no bullet stops: a charge on the hull blows its tracks
+    for (const v of w.units) if (v.kind === 'vehicle' && (v.disabled || v.def?.armoured) && !v.dead && Math.floor(v.x) === tx && Math.floor(v.y) === ty) return { kind: 'vehicle', v, x: v.x, y: v.y, name: v.name };
     if (m.demolishable[m.idx(tx, ty)]) return { kind: 'bridge', x: tx + 0.5, y: ty + 0.5, tx, ty, name: 'Bridge' };
     if (m.breach[m.idx(tx, ty)]) return { kind: 'breach', x: tx + 0.5, y: ty + 0.5, tx, ty, name: 'Cracked rock' };
     return null;
@@ -67,6 +68,8 @@ export class C4System {
   plant(target) {
     const g = this.game, w = this.world, op = w.operative;
     if (op.c4 <= 0) { g.hud.toast('NO C4 LEFT', C.uiAlert); return false; }
+    if (target.kind === 'vehicle' && target.v.path?.length) { g.hud.toast('WAIT TILL IT STOPS', C.uiAmber, 1.2); return false; }
+    if (target.kind === 'vehicle') { target.x = target.v.x; target.y = target.v.y; }
     const tile = this.plantTile(target);
     if (!tile) { g.hud.toast("CAN'T REACH IT", C.uiGrey); return false; }
     const begin = () => {
@@ -109,6 +112,7 @@ export class C4System {
       }
     }
     for (const c of this.charges) {
+      if (c.target.kind === 'vehicle' && !c.target.v.dead) { c.x = c.target.v.x; c.y = c.target.v.y; }   // stuck to the hull
       c.t -= dt;
       c.beep -= dt;
       if (c.beep <= 0 && Number.isFinite(c.t)) { c.beep = c.t < 3 ? 0.25 : 0.8; this.game.audio?.play?.('beep'); }
@@ -121,7 +125,8 @@ export class C4System {
   detonate(c) {
     const g = this.game, w = this.world, t = c.target;
     if (t.kind === 'structure' && !t.s.dead) g.structures.destroy(t.s, { by: 'c4' });
-    if (t.kind === 'vehicle' && !t.v.dead) g.vehicles.destroy(t.v, { by: 'c4' });
+    // armour still running: tracks and turret gone (a second charge finishes the hull); anything disabled: destroyed
+    if (t.kind === 'vehicle' && !t.v.dead) { if (t.v.def?.armoured && !t.v.disabled) g.vehicles.disable(t.v, 'c4'); else g.vehicles.destroy(t.v, { by: 'c4' }); }
     if (t.kind === 'bridge') g.structures?.demolishBridge?.(t.tx, t.ty);
     if (t.kind === 'breach') g.structures?.blastBreach?.(t.tx, t.ty);
     explode(g.combat, c.x, c.y, K.radius, K.damage, { source: 'player', noise: K.noise, buildingMult: 0.5 });

@@ -143,3 +143,35 @@ test('tutorial prompts queue instead of replacing each other, and are only "seen
   assert.equal(r.tutorialSeen.has('b'), true, 'read, then closed: seen');
   assert.equal(r.tutorial, null);
 });
+
+test('C4 on armour: the first charge blows the tracks and jams the turret, a second destroys the hull', () => {
+  const g = setup({ px: 14, py: 10, units: [{ id: 'v', type: 'juggernaut', x: 10, y: 10, alertGroup: 'a' }] });
+  const v = g.world.units.find((u) => u.id === 'v'), op = g.world.operative;
+  op.c4 = 2;
+  const t1 = g.c4.targetAt(v.tx, v.ty);
+  assert.ok(t1, 'running armour is a C4 target');
+  assert.ok(g.c4.plant(t1));
+  run(g, 12, () => {});
+  run(g, BALANCE.c4.fuse + 0.5, () => { if (g.world.operative.busy) return; op.x = op.px = 30.5; op.y = op.py = 10.5; });
+  assert.equal(v.disabled, true); assert.equal(v.silenced, true);
+  if (!v.dead) {
+    op.x = op.px = 14.5; op.y = op.py = 10.5;
+    assert.ok(g.c4.plant(g.c4.targetAt(v.tx, v.ty)));
+    run(g, 12, () => {});
+    run(g, BALANCE.c4.fuse + 0.5, () => { if (!g.world.operative.busy) { op.x = op.px = 30.5; op.y = op.py = 10.5; } });
+  }
+  assert.equal(v.dead, true, 'hull destroyed');
+});
+
+test('wrecks are hauled off after a while, once out of sight', () => {
+  const g = setup({ units: [{ id: 'v', type: 'skitter', x: 10, y: 10, alertGroup: 'a' }] });
+  const v = g.world.units.find((u) => u.id === 'v');
+  g.vehicles.destroy(v, { by: 'test' });
+  assert.equal(g.world.map.walkable(v.tx, v.ty), false);
+  v.deathT = BALANCE.units.wreckLife + 1;
+  g.world.fog.isVisible = () => true; g.vehicles.update(DT);
+  assert.equal(v.cleared, undefined, 'not while you are looking');
+  g.world.fog.isVisible = () => false; g.vehicles.update(DT);
+  assert.equal(v.cleared, true); assert.equal(v.hidden, true);
+  assert.equal(g.world.map.walkable(v.tx, v.ty), true, 'tile free again');
+});

@@ -34,6 +34,7 @@ import '../render/spriteData/newVehicles.js';
 import '../render/spriteData/rtsInfantry.js';
 import '../render/spriteData/rtsVehicles.js';
 import '../render/spriteData/chibiInfantry.js';
+import '../render/spriteData/chibiVehicles.js';
 import { FriendlySystem } from '../entities/friendly.js';
 import { Weather } from '../world/weather.js';
 import { NotConvoy } from '../missions/convoy.js';
@@ -852,10 +853,22 @@ export class GameScene {
     for (const f of w.friendlies) if (!f.dead && w.fog.isSeen(f.tx, f.ty)) out.push({ kind: 'dot', x: f.x, y: f.y, color: C.godSteelL, size: f.kind === 'vehicle' ? 3 : 2 });
     for (const u of w.units) if (!u.dead && !u.hidden && u.kind !== 'structure' && w.fog.isVisible(u.tx, u.ty)) out.push({ kind: 'dot', x: u.x, y: u.y, color: u.state === 'combat' ? C.uiAlert : '#A6F03C', size: u.kind === 'vehicle' ? 3 : 2 });
     for (const st of w.structures) if (st.seen && !st.seenDead) out.push({ kind: 'dot', x: st.cx, y: st.cy, color: '#C9A0FF', size: Math.max(2, Math.min(4, st.w + 1)) });
+    // objectives on every mission: areas as boxes, targets as pulsing markers (structures to destroy, people to
+    // free or escort; a unit to kill only while it is in sight)
     for (const o of this.objectives.list()) {
-      if (o.done || o.hidden || !o.area) continue;
-      const a = w.data.areas?.[o.area];
-      if (a) out.push({ kind: 'area', x: a.x, y: a.y, w: a.w, h: a.h, color: o.primary ? C.uiAmber : '#C8A060' });
+      if (o.done || o.hidden) continue;
+      const color = o.primary ? C.uiAmber : '#C8A060';
+      const a = o.area && w.data.areas?.[o.area];
+      if (a) out.push({ kind: 'area', x: a.x, y: a.y, w: a.w, h: a.h, color });
+      if (o.type === 'DESTROY') for (const id of o.entities || [o.entity]) {
+        const s = w.structures.find((x) => x.id === id) || w.units.find((x) => x.id === id);
+        if (s && !s.dead) out.push({ kind: 'target', x: s.cx ?? s.x, y: s.cy ?? s.y, color });
+      }
+      if (o.type === 'KILL') { const u = w.units.find((x) => x.id === o.unit); if (u && !u.dead && w.fog.isVisible(u.tx, u.ty)) out.push({ kind: 'target', x: u.x, y: u.y, color }); }
+      if (o.type === 'RESCUE' || o.type === 'ESCORT') for (const id of o.units || []) {
+        const f = w.friendlies.find((x) => x.id === id);
+        if (f && !f.dead && (o.type === 'ESCORT' || f.captive)) out.push({ kind: 'target', x: f.x, y: f.y, color });
+      }
     }
     if (w.lkp) out.push({ kind: 'dot', x: w.lkp.x, y: w.lkp.y, color: '#B8C0B8', size: 2 });
     // jammer coverage (known jammers) + recon intel (M7 phase 1 marks the jammers, shield and Spire)

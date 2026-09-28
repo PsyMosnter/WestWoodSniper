@@ -1,6 +1,8 @@
 // @ts-check
 import { Pix, pack, shade } from '../pixel.js';
 import { Rng } from '../../core/rng.js';
+import { Art } from '../artStyle.js';
+import { CHIBI_FLORA } from './chibiFlora.js';
 
 /**
  * Procedural flora sprites (SPEC §4.5, §16.4 rule 6: ≥3 variants per biome).
@@ -265,11 +267,12 @@ const FLORA = {
 const cache = new Map();
 /** @returns {{canvas: HTMLCanvasElement, ax:number, ay:number, w:number, h:number}} */
 export function floraSprite(biome, kind, variantHash) {
-  const table = (FLORA[biome] || FLORA.temperate)[kind] || FLORA.temperate[kind];
+  const chibi = Art.style === 'chibi' && (CHIBI_FLORA[biome] || CHIBI_FLORA.temperate)[kind];
+  const table = chibi || (FLORA[biome] || FLORA.temperate)[kind] || FLORA.temperate[kind];
   const gi = Math.floor(variantHash * table.length * 3);
   const gen = table[gi % table.length];
   const seed = (gi * 7919 + 13) | 0;
-  const key = biome + kind + gi;
+  const key = (chibi ? 'c' : '') + biome + kind + gi;
   let s = cache.get(key);
   if (!s) {
     const r = gen(seed);

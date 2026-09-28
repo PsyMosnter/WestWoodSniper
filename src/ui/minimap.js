@@ -98,6 +98,12 @@ export class Minimap {
           if (xx * xx + yy * yy > R * R) continue;
           if (((Math.round(cx + xx) + Math.round(cy + yy)) & 3) === 0) ctx.fillRect(Math.round(cx + xx), Math.round(cy + yy), 1, 1);
         }
+      } else if (e.kind === 'target') {
+        // an objective: a pulsing ring round a dot
+        const cx = Math.round(r.x + e.x * r.s), cy = Math.round(r.y + e.y * r.s), R = 3 + (Math.floor(t * 3) & 1);
+        ctx.fillStyle = '#0D0F0E'; ctx.fillRect(cx - 1, cy - 1, 3, 3);
+        ctx.fillStyle = e.color; ctx.fillRect(cx, cy, 1, 1);
+        ctx.strokeStyle = e.color; ctx.lineWidth = 1; ctx.strokeRect(cx - R + 0.5, cy - R + 0.5, R * 2, R * 2);
       } else dot(e.x, e.y, e.color, e.size || 2);
     }
     const op = this.world.operative;

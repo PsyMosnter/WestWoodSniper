@@ -35,17 +35,17 @@ test('no borrowed names anywhere in the script', () => {
   for (const s of all) assert.ok(!BANNED.test(s), s);
 });
 
-test('save v2: New art becomes the default once, a later Classic choice sticks, watched cutscenes are remembered', async () => {
+test('save v3: Chibi becomes the default once, a later Classic choice sticks, watched cutscenes are remembered', async () => {
   const { loadSave } = await import('../src/save.js');
   const store = {};
   // @ts-ignore
   globalThis.localStorage = { getItem: (k) => store[k] ?? null, setItem: (k, v) => { store[k] = v; } };
   store['westwood-sniper:v1'] = JSON.stringify({ unlocked: 3, settings: { artStyle: 'classic', music: 0.2 } });
   const old = loadSave();
-  assert.equal(old.settings.artStyle, 'new', 'an old save moves to New');
+  assert.equal(old.settings.artStyle, 'chibi', 'an old save moves to Chibi');
   assert.equal(old.settings.music, 0.2);
   assert.deepEqual(old.seenCuts, {});
-  store['westwood-sniper:v1'] = JSON.stringify({ v: 2, unlocked: 3, settings: { artStyle: 'classic' }, seenCuts: { intro: true } });
+  store['westwood-sniper:v1'] = JSON.stringify({ v: 3, unlocked: 3, settings: { artStyle: 'classic' }, seenCuts: { intro: true } });
   const now = loadSave();
   assert.equal(now.settings.artStyle, 'classic', 'chosen after the switch: kept');
   assert.equal(now.seenCuts.intro, true);

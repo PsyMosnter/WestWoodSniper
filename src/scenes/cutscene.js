@@ -4,6 +4,9 @@ import { makeCanvas } from '../render/pixel.js';
 import { renderVehicle } from '../render/spriteData/newVehicles.js';
 import { renderChibi } from '../render/spriteData/chibiInfantry.js';
 import { makeStageShots, preloadStage, drawSpeech } from './cutStage.js';
+import { Ink } from '../render/ink.js';
+import { SHOTS as INK_SHOTS } from './cutArt/shots.js';
+import { talkState } from './cutArt/talk.js';
 import { drawLogo } from './menus.js';
 import { CUTS, FAILED_LINES, CREDITS, cutLength } from '../missions/story.js';
 
@@ -32,9 +35,9 @@ const BIOME = {
   swamp: { g: ['#141A10', '#222A1A', '#323C24', '#46522E', '#5E6C3C'], ground: '#262E1C', far: ['#1C2418', '#2A3424', '#3A4632'], soil: '#2A2618' },
   volcanic: { g: ['#0E0A0A', '#1A1414', '#2A2020', '#3E302C', '#56443C'], ground: '#241C1C', far: ['#1A1416', '#2A2224', '#3E3234'], soil: '#1E1616', embers: true },
 };
-const SPEAKER = { OVERWATCH: '#7CFF7A', WREN: '#FFE08A', 'GOD COMMAND': '#8FC2F0', 'DR. ADLER': '#C8A8FF' };
+const SPEAKER = { OVERWATCH: '#7CFF7A', WREN: '#FFE08A', 'GOD COMMAND': '#8FC2F0', COLONEL: '#8FC2F0', SECRETARY: '#FFB4D2', 'DR. ADLER': '#C8A8FF' };
 /** shots drawn at full resolution (the acted scenes) */
-const HIRES = new Set(['stage', 'closeup']);
+const HIRES = new Set(['stage', 'closeup', 'ink']);
 const BILE = ['#E8D43A', '#8E7F12', '#FFF6A0'];
 
 // ------------------------------------------------------------------ helpers
@@ -416,6 +419,30 @@ const SHOTS = {
 };
 
 Object.assign(SHOTS, makeStageShots({ BIOME, SKY, bands, ridge, blade, disc, ell, rng, weather, clamp01, ease, lerp }));
+
+/** Hand-inked illustrated shots (cutArt/): painted at full resolution; they report where each speaker's head is. */
+SHOTS.ink = function (g, S) {
+  const { w, h, shot } = S;
+  if (!this.ink || this.ink.w !== w || this.ink.h !== h) { this.ink = new Ink(w, h); this.inkImg = null; }
+  const k = this.ink;
+  k.pix.data.fill(0); k.m = [1, 0, 0, 1, 0, 0]; k.clips = []; k.stack = [];
+  const st = talkState(this.cut.lines, S.T, this.failedLine);
+  st.reduced = S.reduced;
+  INK_SHOTS[shot.id]?.draw(k, S.t, st, shot);
+  if (!this.inkImg) this.inkImg = new ImageData(new Uint8ClampedArray(k.pix.data.buffer), w, h);
+  g.putImageData(this.inkImg, 0, 0);
+  const f = st.frame || { ox: 0, s: 1 };
+  for (const [who, [x, y]] of Object.entries(st.talkers || {})) this.talkers[who] = [f.ox + x * f.s, (f.oy || 0) + y * f.s];
+  if (st.shake && !S.reduced) this.shake = st.shake;
+  // a title card over the shot (the meteors: what N.O.T. stands for)
+  if (shot.card && S.t >= shot.card.at && S.t < shot.card.at + shot.card.dur) {
+    const q = S.t - shot.card.at, n = Math.floor(q * 30);
+    this.overlay.push((ctx, W, H) => {
+      drawText(ctx, 'N . O . T .', W / 2, H * 0.3, { color: '#C6FF5A', align: 'center', scale: 3, bold: true, shadow: '#000' });
+      drawText(ctx, shot.card.text.slice(0, n), W / 2, H * 0.3 + 26, { color: '#E8E0B8', align: 'center', scale: 2, shadow: '#000' });
+    });
+  }
+};
 
 // ------------------------------------------------------------------ the insect of the day
 function bug(g, S, kind, bx, gy, tA, ap, squashed) {

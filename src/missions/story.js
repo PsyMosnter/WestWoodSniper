@@ -48,28 +48,26 @@ function mission(m) {
 /** @type {Record<string, Cut>} */
 export const CUTS = {
   intro: {
+    // hand-inked (cutArt/): the night they came · the Colonel explains · one pin · WREN, fishing
     shots: [
       { kind: 'caption', dur: 2.8, text: 'THE CONTINENT. 199X.' },
-      { kind: 'macro', dur: 8.4, biome: 'temperate', time: 'night', bug: 'firefly', approach: 'pods' },
-      // GOD field HQ: the general leans on the map table; Overwatch at the radio desk
-      { kind: 'stage', dur: 4.8, set: 'tent', actors: [
-        { who: 'GOD COMMAND', x: 0.34, y: 0.84, dir: 4, pose: 'stand', brow: -1, beats: [{ t: 3.4, pose: 'fold' }] },
-        { who: 'OVERWATCH', x: 0.78, y: 0.9, dir: 2, pose: 'fold', beats: [{ t: 1.4, dir: 5 }] },
-      ] },
-      { kind: 'mapTable', dur: 3.6 },
-      // the Varna at dawn: WREN has gone fishing. The radio on the crate has other ideas.
-      { kind: 'stage', dur: 10.4, set: 'dock', seatX: 0.36, seatY: 0.86, radio: 'OVERWATCH', gag: 7.2, actors: [
-        { who: 'WREN', x: 0.36, y: 0.86, dir: 3, pose: 'fish', beats: [{ t: 1.4, yaw: 0.8 }, { t: 3.0, yaw: 0 }, { t: 5.6, brow: 0.8 }, { t: 7.7, pose: 'yank', brow: 1 }, { t: 8.9, pose: 'fish', brow: -0.5, yaw: 0.6 }] },
-      ] },
+      { kind: 'ink', id: 'meteors', dur: 9.0, card: { at: 5.0, dur: 3.8, text: 'NULL OBJECTION TARGETS' } },
+      { kind: 'ink', id: 'tent', dur: 13.3 },
+      { kind: 'ink', id: 'pin', dur: 8.4, slam: 7.2 },
+      { kind: 'ink', id: 'dock', dur: 12.0, gag: 7.2 },
       { kind: 'titleSlam', dur: 3.4 },
     ],
     lines: [
-      [3.6, 'OVERWATCH', 'They came down on the east bank of the Varna. Hundreds of them.'],
-      [11.8, 'GOD COMMAND', "We can't send an army across that river."],
-      [16.4, 'GOD COMMAND', 'We can send one soldier.'],
-      [20.8, 'OVERWATCH', "WREN, you're up."],
-      [23.1, 'WREN', "I'm retired."],
-      [25.0, 'OVERWATCH', "You're bored."],
+      [3.4, 'OVERWATCH', 'They came down on the east bank of the Varna. Hundreds of them...'],
+      [12.2, 'COLONEL', "...because the whole world agrees that we don't like them very much."],
+      [16.8, 'SECRETARY', "Yeah, they're not too nice, are they?"],
+      [20.0, 'COLONEL', "So it's OK to shoot them."],
+      [22.6, 'SECRETARY', 'Yeah. Shoot them.'],
+      [25.4, 'COLONEL', 'So we organised the Global Operative Defences, to shoot them.'],
+      [29.7, 'COLONEL', "But we can't send a whole army across the river."],
+      [34.6, 'OVERWATCH', "WREN, you're up."],
+      [37.0, 'WREN', "I'm retired."],
+      [39.0, 'OVERWATCH', "You're bored."],
     ],
   },
   m1: mission({
@@ -138,6 +136,8 @@ export const CREDITS = [
   ['OVERWATCH', 'the voice in the ear'],
   ['DRS ADLER, OKAFOR & LIND', 'the shield people'],
   ['LT. IDRIS VALE', 'still owes WREN a drink'],
+  ['THE COLONEL', 'organised the whole thing'],
+  ['HIS SECRETARY', 'agreed'],
   ['OVERSEER VRASK', 'should have stayed in the Crawler'],
   ['', ''],
   ['Inspired by the real-time strategy games of the 1990s.', 'note'],

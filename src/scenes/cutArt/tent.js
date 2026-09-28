@@ -18,7 +18,7 @@ export const GC = {
 export function tentShot(k, t, st) {
   const R = rng(5);
   const swing = Math.sin(t * 1.25) * 0.12;
-  const talking = st.speaking?.who === 'GOD COMMAND', mouth = talking ? st.mouth : 'closed';
+  const talking = st.speaking?.who === 'COLONEL', mouth = talking ? st.mouth : 'closed';
   // --- the tent: canvas walls with sagging seams, a pole, a map pinned up, crates
   k.rect(-60, -10, 600, 290, { fill: GC.canvas[3] });
   const wall = k.shape([[-60, 8], [540, 8], [540, 210], [-60, 210]], { fill: { grad: [[0, GC.canvas[3]], [0.35, GC.canvas[2]], [0.8, GC.canvas[1]], [1, GC.canvas[2]]], from: [0, 0], to: [0, 210 * k.h / 270] }, smooth: false });
@@ -51,10 +51,23 @@ export function tentShot(k, t, st) {
     k.save(); k.clip(c); k.rect(x, y, w, 5, { fill: GC.wood[0] }); for (let i = 1; i < 3; i++) k.stroke([[x, y + (h * i) / 3], [x + w, y + (h * i) / 3]], 1, GC.wood[2]); crescent(k, c, 10, -4, GC.wood[2]); k.restore();
     k.stroke([[x + w * 0.3, y + h * 0.45], [x + w * 0.42, y + h * 0.45]], 3, GC.wood[2]);
   }
-  // --- Overwatch at the radio desk, in the glow of the dials (background right)
-  radioDesk(k, t, st);
-  // --- the lamp's light falls on him
-  glow(k, 214, 70, 170, 150, '#FFD890', 0.28);
+  // an open flap onto the night: cold blue against the lamp's warmth
+  const flap = k.shape([[128, 18], [176, 22], [170, 150], [132, 150]], { fill: { grad: [[0, '#0A0E22'], [1, '#1E2A4E']], from: [0, 18 * k.k], to: [0, 150 * k.k] }, line: INK, lw: 2 });
+  k.save(); k.clip(flap); for (let i = 0; i < 14; i++) k.rect(Math.round(132 + R() * 40), Math.round(24 + R() * 110), 1, 1, { fill: '#C8D0F0' }); k.ellipse(160, 40, 5, 5, 0, { fill: '#E8ECF8' }); k.ellipse(163, 38, 5, 5, 0, { fill: '#0E1430' }); k.restore();
+  k.stroke([[176, 22], [186, 90], [172, 150]], [4, 6, 4], GC.canvas[2]);                          // the tied-back flap
+  // his shadow, huge on the canvas behind him, swinging with the lamp
+  k.save(); k.translate(-swing * 90, -6); k.scale(1.25); k.translate(-44, -26);
+  const shadow = k.shape([[100, 214], [110, 166], [160, 146], [196, 140], [186, 84], [190, 50], [212, 34], [268, 34], [294, 50], [300, 84], [290, 140], [320, 146], [370, 166], [380, 214]], { paint: false });
+  k.restore();
+  k.tint(shadow, '#120E06', 0.45);
+  // --- the secretary, clipboard at the ready (background right)
+  secretary(k, t, st);
+  // --- the lamp's light falls on him: a visible cone with dust turning in it
+  const lxs = 214 + Math.sin(swing) * 60;
+  const cone = k.shape([[lxs - 14, 40], [lxs + 14, 40], [lxs + 150, 214], [lxs - 150, 214]], { paint: false });
+  k.tint(cone, '#FFE0A0', 0.13);
+  for (let i = 0; i < 26; i++) { const q = (t * 0.05 + R()) % 1, x = lxs - 90 + R() * 180 + Math.sin(t + i) * 6, y = 60 + q * 150; if (cone.has(Math.round(k.T([x, y])[0]), Math.round(k.T([x, y])[1]))) k.rect(Math.round(x), Math.round(y), 1, 1, { fill: '#FFF0C8' }); }
+  glow(k, 214, 70, 170, 150, '#FFD890', 0.24);
   // --- THE GENERAL
   general(k, t, mouth, talking);
   // --- the table in front: the map of the Varna, pins, a mug, his fists
@@ -87,35 +100,38 @@ export function tentShot(k, t, st) {
   k.ellipse(lx, ly + 17, 7, 3, 0, { fill: '#FFF6C8' });
   glow(k, lx, ly + 18, 30, 16, '#FFF0C0', 0.5);
   st.talkers = st.talkers || {};
-  st.talkers['GOD COMMAND'] = [240, 30];
-  st.talkers.OVERWATCH = [404, 88];
+  st.talkers.COLONEL = [240, 30];
+  st.talkers.SECRETARY = [412, 62];
   return st;
 }
 
-function radioDesk(k, t, st) {
-  const on = st.speaking?.who === 'OVERWATCH';
-  // desk and set
-  const desk = k.shape([[330, 166], [490, 162], [490, 176], [330, 180]], { fill: GC.wood[2], line: INK, lw: 2 });
-  void desk;
-  k.rect(338, 180, 8, 40, { fill: GC.wood[3] });
-  const set = k.shape([[430, 112, 1], [488, 110, 1], [490, 164, 1], [430, 166, 1]], { fill: '#3E4430', line: INK, lw: 2, smooth: false });
-  k.save(); k.clip(set); rim(k, set, -2, 0, '#6E7650'); k.restore();
-  for (let i = 0; i < 3; i++) { k.ellipse(442 + i * 15, 126, 5, 5, 0, { fill: '#1E2218', line: INK, lw: 1 }); k.ellipse(442 + i * 15, 126, 3, 3, 0, { fill: on && (Math.floor(t * 8) + i) % 3 === 0 ? '#C8FF9A' : '#5E9A4A' }); }
-  k.rect(438, 140, 40, 10, { fill: on ? '#B8F08A' : '#6E9A52', line: INK, lw: 1 });
-  glow(k, 456, 136, 60, 40, '#9CFF8A', on ? 0.3 : 0.16);
-  // Overwatch: seated, turned to the set, headset on, lit green from the dials
-  const OC = ['#8FC4B8', '#46707A', '#2A4A52', '#16282E'];
-  const body = k.shape([[372, 170], [370, 128], [384, 108], [404, 106], [416, 120], [420, 170]], { fill: OC[2], line: INK, lw: 2 });
-  k.save(); k.clip(body); rim(k, body, 2, 0, '#7ACF8A'); k.restore();
-  k.stroke([[410, 126], [424, 138], [436, 134]], [7, 6, 5], INK); k.stroke([[410, 126], [424, 138], [436, 134]], [5, 4, 3], OC[1]);   // arm to the dial
-  k.ellipse(437, 134, 3.5, 3, 0, { fill: '#8A5A3E', line: INK, lw: 1 });
-  const head = k.shape([[386, 84], [400, 76], [414, 82], [418, 96], [412, 108], [396, 110], [386, 100]], { fill: '#8A5A3E', line: INK, lw: 2 });
-  k.save(); k.clip(head); rim(k, head, 2, 0, '#9CE08A'); crescent(k, head, 6, 0, '#5A3626'); k.restore();
-  k.shape([[382, 100], [382, 80], [392, 70], [406, 69], [416, 76], [416, 84], [404, 80], [392, 84], [390, 102]], { fill: '#1E1410', line: INK, lw: 2 });   // hair, a short bob
-  k.stroke([[388, 88], [400, 72], [412, 80]], 2.4, '#2A2E34');                                         // headset band
-  k.ellipse(412, 92, 4, 5, 0, { fill: '#2A2E34', line: INK, lw: 1 });
-  k.stroke([[414, 96], [420, 104], [416, 106]], 1.4, '#2A2E34');                                       // mic
-  if (on) k.stroke([[414, 100], [417, 104]], 1.2, '#1E1410');
+/** The Colonel's secretary: bun, pencil, lilac cardigan, clipboard hugged to her chest; nods along. */
+function secretary(k, t, st) {
+  const on = st.speaking?.who === 'SECRETARY', nod = on ? Math.sin(t * 9) * 1.5 : Math.sin(t * 1.4) * 0.5;
+  const SK = ['#FFE2CC', '#F2B898', '#C8826C'], HAIR = ['#5A2A16', '#8A4424', '#B8663A'], CARD = ['#C8A8E8', '#9A78C4', '#6A4E94'];
+  k.save(); k.translate(412, 100);
+  // body: cardigan over a white blouse, the clipboard held up
+  const body = k.shape([[-34, 114], [-30, 50], [-14, 34], [14, 34], [30, 50], [34, 114]], { fill: CARD[1], line: INK, lw: 2 });
+  k.save(); k.clip(body); crescent(k, body, 8, -6, CARD[2]); rim(k, body, -2, 0, CARD[0]); k.restore();
+  k.shape([[-10, 34], [10, 34], [4, 60], [-4, 60]], { fill: '#F4F0E8', line: INK, lw: 1 });
+  const board = k.shape([[-26, 58], [8, 52], [12, 104], [-22, 110]], { fill: '#A07A4A', line: INK, lw: 2 });
+  k.save(); k.clip(board); k.shape([[-22, 62], [6, 57], [9, 100], [-18, 105]], { fill: '#F4F0E0' }); for (let i = 0; i < 5; i++) k.stroke([[-18, 68 + i * 7], [3, 64 + i * 7]], 1, '#9A9AAE'); k.restore();
+  k.rect(-12, 50, 10, 5, { fill: '#B8B8C0', line: INK, lw: 1 });
+  for (const sd of [-1, 1]) { const h = k.ellipse(sd * 14 - 6, 78 + sd * 4, 5, 4, 0, { fill: SK[1], line: INK, lw: 1 }); void h; }
+  // head, turned towards the Colonel
+  k.translate(0, nod);
+  k.ellipse(6, 4, 17, 15, 0, { fill: HAIR[1], line: INK, lw: 2 });                              // back hair
+  const face = k.shape([[-14, -4], [-10, -16], [6, -20], [16, -12], [18, 4], [10, 18], [-4, 22], [-14, 12]], { fill: SK[1], line: INK, lw: 2 });
+  k.save(); k.clip(face); crescent(k, face, -6, -4, SK[2]); rim(k, face, -1, -1, SK[0]); k.ellipse(-8, 10, 4, 3, 0, { fill: '#F2A0A0' }); k.restore();
+  k.shape([[-16, -6], [-12, -22], [6, -26], [20, -16], [18, -6], [8, -14], [-4, -12]], { fill: HAIR[1], line: INK, lw: 2 });   // fringe
+  k.ellipse(10, -26, 10, 8, 0, { fill: HAIR[1], line: INK, lw: 2 });                            // the bun
+  k.stroke([[2, -34], [20, -20]], 2, INK); k.stroke([[3, -33], [19, -21]], 1, '#E8B838');           // a pencil through it
+  for (const ex of [-8, 4]) { k.ellipse(ex, 2, 3, 4, 0, { fill: '#FFFFFF', line: INK, lw: 1 }); k.ellipse(ex - 1, 2.5, 1.8, 2.6, 0, { fill: '#3A2A4A' }); }
+  k.stroke([[-11, -5], [-5, -7]], 1.5, HAIR[0]); k.stroke([[1, -7], [7, -6]], 1.5, HAIR[0]);
+  const m = on ? st.mouth : 'closed';
+  if (m === 'closed') k.stroke([[-6, 13], [-1, 15], [3, 13]], [1, 1.6, 1], INK);                  // a bright little smile
+  else k.ellipse(-2, 14, m === 'a' ? 4 : 3, m === 'a' ? 4 : 2.5, 0, { fill: '#6A2A2A', line: INK, lw: 1 });
+  k.restore();
 }
 
 function fist(k, x, y, side) {

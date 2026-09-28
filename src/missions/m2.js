@@ -22,4 +22,4 @@ const triggers = [
   ] },
 ];
 
-export default { ...data, triggers, intel: '~55 NOT. The south switchback: gate, 2 guard towers, 2 gun turrets fed by a generator on the south-east plain, an MG nest. North cliff: a one-tile goat path through boulders up to the back of the base, walked by a Warden and a Sniffer pair. Canyon wall: cracked rock below the fuel depot — C4 opens a ramp. The West Ridge overlooks the fuel depot. A Brute will roll out of the vehicle bay on Alarm.', custom: {} };
+export default { ...data, triggers, intel: '~55 NOT units. The south switchback: gate, 2 guard towers, 2 gun turrets fed by a generator on the south-east plain, an MG nest. North cliff: a one-tile goat path through boulders up to the back of the base, walked by a Warden and a Sniffer pair. Canyon wall: cracked rock below the fuel depot — C4 opens a ramp. The West Ridge overlooks the fuel depot. A Brute will roll out of the vehicle bay on Alarm.', custom: {} };

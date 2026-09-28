@@ -1,5 +1,5 @@
 // @ts-check
-import { O } from './tiles.js';
+import { O, TERRAIN } from './tiles.js';
 
 /**
  * Derive ramp directions and cliff tiles from the elevation layer (SPEC §4.2, §7.2).
@@ -10,8 +10,14 @@ import { O } from './tiles.js';
  * @param {import('./map.js').GameMap} m
  */
 export function computeAutotile(m) {
-  const { w, h } = m;
-  const dirs = [[0, -1], [1, 0], [0, 1], [-1, 0]];
+  if (!m.rampsWidened) { m.rampsWidened = true; rampDirs(m); widenRamps(m); }
+  rampDirs(m);
+  cliffs(m);
+}
+
+const DIRS = [[0, -1], [1, 0], [0, 1], [-1, 0]];
+function rampDirs(m) {
+  const { w, h } = m, dirs = DIRS;
   for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
     const i = y * w + x;
     m.rampDir[i] = -1;
@@ -24,6 +30,34 @@ export function computeAutotile(m) {
       if (m.elev[j] === e + 1 && m.overlay[j] !== O.ramp) { m.rampDir[i] = d; break; }
     }
   }
+}
+
+/**
+ * Ramps are drawn one tile wide in the map data; the chibi-scale world reads (and plays) better with broad ones.
+ * Every ramp grows one tile to each side wherever the ground there is open, on the same level, and meets the
+ * same step up — so a 1-tile ramp becomes 3 wide.
+ */
+export function widenRamps(m) {
+  const { w } = m, add = [];
+  for (let i = 0; i < m.rampDir.length; i++) {
+    const d = m.rampDir[i];
+    if (d < 0) continue;
+    const x = i % w, y = (i / w) | 0, e = m.elev[i];
+    for (const s of [-1, 1]) {
+      const [px, py] = d === 0 || d === 2 ? [x + s, y] : [x, y + s];
+      if (!m.inb(px, py)) continue;
+      const j = py * w + px, [ux, uy] = [px + DIRS[d][0], py + DIRS[d][1]];
+      if (m.elev[j] !== e || m.overlay[j] !== O.none || TERRAIN[m.terrain[j]]?.water || !m.inb(ux, uy)) continue;
+      const u = uy * w + ux;
+      if (m.elev[u] !== e + 1 || (m.overlay[u] !== O.none && m.overlay[u] !== O.trees)) continue;
+      add.push(j);
+    }
+  }
+  for (const j of add) m.overlay[j] = O.ramp;
+}
+
+function cliffs(m) {
+  const { w, h } = m;
   for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
     const i = y * w + x;
     m.cliff[i] = 0;

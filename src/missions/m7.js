@@ -17,7 +17,7 @@ const triggers = [
   { when: { type: 'enterArea', area: 'ashNeedle' }, do: [{ type: 'say', text: 'The Ash Needle. From here you can paint the Spire — once the shield is down.' }] },
 ];
 
-export default { ...data, triggers, intel: '~90 NOT: 3 Juggernauts and 4 gun turrets in the caldera, barracks and vehicle bays on the terrace, three jammers (the NE power plant feeds North & East). Shielded, the Spire shrugs off 75% of a strike. A supply cache in the north-east holds a third strike.', custom: {
+export default { ...data, triggers, intel: '~90 NOT units: 3 Juggernauts and 4 gun turrets in the caldera, barracks and vehicle bays on the terrace, three jammers (the NE power plant feeds North & East). Shielded, the Spire shrugs off 75% of a strike. A supply cache in the north-east holds a third strike.', custom: {
   init(r) {
     // secondary "stealth through the breach": any Alarm while phase 3 (the breach) is active spoils it
     r.world.events.on('alert', (e) => {

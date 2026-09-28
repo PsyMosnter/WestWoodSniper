@@ -8,34 +8,53 @@ import { INK, rng, vgrad, cloud, streakPts, cloudPts, forest, reeds, rim, cresce
 import { wrenHead, wrenBody, wrenRodArm, WC } from './wren.js';
 import { vraskShot } from './vrask.js';
 import { tentShot } from './tent.js';
+import { meteorShot } from './meteors.js';
+import { pinShot } from './mapPin.js';
 
 /** mouth shape for a speaker at this moment */
 const mouthOf = (st, who) => (st.speaking && st.speaking.who === who ? st.mouth || 'closed' : 'closed');
 
 /** fit the 480×270 composition into the frame (by height), centred */
-function frame(k, fn) { k.save(); const s = k.h / 270; k.translate((k.w - 480 * s) / 2, 0); k.scale(s); fn(s); k.restore(); }
+function frame(k, fn, st) {
+  // fit the whole 480×270 composition (wider screens just see more letterbox at the sides, narrower more above and below)
+  k.save(); const s = Math.min(k.h / 270, k.w / 480), ox = (k.w - 480 * s) / 2, oy = (k.h - 270 * s) / 2;
+  k.translate(ox, oy); k.scale(s); if (st) st.frame = { ox, oy, s }; fn(s); k.restore();
+}
 
 export const SHOTS = {
-  /** Intro: GOD field HQ — the general leans over the map table at us. */
+  /** Intro: the night they came — NOT pods falling like meteors on the far bank of the Varna. */
+  meteors: {
+    demo: [[0.6, 'OVERWATCH', 'They came down on the east bank of the Varna. Hundreds of them...']],
+    draw(k, t, st) { frame(k, () => meteorShot(k, t, st), st); return st; },
+  },
+  /** Intro: the map table from above; one khaki pin goes into the west bank. */
+  pin: {
+    demo: [[0.3, 'COLONEL', 'So we organised the Global Operative Defences, to shoot them.'], [4.6, 'COLONEL', "But we can't send a whole army across the river."]],
+    draw(k, t, st, shot) { frame(k, () => pinShot(k, t, st, shot), st); return st; },
+  },
+  /** Intro: GOD field HQ — the Colonel leans over the map table at us; his secretary chimes in. */
   tent: {
-    demo: [[0.6, 'GOD COMMAND', "We can't send an army across that river."]],
-    draw(k, t, st) { frame(k, () => tentShot(k, t, st)); return st; },
+    demo: [[0.4, 'COLONEL', "...because the whole world agrees that we don't like them very much."], [5.0, 'SECRETARY', "Yeah, they're not too nice, are they?"], [8.2, 'COLONEL', "So it's OK to shoot them."], [10.8, 'SECRETARY', 'Yeah. Shoot them.']],
+    draw(k, t, st) { frame(k, () => tentShot(k, t, st), st); return st; },
   },
   /** M3 cutaway: Vrask from the snow at his boots, arms folded, the storm and his Husks behind him. */
   vrask: {
     demo: [[0.5, 'OVERWATCH', "With the mesa dark they can't radio orders. Vrask is driving the passes himself."], [5.4, 'OVERWATCH', 'He only gets out at the outposts.']],
-    draw(k, t, st) { frame(k, () => vraskShot(k, t, st)); return st; },
+    draw(k, t, st) { frame(k, () => vraskShot(k, t, st), st); return st; },
   },
   /** Dawn on the Varna: WREN fishing off the jetty; the field radio crackles in the foreground. */
   dock: {
     demo: [[0.6, 'OVERWATCH', "WREN, you're up."], [3.0, 'WREN', "I'm retired."], [5.0, 'OVERWATCH', "You're bored."]],
-    draw(k, t, st) {
+    draw(k, t, st, shot) {
+      const gag = shot?.gag ?? 99, yank = Math.max(0, Math.min(1, (t - gag - 0.5) / 0.3)), caught = t > gag + 0.5;
       frame(k, () => {
         // --- sky, sun, clouds
         k.rect(-60, -10, 600, 190, { fill: { grad: [[0, '#1E1840'], [0.28, '#3E2A5E'], [0.52, '#8E466C'], [0.72, '#D8705C'], [0.87, '#F4A866'], [1, '#FCDC98']], from: [0, 0], to: [0, 172 * k.h / 270] } });
         k.tint(k.ellipse(412, 168, 38, 26, 0, { paint: false }), '#FFD890', 0.5);
         k.tint(k.ellipse(412, 168, 24, 17, 0, { paint: false }), '#FFF0C0', 0.75);
         k.ellipse(412, 170, 13, 13, 0, { fill: '#FFF8DC' });
+        // god rays fanning up from the low sun
+        for (let i = 0; i < 6; i++) { const a = -Math.PI / 2 + (i - 2.5) * 0.28 + Math.sin(t * 0.2 + i) * 0.02, len = 240; k.tint(k.shape([[412, 168], [412 + Math.cos(a - 0.05) * len, 168 + Math.sin(a - 0.05) * len], [412 + Math.cos(a + 0.05) * len, 168 + Math.sin(a + 0.05) * len]], { paint: false }), '#FFE8B0', 0.12); }
         const drift = t * 1.2;
         cloud(k, streakPts(120 + drift, 62, 260, 14, 3), ['#F29A78', '#B25A74', '#6E3E6C', '#4E3060'], [0, -3]);
         cloud(k, streakPts(360 + drift, 44, 220, 10, 5), ['#F2A07A', '#A8546E', '#5E3664'], [0, -3]);
@@ -60,12 +79,27 @@ export const SHOTS = {
         const R = rng(21);
         for (let i = 0; i < 34; i++) { const y = 175 + i * i * 0.075, len = 3 + i * 0.9, x = 412 - len / 2 + Math.sin(t * 2.2 + i * 1.9) * (1 + i * 0.25); k.stroke([[x, y], [x + len, y]], 1, i < 14 ? '#FFF2C0' : '#F4B070'); }
         for (let i = 0; i < 60; i++) { const y = 176 + R() * 100, x = ((R() * 560 + t * (4 + (y - 170) * 0.06)) % 580) - 40, len = 4 + (y - 170) * 0.12; k.stroke([[x, y], [x + len, y]], 1, y < 200 ? '#E8906E' : '#9A5A78'); }
-        // the float, bobbing on the line
-        const bob = Math.sin(t * 2.6) * 1.2;
-        k.stroke([[482, 2], [468, 110], [456, 205 + bob]], 1, '#E8E0D0');
-        k.ellipse(456, 206 + bob, 3, 3.6, 0, { fill: '#F2F0E6', line: INK, lw: 1 });
-        k.rect(453, 203 + bob, 6, 3, { fill: '#E8462E' });
-        k.stroke([[447, 210], [465, 210]], 1, '#FFD0A0');
+        // morning mist drifting over the water
+        for (let i = 0; i < 5; i++) { const x = ((i * 130 + t * (6 + i)) % 700) - 120, y = 176 + i * 7; k.tint(k.ellipse(x, y, 90, 5 + i, 0, { paint: false }), '#F8D8C8', 0.3); }
+        // the float, bobbing on the line — then something bites
+        const bob = Math.sin(t * 2.6) * 1.2 + (t > gag && t < gag + 0.5 ? 5 : 0);
+        if (!caught) {
+          k.stroke([[482, 2], [468, 110], [456, 205 + bob]], 1, '#E8E0D0');
+          k.ellipse(456, 206 + bob, 3, 3.6, 0, { fill: '#F2F0E6', line: INK, lw: 1 });
+          k.rect(453, 203 + bob, 6, 3, { fill: '#E8462E' });
+          k.stroke([[447, 210], [465, 210]], 1, '#FFD0A0');
+        } else {
+          // the catch of the day, swinging on the line in front of the sun
+          const sw = Math.sin((t - gag) * 3.2) * 18 * Math.exp(-(t - gag) * 0.3), bx = 432 + sw, by = 96 + Math.abs(sw) * 0.2;
+          k.stroke([[486, -6], [bx + 4, by - 16]], 1, '#E8E0D0');
+          k.save(); k.translate(bx, by); k.rotate(sw * 0.02 + 0.3);
+          const boot = k.shape([[-6, -18], [4, -18], [5, 2], [18, 4], [20, 12], [-6, 12]], { fill: '#3A2616', line: INK, lw: 2 });
+          k.save(); k.clip(boot); k.stroke([[-4, -16], [-3, 8]], 2, '#5E4028'); k.stroke([[-6, 11], [20, 11]], 2, '#1E140C'); k.restore();
+          k.stroke([[8, 2], [12, -3], [16, 0]], 2, '#4E8A3A');                                       // weed
+          k.restore();
+          for (let i = 0; i < 4; i++) { const q = ((t - gag) * 1.4 + i / 4) % 1; k.rect(Math.round(bx + 6 + i * 3), Math.round(by + 12 + q * 40), 1, 2, { fill: '#A8D0F0' }); }
+        }
+        for (let i = 0; i < 18; i++) { const q = (t * 0.04 + i / 18) % 1, px = (i * 97 + t * 8) % 480, py = 40 + ((i * 53) % 120) + Math.sin(t + i) * 6; if (q < 0.7) k.rect(Math.round(px), Math.round(py), 1, 1, { fill: '#FFF0C0' }); }   // pollen in the light
         // --- WREN
         const WX = 290, WY = 116, WS = 1.06, HS = 1.16;
         k.save(); k.translate(WX, WY); k.scale(WS);
@@ -74,19 +108,19 @@ export const SHOTS = {
         wrenBody(k, { sun: [1, -0.2] });
         const talkingW = st.speaking?.who === 'WREN';
         k.save(); k.translate(0, 8); k.scale(HS); k.translate(0, -8);                                  // a big head, LucasArts proportions
-        const head = wrenHead(k, { sun: [1, -0.2], mouth: mouthOf(st, 'WREN'), lids: lid, brow: talkingW ? -0.2 : st.speaking?.who === 'OVERWATCH' && st.speaking.lt > 0.8 ? 0.6 : 0, look: st.speaking?.who === 'OVERWATCH' ? -1 : 0.3, gleam });
+        const head = wrenHead(k, { sun: [1, -0.2], mouth: mouthOf(st, 'WREN'), lids: caught ? 0.3 : lid, brow: caught ? 1 : talkingW ? -0.2 : st.speaking?.who === 'OVERWATCH' && st.speaking.lt > 0.8 ? 0.6 : 0, look: caught ? 0.8 : st.speaking?.who === 'OVERWATCH' ? -1 : 0.3, gleam: caught && t > gag + 2.2 && t < gag + 2.75 ? (t - gag - 2.2) / 0.55 : gleam });
         k.restore();
-        wrenRodArm(k, { t });
+        wrenRodArm(k, { t, yank });
         k.restore();
         st.talkers = st.talkers || {};
         st.talkers.WREN = [WX + head.top[0] * WS * HS, WY + (8 + (head.top[1] - 8) * HS) * WS];
         // --- the field radio in the foreground
         const on = st.speaking?.who === 'OVERWATCH';
-        radio(k, 18, 150, t, on);
-        st.talkers.OVERWATCH = [96, 58];
+        k.save(); k.translate(6, 172); k.scale(0.74); radio(k, 0, 0, t, on); k.restore();
+        st.talkers.OVERWATCH = [96, 88];
         // reeds in the near corner
         reeds(k, -10, 30, 272, 40, 110, ['#2A1A30', '#3A2438', '#1E1426'], 5, 8, 14);
-      });
+      }, st);
       return st;
     },
   },

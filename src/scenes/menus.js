@@ -81,6 +81,7 @@ export class PauseScene extends MenuBase {
     this.addButton('QUICK SAVE', () => { this.app.scenes.pop(); this.game.quickSave(); });
     if (this.app.checkpoint?.mission === this.game.missionId) this.addButton('LOAD SAVE', () => { this.app.scenes.go('game', { mission: this.game.missionId, checkpoint: true }); });
     this.addButton('OBJECTIVES', () => { this.showObj = !this.showObj; });
+    if (this.game.missionId !== 'test') this.addButton('BRIEFING', () => this.app.scenes.push('briefing', { mission: this.game.missionId, review: true }));
     this.addButton('SETTINGS', () => this.app.scenes.push('settings', {}));
     this.addButton('QUIT TO MAP', () => this.app.scenes.go(this.app.hasScene('campaign') ? 'campaign' : 'title', {}));
   }
@@ -88,9 +89,11 @@ export class PauseScene extends MenuBase {
   resize(W, H) {
     const bw = 150, bh = Math.max(24, this.app.display.buttonSize);
     const gap = 3;
-    const total = this.buttons.length * (bh + gap);
-    let y = Math.max(22, Math.round(H / 2 - total / 2 + 8));
-    for (const b of this.buttons) { b.place(Math.round(W / 2 - bw / 2), y, bw, bh); y += bh + gap; }
+    // one column, or two when the list would not fit (short phone screens)
+    const cols = this.buttons.length * (bh + gap) > H - 40 ? 2 : 1, rows = Math.ceil(this.buttons.length / cols);
+    const total = rows * (bh + gap);
+    const y0 = Math.max(22, Math.round(H / 2 - total / 2 + 8));
+    this.buttons.forEach((b, i) => { const c = cols === 2 ? Math.floor(i / rows) : 0, r = cols === 2 ? i % rows : i; b.place(Math.round(W / 2 - (cols * bw + (cols - 1) * 6) / 2 + c * (bw + 6)), y0 + r * (bh + gap), bw, bh); });
   }
   onKeyDown(code) { if (code === 'Escape') { if (this.showObj) this.showObj = false; else this.app.scenes.pop(); } }
   onPointerDown(p) { if (this.showObj) { this.showObj = false; return; } super.onPointerDown(p); }
@@ -199,7 +202,7 @@ export class CreditsScene extends MenuBase {
       ['"WESTWOOD" IS THE WEST WOOD — THE FOREST WEST OF THE FRONT', C.uiTextD],
       ['WHERE WREN\'S CAMPAIGN BEGINS.', C.uiTextD],
       ['', ''],
-      ['NO NOT WERE HARMED IN RED. THEY BLEED GREEN, BLUE, YELLOW, PURPLE.', C.uiGrey],
+      ['NO NOT UNITS WERE HARMED IN RED. THEY BLEED GREEN, BLUE, YELLOW, PURPLE.', C.uiGrey],
     ];
     let y = 24;
     for (const [t, c] of lines) { if (t) drawText(ctx, t, W / 2, y, { align: 'center', color: c, font: t === 'WESTWOOD SNIPER' ? '5x7' : '3x5', scale: t === 'WESTWOOD SNIPER' ? 2 : 1 }); y += t === 'WESTWOOD SNIPER' ? 20 : 9; }

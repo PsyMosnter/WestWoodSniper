@@ -5,6 +5,7 @@ import { Time } from '../core/time.js';
 import { angleToDir8 } from '../world/tiles.js';
 import { unitSprite, unitVariant, markerLift } from '../render/sprites.js';
 import { TILE } from '../core/camera.js';
+import { inViewCone } from '../ai/perception.js';
 
 const K = BALANCE.takedown;
 const RING_IN = 0.8, RING_RANGE = 12;   // takedown ring: inner radius (the target's own space) and who gets one (tiles)
@@ -27,7 +28,8 @@ export class Takedown {
     if (u.invulnerable) return 'untouchable';
     if (Math.hypot(u.x - op.x, u.y - op.y) > K.reach) return 'too far';
     if (m.elevAt(u.tx, u.ty) !== m.elevAt(op.tx, op.ty)) return 'different level';
-    if (u.state === 'combat' || (u.seesOp && u.det >= K.awareDet)) return 'they see you';
+    // playtest 6: no crawling straight into their cone — facing WREN with him in sight (any meter) or wary of him
+    if (u.state === 'combat' || (u.seesOp && (u.det >= K.awareDet || inViewCone(u, op.x, op.y)))) return 'they see you';
     return null;
   }
   /** The nearest enemy WREN could take down right now, if any. */

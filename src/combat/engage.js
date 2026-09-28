@@ -2,6 +2,7 @@
 import { BALANCE } from '../config/balance.js';
 import { C } from '../config/palette.js';
 import { canSee } from '../world/los.js';
+import { T } from '../world/tiles.js';
 import { seesTarget, targetDist } from './targeting.js';
 
 const ST = BALANCE.stances;
@@ -88,6 +89,7 @@ export class Engage {
       // tiles only in range hunkered (the extra 2 tiles) are allowed, at a small cost: walk there & hunker
       if (d > this.rangeFrom(x, y, t, true) - 0.3 || d < 2.2) continue;
       const hunk = d > this.rangeFrom(x, y, t) - 0.3;
+      if (hunk && m.terrain[i] === T.shallow) continue;   // no going flat in water
       if (!seesTarget(m, x, y, t)) continue;
       let score = field[i] + (hunk ? 4 : 0);
       let seen = 0;

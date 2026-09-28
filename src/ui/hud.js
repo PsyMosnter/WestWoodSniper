@@ -153,6 +153,7 @@ export class Hud {
     const op = this.world.operative, bs = this.buttons, g = this.game;
     if (this._extras().join() !== this._layoutKey) this.layout(this.W, this.H, this.B, this.lefty, this.safe);
     bs.hunker.active = op.stance === 'hunker' || (!!op.trans && op.trans.to === 'hunker');
+    bs.hunker.enabled = bs.hunker.active || !op.inWater?.();   // too deep to go flat in shallow water
     bs.runGun.active = op.runGun;
     // the grid is fixed: C4 / SMOKE / TAKEDOWN stay in place, greyed out when not usable
     bs.c4.visible = !g.remoteArmed; bs.c4.enabled = op.c4 > 0; bs.c4.badge = op.c4 > 0 ? '×' + op.c4 : ''; bs.c4.active = g.mode === 'c4';

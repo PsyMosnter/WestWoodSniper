@@ -230,11 +230,22 @@ Format: date · milestone · decision · reason.
 
   ADVANCE and FOLLOW go on a row below. A used-up consumable stays, greyed out.
 
+## Stalking, run & gun, cover (owner playtest 6)
+
+- **Takedown ring**: while WREN is flat, every seen, unaware soldier on his level within 12 tiles gets an amber donut, reach (2 tiles) wide. A tap on the donut makes him crawl up and take the soldier down once in reach; the path is re-aimed every 0.6 s as the soldier walks. The stalk stops if they see him, he gets up or the soldier leaves his level. A tap on the soldier still opens the scope, even in reach (standing, a tap in reach still takes them down).
+- **Auto RUN & GUN** (Settings, on by default): when WREN is discovered, the pistol comes out and he yells one of five lines in a speech plate. It switches back off after 1.5 s out of sight, or at once when he's hidden in tall grass. Hunkering always ends it. Switched on by hand while unseen, it is left alone. Being spotted during the scope waits until the scope closes.
+- **Poses**: prone and crawl have elbows out and hands beside the helmet (the chibi head used to hide the arms), alternating as he crawls. Run & gun holds the service pistol two-handed in front, walking, running and standing (`pistolAim`, Chibi only).
+- **Cover**:
+  - In tall grass, a dense ragged base now covers the feet and the lower body, lying down too.
+  - In shallow water, the body sinks, so the waterline, ripples, wake and selection ring meet at the ground point.
+  - Shallow water is too deep to go flat: HUNKER is greyed out, and a crawl into water gets up and wades (it used to crawl through at half noise).
+
 ## Hosting
 
 - **Cloudflare Workers (static assets)**: `wrangler.jsonc` in the repo; `npx wrangler deploy` runs `node tools/build-site.js`, which copies only `index.html`, `icon.svg`, `manifest.webmanifest` and `src/` into `dist/` (git-ignored), and only `dist/` is uploaded. Without a committed config, Wrangler's auto-setup served the repo root and tried to upload `node_modules/` (its own 128 MiB `workerd` binary → "Asset too large"); an allow-list also keeps tests, tools and docs off the site, and a separate folder stops `wrangler dev` from reload-looping on its own `.wrangler/` state. Still no bundling and no runtime dependencies; `npm run serve` keeps serving the source tree directly.
 
 ## Changelog
+- **Playtest 6**: takedown rings with crawl-to-takedown; auto RUN & GUN with shouts (setting); pistol held up front; crawl arms; grass hides feet; water ring at the waterline; no hunker in water.
 - **Playtest 5**: terrain relief rebuilt on a rounded height field (natural boulder faces that melt into their foot, tapering ramp walls, lighter-when-higher tones, 5-wide ramps), rounded shapes for every terrain type; 3×3 action grid with MEDKIT; RECON/STRIKE stay (greyed) when used up.
 - **Playtest 4**: satellite recon (from M2; rewards from M3; tactical strike rewards from M5); ramps as two-tile slopes with tapering boulder walls, carved 3-wide even at corners; boulder rock faces with rims and tufts.
 - **Playtest 3 — Chibi final**: Chibi is the default look; vehicles and buildings rescaled to the chibi soldiers; new trees; thick, natural rock faces; 3-wide ramps with a view over the crest; hand-inked intro (meteors, the Colonel and his secretary, the pin, WREN's boot) with the N.O.T. / G.O.D. story; objectives on every minimap; briefing from the pause menu; First Light trail and sniping spur.

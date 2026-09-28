@@ -47,14 +47,34 @@ test('low crawl: a move order while hunkered keeps WREN flat, very slow, low-vis
   assert.equal(op.stance, 'hunker', 'a crawl ends flat');
 });
 
-test('low crawl through shallow water splashes at half the wading noise', () => {
-  const g = setup({ row: 'w' }), op = g.world.operative;
+test('shallow water: too deep to go flat, and a crawl that reaches water gets up and wades', () => {
+  const wet = setup({ row: 'w' }), op = wet.world.operative;
+  assert.equal(op.toggleHunker(), 'water');
+  tick(wet, 1);
+  assert.notEqual(op.stance, 'hunker');
+  const g = setup({ row: 'g'.repeat(7) + 'w'.repeat(33) }), op2 = g.world.operative;
   flat(g);
-  op.orderMove(12, 10, 'crawl');
-  tick(g, 1.5);
-  const steps = g.noises.filter((n) => n.kind === 'step');
-  assert.ok(steps.length > 0);
-  assert.ok(steps.every((n) => n.radius === 3 * BALANCE.stances.crawl.noiseMult));
+  op2.orderMove(12, 10, 'crawl');
+  tick(g, 8);
+  assert.ok(op2.x > 7, 'in the water');
+  assert.notEqual(op2.stance, 'hunker');
+  assert.notEqual(op2.mode, 'crawl');
+});
+
+test('takedown ring: flat WREN crawls up on an unaware soldier and takes them down in reach', () => {
+  const g = setup({ units: [{ id: 'h', type: 'husk', x: 11, y: 10, alertGroup: 'a', facing: 'E' }] }), op = g.world.operative;
+  const u = g.world.units[0];
+  assert.equal(g.takedown.ringTargets().length, 0, 'no rings while standing');
+  flat(g);
+  g.world.fog.revealAll = true;
+  assert.deepEqual(g.takedown.ringTargets(), [u]);
+  assert.equal(g.takedown.ringAt(u.x - 1.5, u.y), u, 'a tap on the donut');
+  assert.equal(g.takedown.ringAt(u.x + 4, u.y), null);
+  g.takedown.stalk(u);
+  for (let t = 0; t < 30 && !u.dead; t += DT) { g.world.time += DT; op.update(DT); g.takedown.update(DT); }
+  assert.ok(u.dead, 'taken down');
+  assert.equal(g.takedown.stalking, null);
+  assert.equal(op.stance, 'hunker', 'stayed low all the way');
 });
 
 test('double-tap (run) or HUNKER gets up out of a crawl', () => {

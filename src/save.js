@@ -4,7 +4,7 @@ const KEY = 'westwood-sniper:v1';
 
 export const DEFAULT_SETTINGS = {
   music: 0.6, sfx: 0.8, difficulty: 'operative', assistedAim: false, reducedMotion: false,
-  colourBlind: false, handedness: 'right', scanlines: true, remoteC4: false,
+  colourBlind: false, handedness: 'right', scanlines: true, remoteC4: false, autoRunGun: true,
   artStyle: 'chibi',     // 'chibi' (the final look, the default) | 'newest' | 'new' | 'classic' (the original sprites)
 };
 

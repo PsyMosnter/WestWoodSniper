@@ -21,6 +21,10 @@ import { Scope } from '../scope/scope.js';
 import { Engage } from '../combat/engage.js';
 import { installUnitRendering } from '../render/unitRenderer.js';
 import { unitSprite, warmQueue, warmStep } from '../render/sprites.js';
+import { Art } from '../render/artStyle.js';
+
+/** What WREN yells as the pistol comes out (auto RUN & GUN). */
+const SHOUTS = ['GERONIMO!', "RUNNIN' N' GUNNIN'!", 'BRING IT!', 'GUNS OUT, KEMOSABE!', 'GUNS AKIMBO!'];
 import { StructureSystem } from '../entities/structure.js';
 import { VehicleSystem } from '../entities/vehicle.js';
 import { PropSystem } from '../entities/props.js';
@@ -123,7 +127,7 @@ export class GameScene {
     this.renderer.layers.effects.push((ctx, r) => this._drawSmoke(ctx, r));
     // darkness goes over the sprites but under muzzle flashes, tracers and explosions
     this.renderer.layers.effects.unshift((ctx, r) => this.lighting.draw(ctx, r));
-    this.renderer.layers.overFog.push((ctx, r) => { this.noise.draw(ctx, r); this.tunnels.draw(ctx, r); this.strike.draw(ctx, r); this.recon?.draw(ctx, r); this.takedown.draw(ctx, r); });
+    this.renderer.layers.overFog.push((ctx, r) => { this.noise.draw(ctx, r); this.tunnels.draw(ctx, r); this.strike.draw(ctx, r); this.recon?.draw(ctx, r); this.takedown.draw(ctx, r); this._drawShout(ctx, r); });
     this.gestures = new Gestures(this._gestureHandlers());
     this.resize(this.app.display.W, this.app.display.H);
     // the mission's latest save (autosave on objectives, QUICK SAVE, scripted checkpoints) stays loadable
@@ -156,7 +160,7 @@ export class GameScene {
     const NOT_POSES = [['idle', 1], ['walk', 4], ['run', 4], ['fire', 2], ['crouch', 1], ['dead', 4]];
     const types = new Set(this.world.units.filter((u) => u.def?.kind === 'infantry' || u.def?.kind === 'beast').map((u) => u.type));
     this.warm = warmQueue([
-      { type: 'operative', poses: [['crouch', 1], ['walk', 4], ['run', 4], ['prone', 1], ['crawl', 4], ['fire', 2], ['cover', 1], ['pistol', 4], ['idle', 1], ['dead', 4]] },
+      { type: 'operative', poses: [['crouch', 1], ['walk', 4], ['run', 4], ['prone', 1], ['crawl', 4], ['fire', 2], ['cover', 1], ['pistol', 4], ...(Art.style === 'chibi' ? [['pistolAim', 1]] : []), ['idle', 1], ['dead', 4]] },
       ...[...types].map((type) => ({ type, poses: NOT_POSES })),
       ...[...new Set((this.world.friendlies || []).filter((f) => f.kind !== 'vehicle').map((f) => f.type))].map((type) => ({ type, poses: [['idle', 1], ['walk', 4], ['crouch', 1], ['prone', 1]] })),
       ...[...new Set([...this.world.units, ...(this.world.friendlies || [])].filter((u) => u.kind === 'vehicle').map((u) => u.type))].map((type) => ({ type, vehicle: true })),
@@ -205,7 +209,7 @@ export class GameScene {
       case 'cover': op.takeCover(); break;
       case 'hunker': {
         const r = op.toggleHunker();
-        this.hud.toast(r === 'on' ? 'HUNKER DOWN' : 'HUNKER OFF', C.uiText, 0.9);
+        this.hud.toast(r === 'water' ? 'TOO DEEP TO GO FLAT' : r === 'on' ? 'HUNKER DOWN' : 'HUNKER OFF', r === 'water' ? C.uiAmber : C.uiText, 0.9);
         break;
       }
       case 'runGun':
@@ -297,6 +301,11 @@ export class GameScene {
       return;
     }
     const unit = this.unitAt(sx, sy);
+    // flat: a tap on an enemy's takedown ring crawls up on them and takes them down in reach
+    const flat = op.stance === 'hunker' || (!!op.trans && op.trans.to === 'hunker');
+    const ringU = !unit && flat && this.takedown.ringAt(t.fx, t.fy);
+    this.takedown.stalking = null;
+    if (ringU) { this.engage.cancel(); this.takedown.stalk(ringU); this.renderer.addMarker(ringU.x, ringU.y, 'tap', C.uiAmber); return; }
     // a tap on any enemy — soldier, vehicle or building — brings up the scope (long-press plants C4)
     const st = !unit && this.structureAt(t.fx, t.fy);
     if (st && STRUCT_ZONES[st.type]) {
@@ -305,7 +314,7 @@ export class GameScene {
       return;
     }
     if (st && c4t && op.c4 > 0) { this.hud.toast('LONG-PRESS TO PLANT C4', C.uiAmber, 1.6); return; }
-    if (unit && !this.takedown.blocker(unit)) { this.takedown.perform(unit); return; }   // within reach & unaware: silent
+    if (unit && !flat && !this.takedown.blocker(unit)) { this.takedown.perform(unit); return; }   // within reach & unaware: silent (flat: the ring does it, a tap on them scopes)
     if (unit) {
       this.engage.engage(unit, { force: !!info?.shift });
       this.renderer.addMarker(unit.x, unit.y, 'tap', '#FF5A3A');
@@ -316,7 +325,6 @@ export class GameScene {
     this.engage.cancel();
     if (this.tunnels.tap(t.x, t.y)) { this.renderer.addMarker(t.x + 0.5, t.y + 0.5, 'tap', '#7CFF7A'); return; }
     // flat (hunkered, or getting down): a tap low-crawls there; double-tap / HUNKER gets up
-    const flat = op.stance === 'hunker' || (!!op.trans && op.trans.to === 'hunker');
     const ok = op.orderMove(t.x, t.y, flat ? 'crawl' : 'walk');
     if (ok && flat && !this.data.alwaysTips) this.runner.showTutorial('crawl', 'Low crawl', 'Flat on the ground, a tap crawls: very slow, still flat and all but silent. Get close enough to an unaware soldier and you can take them down without a shot. Double-tap or press HUNKER to get up.');
     if (ok) {
@@ -498,6 +506,8 @@ export class GameScene {
       if (near >= 2) { this._runGunTip = true; this.runner.showTutorial('runGun', 'Run & Gun', "They're closing in. Press R&GUN: WREN lowers the rifle and fights on the move with the pistol — fast and loud, but it keeps you alive. Break line of sight, then find cover.", { button: 'runGun' }); }
     }
     if (!this._takedownTip && !this.data.alwaysTips && this.takedown.target()) { this._takedownTip = true; this.runner.showTutorial('takedown', 'Silent takedown', 'Within reach and they haven\'t seen you: press TAKEDOWN (or tap them). No ammo, barely a sound — but the body stays where it falls, and anyone watching sees it happen.'); }
+    this._autoRunGun(dt);
+    this.takedown.update(dt);
     this.trails.update(dt);
     this.combat.update(dt);
     this.engage.update(dt);
@@ -506,6 +516,38 @@ export class GameScene {
     for (const k of this.world.smokes) k.t -= dt;
     this.world.smokes = this.world.smokes.filter((k) => k.t > 0);
     if (!this.runner.ended) this.world.stats.time += dt;
+  }
+  /**
+   * Auto RUN & GUN (setting, on by default): discovered → the pistol comes out with a shout. It goes away again
+   * once line of sight is broken (1.5 s unseen) or he's hidden in tall grass; hunkering always ends it.
+   */
+  _autoRunGun(dt) {
+    const op = this.world.operative, seen = this.awareness?.state === 'detected';
+    if (this.shout && (this.shout.t -= dt) <= 0) this.shout = null;
+    if (!this.settings.autoRunGun || op.dead) { this._rgWant = false; this._rgSeen = false; return; }
+    if (seen && !this._rgWasSeen && !op.runGun) this._rgWant = true;     // just got spotted
+    this._rgWasSeen = seen;
+    if (!seen) this._rgWant = false;
+    if (this._rgWant && !this.scopeOpen && !op.busy && !op.trans) {
+      this._rgWant = false;
+      this.cmd('runGun');
+      if (op.runGun) this.shout = { text: SHOUTS[Math.floor(Math.random() * SHOUTS.length)], t: 1.8 };
+    }
+    if (!op.runGun) { this._rgSeen = false; return; }
+    if (seen) { this._rgSeen = true; this._rgLost = 0; return; }
+    if (!this._rgSeen) return;                                          // switched on by hand while unseen: leave it
+    this._rgLost = (this._rgLost || 0) + dt;
+    if (this._rgLost >= 1.5 || coverKind(this.world.map, op.tx, op.ty) === 'grass') { this._rgSeen = false; this.cmd('runGun'); }
+  }
+  /** WREN's shout, a speech plate over his head. */
+  _drawShout(ctx, r) {
+    const sh = this.shout, op = this.world.operative;
+    if (!sh || this.scopeOpen) return;
+    const z = r.cam.zoom, w = measureText(sh.text) + 6;
+    const x = Math.round(r.sx(op.x) - w / 2), y = Math.round(r.sy(op.y) - 34 * z);
+    ctx.fillStyle = '#07090A'; ctx.fillRect(x, y, w, 9);
+    ctx.fillStyle = C.uiAmber; ctx.fillRect(x, y + 9, w, 1); ctx.fillRect(Math.round(r.sx(op.x)) - 1, y + 10, 2, 2);
+    drawText(ctx, sh.text, x + 3, y + 2, { color: C.uiAmber });
   }
   frame(dt) {
     if (this.loading) return;

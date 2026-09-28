@@ -50,10 +50,13 @@ export function drawCovered(ctx, z, img, s, X, Y, kind, biome, seed = 0, moving 
   const feet = Math.min(s.ay, b.bottom + 1);
   if (kind === 'water') {
     // waist-deep: only the rows above the waterline show
+    // the body sinks so the waterline sits on the ground point: the selection ring, the ripples and the wake
+    // all meet him where he enters the water (playtest: they used to sit at his hidden feet)
     const wl = Math.max(b.top + 3, Math.round(b.top + (feet - b.top) * 0.62));   // the waist
-    ctx.drawImage(img, 0, 0, s.w, wl, X, Y, s.w * z, wl * z);
+    const sink = (feet - wl) * z;
+    ctx.drawImage(img, 0, 0, s.w, wl, X, Y + sink, s.w * z, wl * z);
     const [deep, light] = waterCols(biome);
-    const y = Y + wl * z;
+    const y = Y + wl * z + sink;
     // a darker band just under the surface, the foam line, and ripples spreading from the waist
     ctx.fillStyle = deep; ctx.globalAlpha = 0.55;
     ctx.fillRect(X + (b.left - 1) * z, y, (b.right - b.left + 3) * z, z);
@@ -73,6 +76,16 @@ export function drawCovered(ctx, z, img, s, X, Y, kind, biome, seed = 0, moving 
   // tall grass: the whole soldier, then a clump of blades in front, tallest in the middle (about the hips)
   ctx.drawImage(img, X, Y, s.w * z, s.h * z);
   const cols = grassCols(biome);
+  // a dense base up to the shins (the knees when lying) — no feet or body edge poking out under the blades
+  const base = b.bottom + 1, band = Math.max(3, Math.round((base - b.top) * 0.3));
+  for (let x = b.left - 1; x <= b.right + 1; x++) {
+    const hv = hash(seed * 13 + x * 7), edge = x < b.left || x > b.right ? 0.5 : 1;
+    const top = Math.max(1, Math.round(band * edge * (0.7 + 0.6 * hv)));   // ragged top edge, lower at the sides
+    for (let j = 0; j <= top; j++) {
+      ctx.fillStyle = j === top ? (hv > 0.5 ? cols[3] : cols[2]) : (x + j) & 1 ? cols[1] : cols[2];
+      ctx.fillRect(X + x * z, Y + (base - j) * z, z, z);
+    }
+  }
   const reach = (feet - b.top) * 0.55;                   // tallest blade height
   const mid = (b.left + b.right) / 2, half = Math.max(2, (b.right - b.left) / 2 + 1);
   const t = Time.realTime;
@@ -88,7 +101,7 @@ export function drawCovered(ctx, z, img, s, X, Y, kind, biome, seed = 0, moving 
       const k = j / bh;
       const dx = Math.round((lean + sway) * k * k);
       ctx.fillStyle = j === bh ? cols[3] : j === 0 ? cols[0] : body;
-      ctx.fillRect(X + (x + dx) * z, Y + (feet - j) * z, z, z);
+      ctx.fillRect(X + (x + dx) * z, Y + (base - j) * z, z, z);
     }
   }
 }

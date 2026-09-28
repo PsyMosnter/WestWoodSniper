@@ -263,6 +263,7 @@ function sniffer(rig, st) {
 
 // ------------------------------------------------------------------ cutscene poses (hands from the chest, mini units)
 const H2 = (R, L) => ({ R, L });
+const PISTOL_UP = H2([2.3, 0.35, -0.1], [2.0, -0.25, -0.35]);   // two-handed grip at chest height, arms out
 /** @type {Record<string, (d: any, f: number) => any>} */
 const CUT_POSES = {
   sit: () => ({ sit: 1.7, arms: 'custom', hands: H2([1.3, 0.9, -1.9], [1.3, -0.9, -1.9]), weapon: 'none', lean: 0.2 }),
@@ -323,12 +324,16 @@ export function renderChibi(type, pose_, dir, frame = 0, variant = '', o = {}) {
   switch (pose_) {
     case 'walk': st = { gait: 'walk', ph: n6(frame), arms: armsIdle, walk: n6(frame) }; break;
     case 'run': st = { gait: 'run', ph: n6(frame), arms: armsIdle, walk: n6(frame), run: true }; break;
-    case 'pistol': st = { gait: 'walk', ph: n6(frame), arms: 'pistol', weapon: 'pistol', walk: n6(frame) }; break;
+    // run & gun: service pistol up in front, both hands on it (the rifle goes on the back)
+    case 'pistol': st = { gait: 'walk', ph: n6(frame), arms: 'custom', hands: PISTOL_UP, weapon: 'pistol', walk: n6(frame) }; break;
     case 'crouch': st = { kneel: 0.8, arms: d.weapon === 'none' ? 'limp' : d.weapon === 'launcher' ? 'shoulder' : 'aim', lean: 0.3 }; break;
     case 'cover': st = { kneel: 1, arms: d.weapon === 'none' ? 'limp' : 'hold', lean: -0.3 }; break;
     case 'fire': st = { kneel: 0.8, arms: d.weapon === 'launcher' ? 'shoulder' : 'aim', lean: 0.3, recoil: frame & 1 ? 0.4 : 0, bite: !(frame & 1) }; break;
-    case 'prone': st = { pitch: rad(86), pivotZ: 0, arms: 'prone', lean: 0, rootX: -d.hipZ * 0.35 }; lying = true; break;
-    case 'crawl': st = { pitch: rad(86), pivotZ: 0, arms: 'prone', lean: 0, rootX: -d.hipZ * 0.35, crawl: (frame & 3) * (Math.PI / 2) }; lying = true; break;
+    // lying: elbows out, hands forward past the head so the arms read from above (playtest: "looks like he has no arms")
+    case 'prone': st = { pitch: rad(86), pivotZ: 0, arms: 'custom', hands: { R: [1.0, 3.9, 2.3], L: [1.0, -3.9, 2.2] }, lean: 0, rootX: -d.hipZ * 0.35 }; lying = true; break;
+    case 'crawl': { const c = (frame & 3) * (Math.PI / 2), pull = Math.sin(c) * 1.1;
+      st = { pitch: rad(86), pivotZ: 0, arms: 'custom', hands: { R: [1.0, 3.9, 2.0 + pull], L: [1.0, -3.9, 2.0 - pull] }, lean: 0, rootX: -d.hipZ * 0.35, crawl: c }; lying = true; break; }
+    case 'pistolAim': st = { arms: 'custom', hands: PISTOL_UP, weapon: 'pistol' }; break;
     case 'dead': deadT = Math.min(1, frame / 11); st = d.beast ? {} : deathState(d, dk, deadT); lying = true; break;
     default: st = CUT_POSES[pose_] ? CUT_POSES[pose_](d, frame) : { arms: armsIdle };
   }

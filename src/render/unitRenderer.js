@@ -24,7 +24,10 @@ export function installUnitRendering(game) {
       if (vis) u.seenByPlayerT = w.time;
       if (!vis && !(u.dead && fog.isSeen(u.tx, u.ty))) continue;
       const x = u.px + (u.x - u.px) * alpha, y = u.py + (u.y - u.py) * alpha;
-      push({ y, elev: 0, draw: (ctx) => drawUnit(ctx, r, u, x, y) }, Math.floor(y));
+      // a body lying on the ground is drawn before anyone upright (or crawling past it) — never on top of them
+      const flat = u.dead && u.kind !== 'vehicle' && u.kind !== 'emplacement' && u.kind !== 'turret';
+      if (flat) push({ y, elev: -1, draw: (ctx) => drawUnit(ctx, r, u, x, y) }, r.rowStart ?? Math.floor(y));
+      else push({ y, elev: 0, draw: (ctx) => drawUnit(ctx, r, u, x, y) }, Math.floor(y));
     }
   });
 

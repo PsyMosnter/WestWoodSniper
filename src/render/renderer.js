@@ -50,6 +50,7 @@ export class Renderer {
     const rows = this.rowBuckets;
     for (let y = ty0; y <= ty1 + 2; y++) rows[y] = rows[y] ? (rows[y].length = 0, rows[y]) : [];
     const push = (e, row) => { if (row >= ty0 && row <= ty1 + 2) rows[row].push(e); };
+    this.rowStart = ty0;                                   // (bodies on the ground go in the first row: under everyone)
     for (const f of this.layers.sorted) f(push, this, alpha);
     const op = w.operative;
     const opx = op.px + (op.x - op.px) * alpha, opy = op.py + (op.y - op.py) * alpha;

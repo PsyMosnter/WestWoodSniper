@@ -451,6 +451,31 @@ function shadowOf(box, lying) {
   return s;
 }
 
+/**
+ * Lying down (prone, crawling, dead): the shadow is the figure's own silhouette, dropped a pixel or two onto
+ * the ground and widened a little — it follows the body whichever way it lies (a fixed ellipse at the feet
+ * anchor ended up beside the body).
+ */
+function lyingShadow(P, r) {
+  return {
+    get canvas() {
+      if (this._c) return this._c;
+      const w = r.w, h = r.h, c = makeCanvas(w, h), g = /** @type {CanvasRenderingContext2D} */ (c.getContext('2d'));
+      const img = g.createImageData(w, h), d = P.data;
+      for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+        if (!(d[y * w + x] >>> 24)) continue;
+        for (const [dx, dy] of [[-1, 1], [0, 1], [1, 1], [-1, 2], [0, 2], [-2, 2]]) {
+          const X = x + dx, Y = y + dy;
+          if (X < 0 || Y < 0 || X >= w || Y >= h) continue;
+          const i = (Y * w + X) * 4; img.data[i] = 12; img.data[i + 1] = 10; img.data[i + 2] = 6; img.data[i + 3] = 92;
+        }
+      }
+      g.putImageData(img, 0, 0);
+      return (this._c = c);
+    }, _c: null, ax: r.ax, ay: r.ay, w: r.w, h: r.h,
+  };
+}
+
 /** Map-sprite painter: canvas (lazy), hit-zone map, top, and a ground shadow. */
 function painter(type) {
   return (pose_, dir, frame, variant) => {
@@ -459,7 +484,7 @@ function painter(type) {
     return {
       get canvas() { return this._c || (this._c = P.toCanvas()); }, _c: null,
       ax: r.ax, ay: r.ay, w: r.w, h: r.h, zoneMap: r.zone, top: r.top,
-      shadow: shadowOf(r.lying ? LIE : STAND, r.lying),
+      shadow: r.lying ? lyingShadow(P, r) : shadowOf(STAND, false),
     };
   };
 }

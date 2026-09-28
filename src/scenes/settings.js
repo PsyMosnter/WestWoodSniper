@@ -17,6 +17,7 @@ const ROWS = [
   { key: 'handedness', label: 'HANDEDNESS', values: ['right', 'left'], fmt: (v) => v.toUpperCase() },
   { key: 'scanlines', label: 'SCAN-LINES', values: [true, false], fmt: (v) => (v ? 'ON' : 'OFF') },
   { key: 'remoteC4', label: 'REMOTE C4 DETONATION', values: [false, true], fmt: (v) => (v ? 'ON' : 'OFF') },
+  { key: 'autoRunGun', label: 'AUTO RUN & GUN', values: [true, false], fmt: (v) => (v ? 'ON' : 'OFF') },   // pistol out when discovered
   // the original sprites stay available: NEW draws redesigns where they exist, CLASSIC everywhere else
   { key: 'artStyle', label: 'ART STYLE', values: ['classic', 'new', 'newest', 'chibi'], fmt: (v) => (v === 'chibi' ? 'CHIBI' : v === 'newest' ? 'NEWEST' : v === 'new' ? (Art.count() ? 'NEW' : 'NEW (NONE YET)') : 'CLASSIC') },
 ];

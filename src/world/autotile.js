@@ -10,7 +10,7 @@ import { O, TERRAIN } from './tiles.js';
  * @param {import('./map.js').GameMap} m
  */
 export function computeAutotile(m) {
-  if (!m.rampsWidened) { m.rampsWidened = true; rampDirs(m); widenRamps(m); }
+  if (!m.rampsWidened) { m.rampsWidened = true; m.origRamp = new Set(); for (let i = 0; i < m.overlay.length; i++) if (m.overlay[i] === O.ramp) m.origRamp.add(i); widenRamps(m); }
   rampDirs(m);
   cliffs(m);
 }
@@ -33,27 +33,56 @@ function rampDirs(m) {
 }
 
 /**
- * Ramps are drawn one tile wide in the map data; the chibi-scale world reads (and plays) better with broad ones.
- * Every ramp grows one tile to each side wherever the ground there is open, on the same level, and meets the
- * same step up — so a 1-tile ramp becomes 3 wide.
+ * Ramps are one tile wide in the map data; the game wants passes 3–4 tiles wide (a one-tile gap is only for
+ * hidden passes and C4 breaches). Each ramp group grows from its ends, one tile a side per pass, up to RAMP_WIDTH:
+ * over open ground that meets the same step up; where the edge sits a tile further back, that tile is raised so the
+ * step lines up; where the plateau juts out beside it, that edge tile is carved down. Buildings, spawn points,
+ * other ramps and their landings are never touched; anything that ends up without its step is undone.
  */
+export const RAMP_WIDTH = 4;
 export function widenRamps(m) {
-  const { w } = m, add = [];
-  for (let i = 0; i < m.rampDir.length; i++) {
-    const d = m.rampDir[i];
-    if (d < 0) continue;
-    const x = i % w, y = (i / w) | 0, e = m.elev[i];
-    for (const s of [-1, 1]) {
-      const [px, py] = d === 0 || d === 2 ? [x + s, y] : [x, y + s];
-      if (!m.inb(px, py)) continue;
-      const j = py * w + px, [ux, uy] = [px + DIRS[d][0], py + DIRS[d][1]];
-      if (m.elev[j] !== e || m.overlay[j] !== O.none || TERRAIN[m.terrain[j]]?.water || !m.inb(ux, uy)) continue;
-      const u = uy * w + ux;
-      if (m.elev[u] !== e + 1 || (m.overlay[u] !== O.none && m.overlay[u] !== O.trees)) continue;
-      add.push(j);
+  const { w } = m, res = m.reserved || new Set(), changed = new Map();   // tile → original elevation
+  const step = (d) => [DIRS[d][0], DIRS[d][1]];
+  const at = (x, y) => (m.inb(x, y) ? y * w + x : -1);
+  const open = (i) => i >= 0 && !res.has(i) && m.overlay[i] === O.none && !TERRAIN[m.terrain[i]]?.water;
+  const spots = m.spots || new Set();
+  const setElev = (i, v) => { if (!changed.has(i)) changed.set(i, m.elev[i]); m.elev[i] = v; };
+  for (let pass = 0; pass < RAMP_WIDTH; pass++) {
+    rampDirs(m);
+    const landing = new Set();
+    for (let i = 0; i < m.rampDir.length; i++) if (m.rampDir[i] >= 0) { const [sx, sy] = step(m.rampDir[i]); landing.add(at(i % w + sx, ((i / w) | 0) + sy)); }
+    const isRamp = (i, d) => i >= 0 && m.rampDir[i] === d;
+    for (let i = 0; i < m.rampDir.length; i++) {
+      const d = m.rampDir[i];
+      if (d < 0) continue;
+      const x = i % w, y = (i / w) | 0, e = m.elev[i], [sx, sy] = step(d), [px, py] = d === 0 || d === 2 ? [1, 0] : [0, 1];
+      let lo = 0, hi = 0;
+      while (isRamp(at(x - px * (lo + 1), y - py * (lo + 1)), d)) lo++;
+      while (isRamp(at(x + px * (hi + 1), y + py * (hi + 1)), d)) hi++;
+      if (lo + hi + 1 >= RAMP_WIDTH) continue;
+      for (const s of [-1, 1]) {
+        if ((s < 0 && lo) || (s > 0 && hi)) continue;                                  // grow from the ends only
+        const jx = x + px * s, jy = y + py * s, j = at(jx, jy), u = at(jx + sx, jy + sy);
+        if (!open(j) || landing.has(j) || m.rampDir[j] >= 0 || u < 0 || landing.has(u) || m.rampDir[u] >= 0) continue;
+        if (m.overlay[u] !== O.none && m.overlay[u] !== O.trees) continue;
+        let ok = false;
+        if (m.elev[j] === e && m.elev[u] === e + 1) ok = true;
+        else if (m.elev[j] === e && m.elev[u] === e && !res.has(u) && !spots.has(u)) {
+          const uu = at(jx + 2 * sx, jy + 2 * sy);
+          if (uu >= 0 && m.elev[uu] === e + 1) { setElev(u, e + 1); ok = true; }          // the step sits back a tile: bring it forward
+        } else if (m.elev[j] === e + 1 && m.elev[u] === e + 1 && !spots.has(j)) {
+          const b = at(jx - sx, jy - sy);
+          if (b >= 0 && m.elev[b] === e && !res.has(b)) { setElev(j, e); ok = true; }    // the plateau juts out: carve it back
+        }
+        if (ok) { m.overlay[j] = O.ramp; m.rampDir[j] = d; }
+      }
     }
   }
-  for (const j of add) m.overlay[j] = O.ramp;
+  // undo anything left without a step to climb
+  rampDirs(m);
+  for (let i = 0; i < m.rampDir.length; i++) {
+    if (m.overlay[i] === O.ramp && m.rampDir[i] < 0 && !m.origRamp?.has(i)) { if (changed.has(i)) m.elev[i] = changed.get(i); m.overlay[i] = O.none; }
+  }
 }
 
 function cliffs(m) {

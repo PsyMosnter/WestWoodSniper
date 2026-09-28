@@ -1,5 +1,6 @@
 // @ts-check
 import { TERRAIN, TERRAIN_BY_CH, OVERLAY, OVERLAY_BY_CH, O, T, DIRS4 } from './tiles.js';
+import { STRUCT_DEFS } from '../render/spriteData/structures.js';
 import { computeAutotile } from './autotile.js';
 
 /**
@@ -31,6 +32,12 @@ export class GameMap {
     this.breach = new Uint8Array(N);            // cracked rock: C4 turns it into a ramp (data.breaches)
     this.version = 0;                           // bump when passability changes
     this.decode(data);
+    // tiles the ramp widening must leave alone: building footprints and everyone's starting spots
+    this.reserved = new Set();
+    const keep = (x, y) => { if (this.inb(x, y)) this.reserved.add(y * this.w + x); };
+    for (const st of data.structures || []) { const d = STRUCT_DEFS[st.type] || { w: 2, h: 2 }; for (let y = -1; y <= d.h; y++) for (let x = -1; x <= d.w; x++) keep(Math.floor(st.x) + x, Math.floor(st.y) + y); }
+    this.spots = new Set();   // where someone starts: a ramp may run under them, the ground's height must not change
+    for (const u of [...(data.units || []), ...(data.friendlies || []), ...(data.pickups || []), data.player || {}]) if (u.x != null && this.inb(Math.floor(u.x), Math.floor(u.y))) this.spots.add(Math.floor(u.y) * this.w + Math.floor(u.x));
     computeAutotile(this);
     this.recompute();
   }

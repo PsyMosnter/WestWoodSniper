@@ -1,4 +1,6 @@
 // @ts-check
+import { BALANCE } from '../config/balance.js';
+import { missionLevel } from '../strike/recon.js';
 import { C } from '../config/palette.js';
 import { drawText, wrapText, measureText } from '../render/font.js';
 import { MenuBase } from '../scenes/menus.js';
@@ -102,6 +104,7 @@ export class BriefingScene extends MenuBase {
     const lo = d.player.loadout;
     const items = [`RIFLE ${lo.rifle}`, `C4 ×${lo.c4 || 0}`, `MEDKIT ×${lo.medkit || 0}`];
     if (lo.designator) items.push(`STRIKE ×${lo.designator}`);
+    if (missionLevel(this.missionId) >= BALANCE.recon.fromLevel) items.push(`SAT RECON ×${BALANCE.recon.start}`);
     if (lo.smoke) items.push(`SMOKE ×${lo.smoke}`);
     drawText(ctx, 'LOADOUT  ' + items.join('   '), 10, H - 20, { font: '3x5', color: C.uiAmber });
     this.drawButtons(ctx);

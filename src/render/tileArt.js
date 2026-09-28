@@ -262,7 +262,7 @@ export function buildTextures(biomeName) {
 function shadeCol(hex, f) { const [r, g, b] = unpack(pack(hex)); return `rgb(${Math.round(r * f)},${Math.round(g * f)},${Math.round(b * f)})`; }
 
 /** Brightness step per elevation level (spec default 6%; raised for readability — DECISIONS.md) */
-export const LEVEL_BRIGHT = 0.09;
+export const LEVEL_BRIGHT = 0.2;
 const WARM = pack('#F0E0A0');
 
 /** Tileable jagged-edge noise used for organic terrain transitions */

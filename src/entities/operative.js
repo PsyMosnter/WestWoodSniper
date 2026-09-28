@@ -194,12 +194,16 @@ export class Operative {
       this.startTrans('crouch', S.hunker.exit, () => { this.stance = 'crouch'; });
       return 'off';
     }
+    if (this.inWater()) return 'water';                  // no going flat in shallow water
     this.path = []; this.pendingMove = null; this.onArrive = null;
     if (this.runGun) { this.runGun = false; this.world.events.emit('runGunOff'); }
     this.stance = this.stance === 'walk' || this.stance === 'run' ? 'crouch' : this.stance;
     this.startTrans('hunker', S.hunker.enter, () => { this.stance = 'hunker'; });
     return 'on';
   }
+
+  /** Standing in shallow water (too deep to lie down or crawl). */
+  inWater() { const m = this.world.map; return m.inb(this.tx, this.ty) && m.terrain[m.idx(this.tx, this.ty)] === TT.shallow; }
 
   /** Cover button (SPEC §6.2): walk to the best cover tile within 3 tiles, or crouch. */
   takeCover() {
@@ -268,6 +272,7 @@ export class Operative {
 
   _move(dt) {
     const m = this.world.map;
+    if (this.mode === 'crawl' && this.inWater()) { this.mode = 'walk'; this.stance = 'walk'; }   // a crawl into water gets up and wades
     const tileCost = m.cost[m.idx(this.tx, this.ty)];
     const base = this.mode === 'run' ? S.run.speed : this.mode === 'crawl' ? S.crawl.speed : S.walk.speed;
     const speed = base / Math.max(0.5, Math.min(3, tileCost === Infinity ? 1 : tileCost));
@@ -312,8 +317,9 @@ export class Operative {
     if (this.moving) {
       const cyc = (p, fps) => { const n = Art.frames(p); return Math.floor(this.animT * fps * n / 4) % n; };
       if (this.mode === 'crawl') { pose = 'crawl'; frame = cyc('crawl', 4); }
+      else if (this.runGun) { pose = 'pistol'; frame = cyc('pistol', this.mode === 'run' ? 7 : 5); }   // pistol up, walking or running
       else if (this.mode === 'run') { pose = 'run'; frame = cyc('run', 7); }
-      else { pose = this.runGun ? 'pistol' : 'walk'; frame = cyc(pose, 5); }
+      else { pose = 'walk'; frame = cyc('walk', 5); }
     } else if (this.trans) {
       const k = this.trans.t / this.trans.dur;
       if (this.trans.to === 'hunker') pose = k < 0.5 ? 'crouch' : 'prone';
@@ -323,7 +329,8 @@ export class Operative {
     } else if (this.stance === 'hunker') pose = 'prone';
     else if (this.stance === 'cover') pose = 'cover';
     else pose = 'crouch';
-    if (this.firingT > 0 && (pose === 'crouch' || pose === 'cover')) pose = 'fire';
+    if (this.runGun && pose === 'crouch' && Art.style === 'chibi') pose = 'pistolAim';   // standing, pistol up
+    else if (this.firingT > 0 && (pose === 'crouch' || pose === 'cover')) pose = 'fire';
     return { pose, frame };
   }
 }

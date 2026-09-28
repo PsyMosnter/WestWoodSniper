@@ -194,11 +194,60 @@ Format: date · milestone · decision · reason.
   Still open: east/west ramps read as a strip seen from above, diagonal cliff edges still step tile by tile, and trees in front of a cliff hide its face.
 - **Gameplay**: the minimap marks every objective on every mission (areas; structures to destroy; people to free or escort; a unit to kill while it is in sight). The briefing can be read again from the pause menu (BRIEFING; the pause menu falls back to two columns on short screens). First Light: a dirt trail leads from the start up to the hill's ramp; a tall-grass spur of the hill now reaches down to the river, and the ford sentry stands in the shallows — 8 tiles from the spur's tip, in range for a hunkered shot.
 
+## Satellite recon; ramps & rock, second pass (owner playtest 4)
+
+- **Satellite recon** (`src/strike/recon.js`): one uplink from mission 2 (RECON button / R). Tap anywhere and a satellite sweeps a screen-sized area for 1.2 s. For 6 s everything in it is visible, with line of sight from its middle as if WREN stood there. Then it goes back to fog: explored, not visible (`Fog.revealArea`). Charges are saved in checkpoints and listed in the briefing loadout.
+- **Field rewards**, up to 3 of each:
+  - From mission 3, +1 recon for a Warden's radio codes, a comms array or jammer brought down, or 3 clean kills. A clean kill is a takedown, or a headshot from 8+ tiles on a target that never saw WREN coming.
+  - From mission 5, sabotage (power plant, generator, fuel depot, shield generator) and heavy armour (Juggernaut, Crawler) earn a **tactical strike**. Before mission 5, sabotage earns recon.
+- **Ramps, second pass** (StarCraft reads as the target):
+  - Each ramp is drawn as a slope over two tiles, the ramp and its landing. It is dark at the foot and lit at the crest, with step edges across it, boulder walls tapering from the crest down its flanks, and a worn apron fanning into the ground below.
+  - Ramps widen to 3 tiles. At plateau corners, where there's no ground beside them, they carve the neighbouring edge tile down instead.
+- **Rock**: faces are rounded boulder chunks lit from the upper left, with dark crevices, boulders bulging over the rim and grass tufts at the foot. Plateau north edges get a rocky rim. West-facing side faces show on the lower tile. Raised ground is 11 % lighter per level, applied before any rock is drawn, so spilled faces stay dark.
+
+## Terrain relief, rebuilt (owner playtest 5)
+
+- **A smooth height field instead of tile-by-tile rock** (`TerrainRenderer._levelAt / _relief`):
+  - Every pixel has a height. Tile corners are rounded (outer corners cut back, inner corners filled in, radius ~8 px) and every edge wobbles a little, so nothing is ruler-straight.
+  - A ramp is a fraction between its levels over two tiles: the tile at its foot takes 40 % of the climb.
+  - Ground tone follows the height: 14 % lighter per level, and ramps dither from one tone to the next, dark below and light above.
+  - Only an abrupt drop is an edge. From there a rock face rises into the higher ground, 22 px per level: lit boulders with a bright crown, a shaded base, occasional deep cracks, and a foot that melts into the ground below (no band at the tile's bottom). Scree, tufts and a soft contact shadow sit at the foot.
+  - Drops to the east and west show narrower side walls. Along a ramp the drop shrinks, so its walls taper to nothing. North edges get a dark line and a lit rim.
+- **Every terrain type is rounded**: a pixel takes the type that dominates the four tiles around it (bilinear weights, a slight wobble, same level only). Patches, roads and shores become soft blobs, while one-tile roads and rivers keep their width. Where a rounded height edge moves a pixel onto a neighbouring level, the pixel wears that level's ground.
+- **Ramps are passes 3–4 tiles wide in the map itself** (owner: a narrow gap is only for hidden passes and C4 breaches). Each ramp group grows from its ends to 4 tiles. It extends over open ground that meets the step. Where the edge sits back a tile, that tile is raised to line the step up; where the plateau juts out, the edge tile is carved down. Buildings are never touched, spawn spots never change height, and other ramps and their landings are left alone; anything left without its step is undone. Every map validates, and ramp groups are 4 wide.
+- **Ramps draw as a smooth climb** from the lower ground's tone to the upper's, with no bands, step lines, dirt patch or rock on the ramp surface. The walls beside a pass round off into it rather than ending in a vertical cut.
+- **Critic (two passes, baseline StarCraft, pass mark 7): 5/10, then 6/10.** It did not reach 7.
+  - Fixed after pass 1: the checker-dither ramps, sliver walls, masonry texture, flat level tones and bleached snow feet.
+  - Fixed after pass 2: ramps are now trapezoids (they narrow towards the crest), the ramp tone runs from the lower level's to the upper's, grass ramps are trodden earth, south faces are at least 10 px tall, and step lines stay on the ramp.
+  - Still open:
+    - Some M2 ramps are ~2 tiles wide where the plateau shape leaves no room.
+    - Cliff ends beside ramps can still end in a near-vertical cut.
+    - M4 south rims could be more continuous.
+- **HUD, a 3×3 grid** with the most-used buttons down the right-hand column, under the thumb:
+  - SMOKE · COVER · HUNKER
+  - MEDKIT (new) · C4 · TAKEDOWN
+  - STRIKE (from mission 5) · RECON (from mission 2) · R&GUN
+
+  ADVANCE and FOLLOW go on a row below. A used-up consumable stays, greyed out.
+
+## Stalking, run & gun, cover (owner playtest 6)
+
+- **Takedown ring**: while WREN is flat, every seen, unaware soldier on his level within 12 tiles gets an amber donut, reach (2 tiles) wide. A tap on the donut makes him crawl up and take the soldier down once in reach; the path is re-aimed every 0.6 s as the soldier walks. The stalk stops if they see him, he gets up or the soldier leaves his level. A tap on the soldier still opens the scope, even in reach (standing, a tap in reach still takes them down).
+- **Auto RUN & GUN** (Settings, on by default): when WREN is discovered, the pistol comes out and he yells one of five lines in a speech plate. It switches back off after 1.5 s out of sight, or at once when he's hidden in tall grass. Hunkering always ends it. Switched on by hand while unseen, it is left alone. Being spotted during the scope waits until the scope closes.
+- **Poses**: prone and crawl have elbows out and hands beside the helmet (the chibi head used to hide the arms), alternating as he crawls. Run & gun holds the service pistol two-handed in front, walking, running and standing (`pistolAim`, Chibi only).
+- **Cover**:
+  - In tall grass, a dense ragged base now covers the feet and the lower body, lying down too.
+  - In shallow water, the body sinks, so the waterline, ripples, wake and selection ring meet at the ground point.
+  - Shallow water is too deep to go flat: HUNKER is greyed out, and a crawl into water gets up and wades (it used to crawl through at half noise).
+
 ## Hosting
 
 - **Cloudflare Workers (static assets)**: `wrangler.jsonc` in the repo; `npx wrangler deploy` runs `node tools/build-site.js`, which copies only `index.html`, `icon.svg`, `manifest.webmanifest` and `src/` into `dist/` (git-ignored), and only `dist/` is uploaded. Without a committed config, Wrangler's auto-setup served the repo root and tried to upload `node_modules/` (its own 128 MiB `workerd` binary → "Asset too large"); an allow-list also keeps tests, tools and docs off the site, and a separate folder stops `wrangler dev` from reload-looping on its own `.wrangler/` state. Still no bundling and no runtime dependencies; `npm run serve` keeps serving the source tree directly.
 
 ## Changelog
+- **Playtest 6**: takedown rings with crawl-to-takedown; auto RUN & GUN with shouts (setting); pistol held up front; crawl arms; grass hides feet; water ring at the waterline; no hunker in water.
+- **Playtest 5**: terrain relief rebuilt on a rounded height field (natural boulder faces that melt into their foot, tapering ramp walls, lighter-when-higher tones, 5-wide ramps), rounded shapes for every terrain type; 3×3 action grid with MEDKIT; RECON/STRIKE stay (greyed) when used up.
+- **Playtest 4**: satellite recon (from M2; rewards from M3; tactical strike rewards from M5); ramps as two-tile slopes with tapering boulder walls, carved 3-wide even at corners; boulder rock faces with rims and tufts.
 - **Playtest 3 — Chibi final**: Chibi is the default look; vehicles and buildings rescaled to the chibi soldiers; new trees; thick, natural rock faces; 3-wide ramps with a view over the crest; hand-inked intro (meteors, the Colonel and his secretary, the pin, WREN's boot) with the N.O.T. / G.O.D. story; objectives on every minimap; briefing from the pause menu; First Light trail and sniping spur.
 - **Cutscenes, LucasArts style**: acted scenes at full resolution — painted sets (HQ tent, dawn jetty, dropship cabin) and big talking-head close-ups with a green field-radio screen; the chibi cast lip-syncs, blinks, gestures and emotes; speech typed above the speaker's head in their colour. New cast: Overwatch, GOD Command, Dr. Adler. Every mission briefing is now a close-up; the intro gets the tent and the fishing gag, the ending the ride home.
 - **Art style Chibi**: detailed anime-chibi infantry for all 11 types on the shared Newest skeleton (8 facings, 6-frame walks/runs, 12-frame deaths in the unit's own blood, per-pixel hit zones, soft shadows); WREN's round glasses catch the sun now and then. Explosions with fireballs and debris now also play in the default New style. `?art=chibi`.

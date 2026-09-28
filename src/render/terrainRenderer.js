@@ -162,7 +162,6 @@ export class TerrainRenderer {
             const nx = x0 + (q & 1), ny = y0 + (q >> 1), nj = tile(nx, ny);
             const wq = ((q & 1) ? fx : 1 - fx) * ((q >> 1) ? fy : 1 - fy);
             let tq = nj >= 0 && m.elev[nj] === e ? m.terrain[nj] : t;
-            if (nj >= 0 && m.rampDir[nj] >= 0 && (tq === T.tallgrass || (tq === T.ground && this.biome !== 'alpine'))) tq = T.dirt;   // trodden
             if (tq === t1 || t1 < 0) { t1 = tq; w1 += wq; } else if (tq === t2 || t2 < 0) { t2 = tq; w2 += wq; } else if (tq === t3 || t3 < 0) { t3 = tq; w3 += wq; } else { t4 = tq; w4 += wq; }
           }
           for (const [tq, wq] of [[t1, w1], [t2, w2], [t3, w3], [t4, w4]]) if (tq >= 0 && wq + prio[tq] * 0.001 > bw) { bw = wq + prio[tq] * 0.001; bt = tq; }
@@ -174,13 +173,13 @@ export class TerrainRenderer {
           // the ground's tone follows the smooth height field: higher is lighter; ramps dither from one to the next
           const lvl = Math.max(0, Math.min(3, lvAt(px, py))), l0 = Math.floor(lvl), fr = lvl - l0;
           const e = Math.min(3, l0);
-          const band = fr > 0.02 && fr < 0.98 ? Math.min(3, Math.floor(fr * 4) + 1) : 0;   // a ramp: 4 tone bands, low → high
+          const slope = fr > 0.02 && fr < 0.98;                                               // on a ramp: a smooth blend, low → high
           // anti-tiling: large noise regions sample the (tileable) texture at different offsets,
           // with dithered borders, so the 64-px period never lines up into a visible grid
           const rn = valueNoise(wx / 52, wy / 52, 91) + (EDGE_NOISE2[(wy & 63) * TEX + (wx & 63)] - 0.5) * 0.18;
           const sx = rn > 0.62 ? wx + 29 : rn < 0.36 ? wx + 47 : wx, sy = rn > 0.62 ? wy + 43 : rn < 0.36 ? wy + 17 : wy;
           let c0 = tex[t][e][(sy & 63) * TEX + (sx & 63)];
-          if (band) c0 = shade(c0, 1 + ((band - 1) / 3) * LEVEL_BRIGHT * 1.1);          // foot = the lower level's tone → crest = the upper's
+          if (slope) c0 = shade(c0, 1 + fr * LEVEL_BRIGHT);                                  // foot = the lower level's tone → crest = the upper's
           buf[py * CPX + px] = c0;
         }
       }
@@ -360,11 +359,17 @@ export class TerrainRenderer {
       // south face: look down for the edge
       let face = -1, depth = 0, foot = 0;
       // only an abrupt drop is an edge; a ramp's gentle slope is not
-      for (let k = 1, prev = L; k <= RELIEF_MG - 2; k++) {
+      const onSlope = Math.abs(L - Math.round(L)) > 0.03;                                    // a ramp's surface grows no rock
+      for (let k = 1, prev = L; k <= RELIEF_MG - 2 && !onSlope; k++) {
         const q = lvAt(px, py + k);
         if (q > prev + EDGE_STEP) break;                                                    // higher ground below: not an edge of ours
         if (q < prev - EDGE_STEP) {
-          const Hf = Math.max(10, (L - q) * FACE + (EDGE_NOISE[((wy >> 1) & 63) * TEX + (wx & 63)] - 0.5) * 5);
+          let Hf = Math.max(10, (L - q) * FACE + (EDGE_NOISE[((wy >> 1) & 63) * TEX + (wx & 63)] - 0.5) * 5);
+          // beside a ramp the wall rounds off into it instead of ending in a vertical cut
+          for (let dj = 1; dj <= 12; dj++) {
+            const a = lvAt(px - dj, py + k + 1), b2 = lvAt(px + dj, py + k + 1);
+            if (Math.abs(a - Math.round(a)) > 0.03 || Math.abs(b2 - Math.round(b2)) > 0.03) { Hf *= Math.sqrt(dj / 12); break; }
+          }
           if (k <= Hf) { face = 0; depth = 1 - k / Hf; foot = k; }
           break;
         }
@@ -407,8 +412,9 @@ export class TerrainRenderer {
       }
       // ground: a dark line where a higher edge begins just below (north edges), a lit rim on top of it
       const below = lvAt(px, py + 1), above = lvAt(px, py - 1);
-      if (below > L + EPS && below - L > 0.5) { buf[i] = shade(buf[i], 0.62); continue; }
-      if (above < L - EPS && L - above > 0.5) { buf[i] = shade(buf[i], 1.22); continue; }
+      const frac2 = (v) => Math.abs(v - Math.round(v)) > 0.03;                                // (not at a ramp's edges)
+      if (below > L + EPS && below - L > 0.5 && !frac2(below) && !frac2(L)) { buf[i] = shade(buf[i], 0.62); continue; }
+      if (above < L - EPS && L - above > 0.5 && !frac2(above) && !frac2(L)) { buf[i] = shade(buf[i], 1.22); continue; }
       // at the foot of a face: scree, tufts and a soft contact shadow (no hard band)
       let up = 0;
       for (let k = 1; k <= 4; k++) if (lvAt(px, py - k) > L + 0.5) { up = k; break; }
@@ -419,10 +425,7 @@ export class TerrainRenderer {
         buf[i] = c;
         continue;
       }
-      // ramps: at each band edge a lit step with a shadow under it, so the slope's direction reads
-      const rti = Math.floor(wy / TILE) * this.map.w + Math.floor(wx / TILE), onRamp = this.map.rampDir[rti] >= 0;
-      const frac = onRamp ? L - Math.floor(L) : 0, fb = lvAt(px, py + 1) - Math.floor(lvAt(px, py + 1));
-      if (frac > 0.02 && frac < 0.98 && Math.floor(frac * 4) !== Math.floor(fb * 4) && Math.abs(frac - fb) < 0.3) { buf[i] = shade(buf[i], frac > fb ? 1.3 : 0.7); if (py + 1 < CPX) buf[i + CPX] = shade(buf[i + CPX], frac > fb ? 0.75 : 1.2); }
+      // (ramps: nothing more — just the smooth climb from one level's tone to the next)
     }
   }
 

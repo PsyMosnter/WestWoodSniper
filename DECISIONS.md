@@ -215,6 +215,13 @@ Format: date · milestone · decision · reason.
   - Drops to the east and west show narrower side walls. Along a ramp the drop shrinks, so its walls taper to nothing. North edges get a dark line and a lit rim.
 - **Every terrain type is rounded**: a pixel takes the type that dominates the four tiles around it (bilinear weights, a slight wobble, same level only). Patches, roads and shores become soft blobs, while one-tile roads and rivers keep their width. Where a rounded height edge moves a pixel onto a neighbouring level, the pixel wears that level's ground.
 - **Ramps are wider**: two widening passes (up to 5 tiles), with corner carving in the first.
+- **Critic (two passes, baseline StarCraft, pass mark 7): 5/10, then 6/10.** It did not reach 7.
+  - Fixed after pass 1: the checker-dither ramps, sliver walls, masonry texture, flat level tones and bleached snow feet.
+  - Fixed after pass 2: ramps are now trapezoids (they narrow towards the crest), the ramp tone runs from the lower level's to the upper's, grass ramps are trodden earth, south faces are at least 10 px tall, and step lines stay on the ramp.
+  - Still open:
+    - Some M2 ramps are ~2 tiles wide where the plateau shape leaves no room.
+    - Cliff ends beside ramps can still end in a near-vertical cut.
+    - M4 south rims could be more continuous.
 - **HUD, a 3×3 grid** with the most-used buttons down the right-hand column, under the thumb:
   - SMOKE · COVER · HUNKER
   - MEDKIT (new) · C4 · TAKEDOWN

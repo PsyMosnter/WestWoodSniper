@@ -161,7 +161,8 @@ export class TerrainRenderer {
           for (let q = 0; q < 4; q++) {
             const nx = x0 + (q & 1), ny = y0 + (q >> 1), nj = tile(nx, ny);
             const wq = ((q & 1) ? fx : 1 - fx) * ((q >> 1) ? fy : 1 - fy);
-            const tq = nj >= 0 && m.elev[nj] === e ? m.terrain[nj] : t;
+            let tq = nj >= 0 && m.elev[nj] === e ? m.terrain[nj] : t;
+            if (nj >= 0 && m.rampDir[nj] >= 0 && (tq === T.tallgrass || (tq === T.ground && this.biome !== 'alpine'))) tq = T.dirt;   // trodden
             if (tq === t1 || t1 < 0) { t1 = tq; w1 += wq; } else if (tq === t2 || t2 < 0) { t2 = tq; w2 += wq; } else if (tq === t3 || t3 < 0) { t3 = tq; w3 += wq; } else { t4 = tq; w4 += wq; }
           }
           for (const [tq, wq] of [[t1, w1], [t2, w2], [t3, w3], [t4, w4]]) if (tq >= 0 && wq + prio[tq] * 0.001 > bw) { bw = wq + prio[tq] * 0.001; bt = tq; }
@@ -179,7 +180,7 @@ export class TerrainRenderer {
           const rn = valueNoise(wx / 52, wy / 52, 91) + (EDGE_NOISE2[(wy & 63) * TEX + (wx & 63)] - 0.5) * 0.18;
           const sx = rn > 0.62 ? wx + 29 : rn < 0.36 ? wx + 47 : wx, sy = rn > 0.62 ? wy + 43 : rn < 0.36 ? wy + 17 : wy;
           let c0 = tex[t][e][(sy & 63) * TEX + (sx & 63)];
-          if (band) c0 = shade(c0, 0.8 + band * 0.13);                                     // dark at the foot → lit at the crest
+          if (band) c0 = shade(c0, 1 + ((band - 1) / 3) * LEVEL_BRIGHT * 1.1);          // foot = the lower level's tone → crest = the upper's
           buf[py * CPX + px] = c0;
         }
       }
@@ -313,7 +314,18 @@ export class TerrainRenderer {
     const i = ty * W + tx, base = m.elev[i], fx = x - tx * TILE, fy = y - ty * TILE;
     // a ramp rises over two tiles: its foot tile takes the first part of the climb, the ramp the rest
     const alongOf = (d) => (d === 0 ? 1 - fy / TILE : d === 2 ? fy / TILE : d === 1 ? fx / TILE : 1 - fx / TILE);
-    if (m.rampDir[i] >= 0) return base + RAMP_FOOT + (1 - RAMP_FOOT) * Math.max(0, Math.min(1, alongOf(m.rampDir[i])));
+    if (m.rampDir[i] >= 0) {
+      const d = m.rampDir[i], along = Math.max(0, Math.min(1, alongOf(d)));
+      // a trapezoid, not a box: at its outer sides the ramp narrows towards the crest, giving way to its neighbours' ground
+      const vert = d === 0 || d === 2, [sa, sb] = vert ? [[tx - 1, ty], [tx + 1, ty]] : [[tx, ty - 1], [tx, ty + 1]];
+      const inset = along * 7;
+      for (const [k, [nx, ny]] of [[0, sa], [1, sb]]) {
+        if (!m.inb(nx, ny) || m.rampDir[ny * W + nx] === d) continue;
+        const side = vert ? (k ? TILE - fx : fx) : (k ? TILE - fy : fy);
+        if (side < inset) return m.elev[ny * W + nx];
+      }
+      return base + RAMP_FOOT + (1 - RAMP_FOOT) * along;
+    }
     for (let d = 0; d < 4; d++) {
       const nx = tx + [0, 1, 0, -1][d], ny = ty + [-1, 0, 1, 0][d];
       if (!m.inb(nx, ny)) continue;
@@ -352,7 +364,7 @@ export class TerrainRenderer {
         const q = lvAt(px, py + k);
         if (q > prev + EDGE_STEP) break;                                                    // higher ground below: not an edge of ours
         if (q < prev - EDGE_STEP) {
-          const Hf = (L - q) * FACE + (EDGE_NOISE[((wy >> 1) & 63) * TEX + (wx & 63)] - 0.5) * 5;
+          const Hf = Math.max(10, (L - q) * FACE + (EDGE_NOISE[((wy >> 1) & 63) * TEX + (wx & 63)] - 0.5) * 5);
           if (k <= Hf) { face = 0; depth = 1 - k / Hf; foot = k; }
           break;
         }
@@ -408,7 +420,8 @@ export class TerrainRenderer {
         continue;
       }
       // ramps: at each band edge a lit step with a shadow under it, so the slope's direction reads
-      const frac = L - Math.floor(L), fb = lvAt(px, py + 1) - Math.floor(lvAt(px, py + 1));
+      const rti = Math.floor(wy / TILE) * this.map.w + Math.floor(wx / TILE), onRamp = this.map.rampDir[rti] >= 0;
+      const frac = onRamp ? L - Math.floor(L) : 0, fb = lvAt(px, py + 1) - Math.floor(lvAt(px, py + 1));
       if (frac > 0.02 && frac < 0.98 && Math.floor(frac * 4) !== Math.floor(fb * 4) && Math.abs(frac - fb) < 0.3) { buf[i] = shade(buf[i], frac > fb ? 1.3 : 0.7); if (py + 1 < CPX) buf[i + CPX] = shade(buf[i + CPX], frac > fb ? 0.75 : 1.2); }
     }
   }

@@ -131,8 +131,14 @@ export class TitleScene extends MenuBase {
     this.addButton('SETTINGS', () => this.app.scenes.push('settings', {}));
     this.addButton('CREDITS', () => this.app.scenes.push('credits', {}));
     this.addButton('INTRO', () => this.app.playCut('intro', () => this.app.scenes.go('title', {})));
+    // browsers keep a page silent until the first tap: before sound is on, that tap only starts the title
+    // tune (otherwise the first tap is START and the title music is never heard)
+    this.gate = !this.app.audio?.ctx;
+    for (const b of this.buttons) b.visible = !this.gate;
     this._makeBg();
   }
+  _openGate() { this.gate = false; for (const b of this.buttons) b.visible = true; this.app.audio?.unlock?.(); this.app.audio?.music?.('title'); }
+  onPointerDown(p) { if (this.gate) { this._openGate(); return; } super.onPointerDown(p); }
   async _makeBg() {
     try {
       const { World } = await import('../world/world.js');
@@ -157,7 +163,7 @@ export class TitleScene extends MenuBase {
     this.buttons.forEach((b, i) => b.place(i === n - 1 && n % 2 ? Math.round(W / 2 - bw / 2) : Math.round(W / 2 - bw - g / 2 + (i % 2) * (bw + g)), y0 + Math.floor(i / 2) * (bh + g), bw, bh));
   }
   frame(dt) { this.t += dt; }
-  onKeyDown(code) { if (code === 'Enter' || code === 'Space') this.app.playCut('intro', () => this.app.startCampaign()); }
+  onKeyDown(code) { if (this.gate) { this._openGate(); return; } if (code === 'Enter' || code === 'Space') this.app.playCut('intro', () => this.app.startCampaign()); }
   render(ctx) {
     const { W, H } = this.app.display;
     ctx.fillStyle = '#07090A'; ctx.fillRect(0, 0, W, H);
@@ -179,6 +185,7 @@ export class TitleScene extends MenuBase {
     const L = drawLogo(ctx, W / 2, Math.round(H * 0.1), scale);
     drawText(ctx, 'GLOBAL OPERATIVE DEFENCES · CALLSIGN WREN', W / 2, Math.round(H * 0.1) + L.h + 2, { align: 'center', font: '3x5', color: C.uiText, shadow: '#000' });
     this.drawButtons(ctx);
+    if (this.gate && Math.floor(this.t * 2) % 2 === 0) drawText(ctx, 'TAP TO BEGIN', W / 2, Math.round(Math.min(H * 0.62, H - 40)), { align: 'center', color: C.uiAmber, bold: true, shadow: '#000' });
     drawText(ctx, 'THE WEST WOOD, VARNA RIVER FRONT', 4, H - 9, { font: '3x5', color: C.uiTextD });
     drawText(ctx, 'V1.0', W - 4, H - 9, { font: '3x5', color: C.uiTextD, align: 'right' });
   }

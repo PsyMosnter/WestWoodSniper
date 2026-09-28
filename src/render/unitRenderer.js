@@ -82,8 +82,8 @@ function drawUnit(ctx, r, u, x, y) {
     return;
   }
   const { pose, frame } = u.pose();
-  // a dead unit falls the way its death sends it (away from the shot, forward from a takedown) — Newest only
-  const dir = u.dead && u.deathDir != null && Art.style === 'newest' ? u.deathDir : u.dir;
+  // a dead unit falls the way its death sends it (away from the shot, forward from a takedown) — Newest & Chibi
+  const dir = u.dead && u.deathDir != null && (Art.style === 'newest' || Art.style === 'chibi') ? u.deathDir : u.dir;
   const s = unitSprite(u.type, pose, dir, frame, unitVariant(u));
   const X = Math.round(r.sx(x) - s.ax * z), Y = Math.round(r.sy(y) - s.ay * z);
   const m = u.world.map, cover = u.dead ? null : coverKind(m, u.tx, u.ty);

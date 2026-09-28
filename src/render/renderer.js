@@ -4,6 +4,7 @@ import { FogRenderer } from './fogRenderer.js';
 import { unitSprite, whiteOf, tintOf, markerLift, drawGroundShadow } from './sprites.js';
 import { TILE } from '../core/camera.js';
 import { Time } from '../core/time.js';
+import { Art } from './artStyle.js';
 import { hash2 } from '../core/rng.js';
 import { T, O } from '../world/tiles.js';
 import { coverKind, drawCovered } from './terrainCover.js';
@@ -124,7 +125,7 @@ export class Renderer {
 
   _drawOperative(ctx, op, x, y) {
     const { pose, frame } = op.pose();
-    const s = unitSprite('operative', pose, op.facing, frame);
+    const s = unitSprite('operative', pose, op.facing, frame, Art.style === 'chibi' ? glassesGleam(Time.realTime) : '');
     this._opSprite = s;
     const z = this.cam.zoom;
     const X = Math.round(this.sx(x) - s.ax * z), Y = Math.round(this.sy(y) - s.ay * z);
@@ -237,4 +238,10 @@ export function ellipse(ctx, cx, cy, rx, ry, color) {
     ctx.fillRect(x, y, 1, 1);
     lx = x; ly = y;
   }
+}
+
+/** Chibi style: the sun catches WREN's glasses every 3.2 s — a 0.4 s sweep in five steps ('gl-0'…'gl-4'). */
+export function glassesGleam(t) {
+  const q = t % 3.2;
+  return q < 0.4 ? 'gl-' + Math.min(4, Math.floor(q / 0.08)) : '';
 }

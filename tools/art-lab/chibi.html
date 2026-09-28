@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Westwood Sniper — Chibi style study</title>
+<style>
+  body { margin: 0; background: #101311; color: #CFE6C8; font: 13px/1.45 ui-monospace, Menlo, monospace; }
+  section { padding: 10px 18px; }
+  h1 { font-size: 16px; color: #FFB23A; margin: 14px 18px 4px; }
+  h2 { font-size: 13px; color: #FFB23A; margin: 14px 0 6px; text-transform: uppercase; letter-spacing: .05em; }
+  p { color: #7F957C; margin: 2px 0 8px; max-width: 900px; }
+  canvas { image-rendering: pixelated; display: block; border: 1px solid #2A322B; }
+  .row { display: flex; gap: 14px; flex-wrap: wrap; }
+  .cap { color: #7F957C; font-size: 11px; margin-top: 3px; }
+</style>
+</head>
+<body>
+<h1>"Chibi" style study — WREN · NOT Husk · NOT Scorcher</h1>
+<section id="out"></section>
+<script type="module">
+import { chibi, KINDS } from './chibi.js';
+const out = document.getElementById('out');
+const GROUND = { sand: ['#A88B52', '#C2A56A', '#D8BF86', '#CDB27A'], grass: ['#3C5424', '#4E6B2F', '#5E7E36', '#58773A'] };
+function ground(g, w, h, kind) { const c = GROUND[kind]; let s = 7; const r = () => ((s = (s * 16807) % 2147483647) / 2147483647); g.fillStyle = c[1]; g.fillRect(0, 0, w, h); for (let i = 0; i < w * h * 0.3; i++) { g.fillStyle = c[[0, 2, 3][Math.floor(r() * 3)]]; g.fillRect(Math.floor(r() * w), Math.floor(r() * h), 1, 1); } }
+const cache = new Map();
+function cv(kind, d, f, walk, gl = -1) {
+  const k = [kind, d, f, walk, gl].join('|'); let c = cache.get(k); if (c) return c;
+  const r = chibi(kind, d, f, walk, gl);
+  c = document.createElement('canvas'); c.width = r.w; c.height = r.h; const g = c.getContext('2d');
+  g.fillStyle = 'rgba(20,16,10,0.35)'; for (let y = -2; y <= 2; y++) { const w = Math.round(9 * Math.sqrt(1 - (y * y) / 6.25)); g.fillRect(r.ax - w + 2, r.ay + y, 2 * w, 1); }
+  g.drawImage(r.pix.toCanvas(), 0, 0);
+  cache.set(k, c); return c;
+}
+function block(title, note) { const s = document.createElement('div'); s.innerHTML = `<h2>${title}</h2>${note ? `<p>${note}</p>` : ''}`; const r = document.createElement('div'); r.className = 'row'; s.appendChild(r); out.appendChild(s); return r; }
+function fig(row, cap, w, h, sc, draw, anim) {
+  const wrap = document.createElement('div'); const c = document.createElement('canvas'); c.width = w; c.height = h; c.style.width = w * sc + 'px'; c.style.height = h * sc + 'px';
+  const g = c.getContext('2d'); g.imageSmoothingEnabled = false;
+  const paint = (t) => { g.clearRect(0, 0, w, h); draw(g, t); }; paint(0);
+  if (anim) { const t0 = performance.now(); const loop = () => { paint((performance.now() - t0) / 1000); requestAnimationFrame(loop); }; requestAnimationFrame(loop); }
+  wrap.appendChild(c); const d = document.createElement('div'); d.className = 'cap'; d.textContent = cap; wrap.appendChild(d); row.appendChild(wrap);
+}
+const gleamAt = (t) => { const q = t % 2.4; return q < 0.4 ? Math.round((q / 0.4) * 5) / 5 : -1; };
+const NAMES = { wren: 'WREN', husk: 'NOT Husk', scorcher: 'NOT Scorcher (flamethrower)' };
+{
+  const row = block('All eight facings, standing (4×)', 'Big head, short limbs, oversized boots, anime eyes with a glint (the Scorcher wears a gas mask), 3-tone cel shading, dark tinted outlines — rendered from 3D shapes, so every facing and frame comes from one model.');
+  for (const k of KINDS) fig(row, NAMES[k] + ' — N NE E SE S SW W NW', 8 * 40, 50, 3, (g, t) => { ground(g, 320, 50, k === 'wren' ? 'grass' : 'sand'); const gl = gleamAt(t); for (let d = 0; d < 8; d++) g.drawImage(cv(k, d, 0, false, gl), d * 40 - 4, -2); }, true);
+}
+{
+  const row = block('Walking — 6 frames at 100 ms (4×): S, E, N', '');
+  for (const k of KINDS) fig(row, NAMES[k], 3 * 40, 50, 4, (g, t) => { ground(g, 120, 50, 'sand'); const f = Math.floor(t / 0.1) % 6, gl = gleamAt(t + 1.2); [4, 2, 0].forEach((d, i) => g.drawImage(cv(k, d, f, true, gl), i * 40 - 4, -2)); }, true);
+  // the gleam, frozen step by step
+  fig(row, 'WREN — the gleam, step by step (S)', 6 * 40, 50, 4, (g) => { ground(g, 240, 50, 'grass'); [-1, 0, 0.2, 0.4, 0.6, 0.8].forEach((gl, i) => g.drawImage(cv('wren', 4, 0, false, gl), i * 40 - 4, -2)); });
+}
+{
+  const row = block('At game size (2×) on grass', '');
+  fig(row, 'walking east', 3 * 40, 50, 2, (g, t) => { ground(g, 120, 50, 'grass'); const f = Math.floor(t / 0.1) % 6; KINDS.forEach((k, i) => g.drawImage(cv(k, 2, f, true), i * 40 - 4, -2)); }, true);
+}
+</script>
+</body>
+</html>

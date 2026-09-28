@@ -72,11 +72,13 @@ function joint(a, t, l1, l2, bend) {
 }
 
 /**
- * Joint positions for a humanoid pose.
+ * Joint positions for a humanoid pose (shared with the Chibi style, which builds 3D shapes on these joints).
+ * s.attach: extra named points fixed to the body ([name, 'head'|'chest'|'pelvis', [x, y, z]] in the unit's
+ * frame) that follow it through leans, falls and tumbles — eyes, glasses, back tanks.
  * s: gait 'walk'|'run' + ph (0..1) · kneel (0..1) · arms 'hold'|'aim'|'pistol'|'swing'|'shoulder'|'fling'|'up'|'limp'|'prone'
  * · armT · lean · pitch/pivotZ/pitchKnees · rootX/rootZ · crawl (phase) · recoil
  */
-function pose(d, s) {
+export function pose(d, s) {
   const k = d.scale || 1, L = (v) => v * k;
   const run = s.gait === 'run', gait = s.gait != null;
   const a = (s.ph || 0) * Math.PI * 2;
@@ -116,6 +118,7 @@ function pose(d, s) {
   else if (arms === 'prone') { const c = s.crawl ?? 0; set({ x: C.x + ua + fa - 0.6 + Math.sin(c) * 0.9, y: C.y + 0.6, z: C.z - 0.2 }, { x: C.x + ua + fa - 0.2 - Math.sin(c) * 0.9, y: C.y - 0.5, z: C.z - 0.2 }); }
   else set({ x: C.x + 0.4 + at, y: C.y + L(1.2) + at * 0.6, z: C.z - ua - fa + 0.6 }, { x: C.x - 0.3 - at, y: C.y - L(1.2) - at * 0.4, z: C.z - ua - fa + 0.6 });
   J.elbR = joint(J.shR, J.handR, ua, fa, -1); J.elbL = joint(J.shL, J.handL, ua, fa, -1);
+  for (const [name, at, o] of s.attach || []) { const b = J[at === 'pelvis' ? 'hipL' : at]; const base = at === 'pelvis' ? { x: (J.hipL.x + J.hipR.x) / 2, y: (J.hipL.y + J.hipR.y) / 2, z: J.hipL.z } : b; J[name] = { x: base.x + o[0], y: base.y + o[1], z: base.z + o[2] }; }
   // whole-body pitch about a pivot (lying flat, falls) — kneeling falls pitch the body above the knees
   if (s.pitch) {
     const fromKnees = !!s.pitchKnees;
@@ -128,15 +131,16 @@ function pose(d, s) {
     J.kneeR = { ...J.kneeR, y: J.kneeR.y + Math.max(0, -kn) * 0.8, x: J.kneeR.x + Math.max(0, -kn) };
   }
   const rx = s.rootX || 0, rz = s.rootZ || 0;
+  const free = new Set((s.attach || []).map((a) => a[0]));
   for (const key of Object.keys(J)) {
     const p = J[key];
-    J[key] = { x: p.x + rx, y: p.y, z: Math.max(key.startsWith('foot') || key.startsWith('knee') ? 0 : 0.3, p.z + rz) };
+    J[key] = { x: p.x + rx, y: p.y, z: free.has(key) ? p.z + rz : Math.max(key.startsWith('foot') || key.startsWith('knee') ? 0 : 0.3, p.z + rz) };
   }
   return J;
 }
 
 /** Death state at t ∈ [0, 1] (12 frames). */
-function deathState(d, kind, t) {
+export function deathState(d, kind, t) {
   const k = d.scale || 1;
   if (kind === 'takedown') {
     // grabbed from behind: arches back, hands at the throat · sags, knees go · slumps forward from the knees · face down

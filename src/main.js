@@ -70,8 +70,8 @@ const app = {
   persist() { writeSave(this.save); },
 };
 app.settings = app.save.settings;
-// ?art=classic|new|newest: compare the art styles without touching the saved setting (Settings still wins once changed)
-if (params.get('art')) app.settings = { ...app.settings, artStyle: ['new', 'newest'].includes(params.get('art') || '') ? params.get('art') : 'classic' };
+// ?art=classic|new|newest|chibi: compare the art styles without touching the saved setting (Settings still wins once changed)
+if (params.get('art')) app.settings = { ...app.settings, artStyle: ['new', 'newest', 'chibi'].includes(params.get('art') || '') ? params.get('art') : 'classic' };
 Art.setStyle(app.settings.artStyle);
 app.input = new Input(canvas, app.display);
 app.scenes = new SceneManager(app);

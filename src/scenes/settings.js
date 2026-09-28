@@ -18,7 +18,7 @@ const ROWS = [
   { key: 'scanlines', label: 'SCAN-LINES', values: [true, false], fmt: (v) => (v ? 'ON' : 'OFF') },
   { key: 'remoteC4', label: 'REMOTE C4 DETONATION', values: [false, true], fmt: (v) => (v ? 'ON' : 'OFF') },
   // the original sprites stay available: NEW draws redesigns where they exist, CLASSIC everywhere else
-  { key: 'artStyle', label: 'ART STYLE', values: ['classic', 'new', 'newest'], fmt: (v) => (v === 'newest' ? 'NEWEST' : v === 'new' ? (Art.count() ? 'NEW' : 'NEW (NONE YET)') : 'CLASSIC') },
+  { key: 'artStyle', label: 'ART STYLE', values: ['classic', 'new', 'newest', 'chibi'], fmt: (v) => (v === 'chibi' ? 'CHIBI' : v === 'newest' ? 'NEWEST' : v === 'new' ? (Art.count() ? 'NEW' : 'NEW (NONE YET)') : 'CLASSIC') },
 ];
 
 export class SettingsScene extends MenuBase {

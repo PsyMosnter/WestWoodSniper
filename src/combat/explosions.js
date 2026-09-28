@@ -21,8 +21,8 @@ export function falloff(damage, radius, dist) {
 export function explode(sys, x, y, radius, damage, o = {}) {
   const w = sys.world;
   const P = sys.particles;
-  // visuals — Newest art: a fireball with ballistic debris (src/render/rtsBlast.js); otherwise the sprite blast
-  if (Art.style === 'newest') sys.effects.push({ kind: 'rtsBlast', x, y, r: radius, big: !!o.building || radius >= 2.8, seed: Math.floor(x * 131 + y * 71 + w.time * 1000), t: 0, life: BLAST_LIFE });
+  // visuals — a fireball with ballistic debris (src/render/rtsBlast.js); Classic keeps its sprite blast
+  if (Art.style !== 'classic') sys.effects.push({ kind: 'rtsBlast', x, y, r: radius, big: !!o.building || radius >= 2.8, seed: Math.floor(x * 131 + y * 71 + w.time * 1000), t: 0, life: BLAST_LIFE });
   else {
     sys.effects.push({ kind: 'explosion', x, y, r: radius, t: 0, life: 0.7 + radius * 0.12 });
     P.debris(x, y, Math.round(8 + radius * 6));

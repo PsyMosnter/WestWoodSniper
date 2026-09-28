@@ -7,7 +7,13 @@
  * SFX: play(name). Music: music('theme' | 'mission' | null) picks the track; setIntensity(0..1) makes
  * the mission track build up (bass, arpeggio, drums) as the enemy becomes aware of WREN;
  * sting('win' | 'fail') plays a short cue.
+ *
+ * Sound pass: 'theme' (the intro tune) keeps its own sequencer below; the title and every stage play from the
+ * song book in music.js (calm / suspicious / detected). Footsteps on water, snow, grass and the low crawl are
+ * played on the music's own 8th-note grid and tuned to its chord, so they sit inside the groove (setMove).
  */
+
+import { SONGS, songStep, tempo } from './music.js';
 
 const NOTE = (n) => 440 * Math.pow(2, (n - 69) / 12);   // MIDI note → Hz
 
@@ -55,6 +61,25 @@ export class Audio {
       const buf = c.createBuffer(1, c.sampleRate, c.sampleRate), d = buf.getChannelData(0);
       for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
       this.noiseBuf = buf;
+      // an outdoor space: a generated 2.6 s impulse response (dark, stereo) for shots, blasts and bells
+      const len = Math.floor(c.sampleRate * 2.6), ir = c.createBuffer(2, len, c.sampleRate);
+      for (let ch = 0; ch < 2; ch++) {
+        const o = ir.getChannelData(ch); let lp = 0;
+        for (let i = 0; i < len; i++) { const k = i / len; lp += (Math.random() * 2 - 1 - lp) * (0.5 - 0.4 * k); o[i] = lp * Math.pow(1 - k, 3) * (i < c.sampleRate * 0.012 ? 0 : 1); }
+      }
+      this.verb = c.createConvolver(); this.verb.buffer = ir;
+      const vg = c.createGain(); vg.gain.value = 0.55; this.verb.connect(vg); vg.connect(this.master);
+      // 8-bit pulse waves (12.5 / 25 / 50 % duty)
+      this.waves = {};
+      for (const duty of [0.125, 0.25, 0.5]) {
+        const n = 40, re = new Float32Array(n), im = new Float32Array(n);
+        for (let k = 1; k < n; k++) re[k] = (2 / (k * Math.PI)) * Math.sin(k * Math.PI * duty);
+        this.waves[duty] = c.createPeriodicWave(re, im);
+      }
+      // a soft clipper for blasts
+      this.drive = c.createWaveShaper();
+      const cv = new Float32Array(1024); for (let i = 0; i < 1024; i++) { const x = i / 512 - 1; cv[i] = Math.tanh(x * 3.2); }
+      this.drive.curve = cv; this.drive.connect(this.sfxBus);
       if (this.want) this.music(this.want);
     } catch (e) { this.ctx = null; }
   }
@@ -116,6 +141,7 @@ export class Audio {
   music(name) {
     this.want = name;
     if (!this.ctx) return;
+    if (name && name !== 'theme' && !SONGS[name]) name = 'm1';
     if (this.track?.name === name) return;
     const c = this.ctx;
     if (this.track) {
@@ -127,7 +153,7 @@ export class Audio {
     if (!name) return;
     const gain = c.createGain(); gain.gain.value = 0.0001; gain.connect(this.musicBus);
     gain.gain.setTargetAtTime(1, c.currentTime + 0.2, 0.6);
-    this.track = { name, gain, step: 0, next: c.currentTime + 0.15, bpm: name === 'theme' ? 104 : 88 };
+    this.track = { name, gain, step: 0, next: c.currentTime + 0.15, bpm: name === 'theme' ? 104 : SONGS[name].bpm, mood: 'calm', chord: null };
     if (!this.timer) this.timer = setInterval(() => this._schedule(), 25);
   }
   setIntensity(x) { this.intensity = Math.max(0, Math.min(1, x)); }
@@ -148,8 +174,10 @@ export class Audio {
     if (!c || !tr) return;
     while (tr.next < c.currentTime + 0.12) {
       this.level += (this.intensity - this.level) * 0.08;
-      this._step(tr, tr.step, tr.next);
-      tr.next += 60 / tr.bpm / 4;                 // 16th notes
+      const song = tr.name !== 'theme' && SONGS[tr.name];
+      if (song) songStep(this, tr, tr.step, tr.next); else this._step(tr, tr.step, tr.next);
+      this._footstep(tr, tr.step, tr.next);
+      tr.next += 60 / (song ? tr.bpm * (song.always ? 1 : tempo(this.level)) : tr.bpm) / 4;   // 16th notes
       tr.step++;
     }
   }
@@ -191,6 +219,79 @@ export class Audio {
       if (n) this.tone('square', NOTE(n), NOTE(n), t, spb * 0.45, 0.045, out);
     }
   }
+  /** a mechanical clack: a resonant click with an optional low knock */
+  _clack(t, f, vol, low = 0) {
+    this.noise(t, 0.03, vol, 'bandpass', f, f * 0.8, 4);
+    if (low) this.tone('sine', low * 1.6, low, t, 0.06, vol * 0.6);
+  }
+
+  // ---------------------------------------------------------------- 8-bit voices (music.js)
+  hz(n) { return NOTE(n); }
+  /** a pulse (or triangle) note: gentle attack, a little vibrato on long notes */
+  voice(duty, f, t, dur, vol, out, o = {}) {
+    const c = this.ctx, osc = c.createOscillator(), g = c.createGain();
+    if (o.tri) osc.type = 'triangle'; else osc.setPeriodicWave(this.waves[duty] || this.waves[0.5]);
+    osc.frequency.setValueAtTime(f, t);
+    const a = o.attack ?? 0.006, end = t + Math.max(dur, a + 0.02);
+    g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(vol, t + a);
+    g.gain.setValueAtTime(vol, Math.max(t + a, end - 0.04)); g.gain.linearRampToValueAtTime(0.0001, end);
+    if (o.vib) {
+      const l = c.createOscillator(), lg = c.createGain();
+      l.frequency.value = 5.5; lg.gain.setValueAtTime(0, t); lg.gain.linearRampToValueAtTime(f * 0.012, t + Math.min(0.35, dur));
+      l.connect(lg); lg.connect(osc.frequency); l.start(t); l.stop(end + 0.05);
+    }
+    osc.connect(g); g.connect(out);
+    osc.start(t); osc.stop(end + 0.05);
+  }
+  bass(f, t, dur, vol, out) { this._bass(f, t, dur, vol, out); }
+  kick(t, vol, out) { this._kick(t, vol, out); }
+  snare(t, vol, out) { this.noise(t, 0.14, vol, 'bandpass', 2200, 1400, 0.8, out); this.tone('triangle', 200, 130, t, 0.08, vol * 0.8, out); }
+  hat(t, vol, out) { this.noise(t, 0.03, vol, 'highpass', 8000, 8000, 0.7, out); }
+  tom(f, t, vol, out) { this.tone('sine', f * 2, f, t, 0.2, vol, out, 0.002); }
+  /** a bell: two inharmonic partials ringing into the reverb */
+  bell(f, t, vol, out) {
+    const g1 = this.tone('sine', f, f, t, 1.4, vol, out, 0.002), g2 = this.tone('sine', f * 2.76, f * 2.76, t, 0.6, vol * 0.35, out, 0.002);
+    g1.connect(this.verb); g2.connect(this.verb);
+  }
+
+  // ---------------------------------------------------------------- footsteps, on the beat
+  /** what WREN's feet are doing: kind 'crawl' | 'water' | 'snow' | 'grass' | null, mode 'crawl' | 'walk' | 'run' */
+  setMove(kind, mode) { this.move = kind ? { kind, mode } : null; }
+  _footstep(tr, step, t) {
+    const mv = this.move;
+    if (!mv) return;
+    const every = mv.mode === 'crawl' ? 4 : 2;
+    if (step % every) return;
+    const side = (step / every) & 1, ch = tr.chord || [57, 60, 64];
+    const tone = NOTE(ch[side ? 2 : 0] + 24), loud = mv.mode === 'run' ? 1.5 : 1, b = this.sfxBus;
+    if (mv.kind === 'crawl') {
+      // cloth and elbows dragging over the ground: a soft 'shhh', faintly pitched to the chord
+      this.noise(t, 0.26, 0.05, 'lowpass', 1100, 400, 0.7, b, 0.06);
+      this.noise(t + 0.02, 0.2, 0.022, 'bandpass', tone, tone, 6, b, 0.05);
+    } else if (mv.kind === 'water') {
+      this.noise(t, 0.24, 0.07 * loud, 'lowpass', 1800, 260, 0.8, b, 0.01);
+      this.tone('sine', tone * 2, tone * 3, t + 0.03, 0.07, 0.02 * loud, b);        // a bubble, in key
+    } else if (mv.kind === 'snow') {
+      for (let i = 0; i < 5; i++) this.noise(t + i * 0.013, 0.018, 0.075 * loud, 'bandpass', 1600 + Math.random() * 1400, 1500, 3, b, 0.001);
+      this.noise(t, 0.07, 0.04 * loud, 'lowpass', 320, 200, 0.7, b);
+    } else if (mv.kind === 'grass') {
+      this.noise(t, 0.14, 0.025 * loud, 'bandpass', 3200, 2200, 1, b, 0.02);
+    }
+  }
+
+  /** a clean kill (nobody noticed): a little fanfare on the next 8th, in the key of the current tune */
+  cleanKill() {
+    const c = this.ctx;
+    if (!c) return;
+    const tr = this.track, ch = tr?.chord || [69, 72, 76];
+    let t = c.currentTime + 0.03;
+    if (tr && tr.next > c.currentTime && tr.next - c.currentTime < 0.4) t = tr.next + (tr.step & 1 ? 60 / tr.bpm / 4 : 0);   // on the next 8th
+    const b = this.sfxBus, n = [ch[0] + 12, ch[1] + 12, ch[2] + 12, ch[0] + 24];
+    n.forEach((m, i) => this.voice(0.125, NOTE(m), t + i * 0.075, 0.12, 0.07, b));
+    this.voice(0.25, NOTE(ch[2] + 24), t + 0.3, 0.45, 0.05, b, { vib: true });
+    this.bell(NOTE(ch[0] + 36), t + 0.3, 0.05, b);
+  }
+
   _bass(f, t, dur, vol, out) {
     const c = this.ctx, o = c.createOscillator(), fl = c.createBiquadFilter(), g = c.createGain();
     o.type = 'sawtooth'; o.frequency.value = f;
@@ -204,27 +305,45 @@ export class Audio {
 
 /** @type {Record<string, (this: Audio, t: number) => void>} */
 const SFX = {
-  // WREN's rifle: a sharp crack, a heavy thump and the echo off the hills
+  // WREN's rifle: firing-pin tick, supersonic crack, a heavy boom, and the report rolling back off the hills
   rifle(t) {
-    this.noise(t, 0.05, 0.9, 'highpass', 2500, 2500);
-    const body = this.noise(t, 0.45, 0.8, 'lowpass', 5000, 500);
-    body.connect(this.echo);
-    this.tone('sine', 120, 40, t, 0.3, 0.9);
+    this.tone('square', 2600, 2600, t, 0.012, 0.05);
+    this.noise(t, 0.025, 1.0, 'highpass', 3000, 3000);
+    this.noise(t, 0.09, 0.75, 'bandpass', 4200, 1900, 1.2);
+    const body = this.noise(t, 0.7, 0.95, 'lowpass', 2800, 160);
+    body.connect(this.verb); body.connect(this.echo);
+    this.tone('sine', 115, 32, t, 0.5, 1.0, this.sfxBus, 0.002);
+    this.noise(t + 0.38, 1.0, 0.16, 'lowpass', 700, 110, 0.7, this.sfxBus, 0.12).connect(this.verb);
+    this.noise(t + 0.95, 1.3, 0.08, 'lowpass', 520, 90, 0.7, this.sfxBus, 0.2);
   },
   pistol(t) { this.noise(t, 0.14, 0.55, 'lowpass', 5000, 1200); this.tone('sine', 190, 70, t, 0.12, 0.4); },
   enemyShot(t) { this.tone('sawtooth', 1400, 260, t, 0.13, 0.12); this.noise(t, 0.09, 0.22, 'bandpass', 2400, 1400, 1.2); },
-  bolt(t) { this.tone('square', 1900, 1500, t, 0.03, 0.12); this.tone('square', 1300, 1100, t + 0.15, 0.04, 0.14); this.noise(t + 0.15, 0.05, 0.1, 'highpass', 4000, 4000); },
-  reload(t) { for (let i = 0; i < 3; i++) this.tone('square', 1600 - i * 250, 1300 - i * 250, t + i * 0.22, 0.03, 0.1); },
-  reloadDone(t) { this.tone('square', 1800, 1800, t, 0.03, 0.12); this.tone('square', 2400, 2400, t + 0.07, 0.03, 0.1); },
+  // bolt-action cycle: lift, draw back, the brass tinkles away, push home, lock
+  bolt(t) {
+    this._clack(t, 2600, 0.12); this.noise(t + 0.05, 0.12, 0.13, 'bandpass', 1200, 2800, 2);
+    this.tone('sine', 5200, 5100, t + 0.26, 0.07, 0.035); this.tone('sine', 6900, 6800, t + 0.38, 0.05, 0.025);
+    this.noise(t + 0.45, 0.1, 0.13, 'bandpass', 2800, 1200, 2); this._clack(t + 0.56, 900, 0.3, 190);
+  },
+  // magazine change: release, out, a rummage in the pouch, in, seated with a slap
+  reload(t) {
+    this._clack(t, 2200, 0.1); this.noise(t + 0.08, 0.2, 0.12, 'bandpass', 900, 500, 2);
+    this.noise(t + 0.55, 0.3, 0.06, 'lowpass', 1400, 600, 0.7, this.sfxBus, 0.05);
+    this.noise(t + 1.15, 0.13, 0.12, 'bandpass', 500, 1000, 2); this._clack(t + 1.3, 1300, 0.34, 150);
+    this._clack(t + 1.5, 2400, 0.08);
+  },
+  reloadDone(t) { this.noise(t, 0.12, 0.13, 'bandpass', 1200, 2800, 2); this.noise(t + 0.16, 0.1, 0.13, 'bandpass', 2800, 1200, 2); this._clack(t + 0.26, 900, 0.32, 190); },
   dry(t) { this.tone('square', 900, 700, t, 0.03, 0.1); },
   scopeIn(t) { this.noise(t, 0.28, 0.18, 'bandpass', 400, 1800, 1.5); this.tone('square', 2600, 2600, t + 0.26, 0.02, 0.06); },
   scopeOut(t) { this.noise(t, 0.22, 0.14, 'bandpass', 1800, 400, 1.5); },
   headshot(t) { this.tone('sine', 1760, 1700, t + 0.05, 0.4, 0.16); this.tone('triangle', 2640, 2600, t + 0.05, 0.25, 0.06); },
+  // a blast: the crack, an overdriven boom, a sub-bass punch, debris raining down and the valley answering
   explosion(t) {
-    const b = this.noise(t, 1.5, 1.0, 'lowpass', 1400, 90);
-    b.connect(this.echo);
-    this.tone('sine', 72, 26, t, 1.1, 1.0, this.sfxBus, 0.005);
-    this.noise(t + 0.05, 0.5, 0.18, 'bandpass', 3000, 1500, 1);
+    this.noise(t, 0.06, 0.9, 'highpass', 1500, 1500);
+    const b = this.noise(t, 2.2, 1.1, 'lowpass', 3200, 70, 0.7, this.drive, 0.004);
+    b.connect(this.verb); b.connect(this.echo);
+    this.tone('sine', 62, 22, t, 1.5, 1.0, this.sfxBus, 0.004);
+    for (let i = 0; i < 16; i++) this.noise(t + 0.25 + Math.random() * 1.5, 0.03, 0.04 + Math.random() * 0.08, 'bandpass', 1400 + Math.random() * 3200, 1200, 4, this.sfxBus, 0.001);
+    this.noise(t + 0.7, 1.6, 0.14, 'lowpass', 500, 80, 0.7, this.sfxBus, 0.25).connect(this.verb);
   },
   nuke(t) {
     this.noise(t, 4.5, 1.1, 'lowpass', 900, 50, 0.7, this.sfxBus, 0.05);
@@ -245,5 +364,15 @@ const SFX = {
   save(t) { this.tone('square', 1200, 1200, t, 0.05, 0.07); this.tone('square', 1600, 1600, t + 0.08, 0.07, 0.07); },
   alarm(t) { for (let i = 0; i < 3; i++) { this.tone('sawtooth', 520, 820, t + i * 0.5, 0.25, 0.1); this.tone('sawtooth', 820, 520, t + i * 0.5 + 0.25, 0.25, 0.1); } },
   spotted(t) { this.tone('square', 220, 220, t, 0.35, 0.1); this.tone('square', 233, 233, t, 0.35, 0.1); this.noise(t, 0.2, 0.12, 'highpass', 3000, 3000); },
-  takedown(t) { this.noise(t, 0.12, 0.25, 'lowpass', 1800, 400); this.tone('sine', 160, 60, t, 0.15, 0.3); },
+  // silent takedown: a grab, the knife's hiss, a thud, a muffled grunt, the body let down
+  takedown(t) {
+    this.noise(t, 0.18, 0.22, 'bandpass', 900, 600, 1, this.sfxBus, 0.02);
+    this.noise(t + 0.12, 0.14, 0.2, 'bandpass', 3500, 7500, 3);
+    this.tone('sine', 3150, 3050, t + 0.14, 0.28, 0.04);
+    this.noise(t + 0.2, 0.12, 0.5, 'lowpass', 700, 140); this.tone('sine', 95, 45, t + 0.2, 0.15, 0.5);
+    const c = this.ctx, f = c.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = 650; f.Q.value = 2.2; f.connect(this.sfxBus);
+    this.tone('sawtooth', 150, 88, t + 0.23, 0.24, 0.3, f, 0.02);
+    this.noise(t + 0.6, 0.26, 0.4, 'lowpass', 420, 80); this.tone('sine', 72, 36, t + 0.6, 0.2, 0.4);
+    this.noise(t + 0.78, 0.14, 0.14, 'lowpass', 380, 90);
+  },
 };

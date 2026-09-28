@@ -84,6 +84,16 @@ export function canObserve(obs, target, world) {
   return { visible: ok, dist, vis };
 }
 
+/** Is world point (x, y) inside observer `obs`'s view cone (direction only — not range or LOS)? */
+export function inViewCone(obs, x, y) {
+  const prof = BALANCE.ai.vision[obs.profile];
+  if (!prof) return false;
+  let a = Math.atan2(y - obs.y, x - obs.x) - obs.angle;
+  while (a > Math.PI) a -= Math.PI * 2;
+  while (a < -Math.PI) a += Math.PI * 2;
+  return Math.abs(a) <= (prof.cone * Math.PI) / 360;
+}
+
 /**
  * Detection fill per second (SPEC §8.1).
  * @param {any} obs
@@ -111,7 +121,10 @@ export function fillRate(obs, target, dist, vis, world) {
   const prox = 1 - D.proximityFalloff * Math.min(1, dist / Math.max(0.01, vis.radius));
   const diff = world.difficulty?.detection ?? 1;
   let rate = vis.rate * stance * terrain * light * prox * diff;
-  if (obs.state === 'suspicious') rate *= D.suspiciousFill;
+  // close and in the cone: up to ×(1 + closeK) at contact
+  if (dist < D.closeDist && !vehicleObs && inViewCone(obs, target.x, target.y)) rate *= 1 + D.closeK * (1 - dist / D.closeDist);
+  // staring at a glimpse: faster, but never so fast there's no time to slip out of the cone
+  if (obs.state === 'suspicious') rate = Math.min(rate * D.suspiciousFill, D.stareFillMax);
   return rate;
 }
 

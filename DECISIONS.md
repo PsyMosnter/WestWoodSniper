@@ -240,11 +240,44 @@ Format: date · milestone · decision · reason.
   - In shallow water, the body sinks, so the waterline, ripples, wake and selection ring meet at the ground point.
   - Shallow water is too deep to go flat: HUNKER is greyed out, and a crawl into water gets up and wades (it used to crawl through at half noise).
 
+## Enemies don't give up so fast (owner playtest 6, level 5)
+
+- **A glimpse stops the patrol.** On "?" the soldier stands still and stares at where WREN was, keeping his eyes on him while he's in sight. After 3 s without a sighting he walks over to look (7 s of looking round, was 5).
+- **The escape window.** While he stares, the meter climbs at most 0.3/s, so there are about 2 s between "?" and "!" to get out of the cone, drop out of range by hunkering, or break line of sight. Contact range (1.2 tiles, open ground) is still instant.
+- **Close means seen.** Inside the cone and within 3 tiles, the meter fills up to 3× faster at contact, so nobody walks past a man lying 2 tiles in front of them.
+- **They don't forget.** Once wary (staring, investigating, searching), the meter drains at 0.08/s instead of 0.25/s, so a second glimpse soon after escalates fast.
+- **Bodies** now record how they died:
+  - **Shot body:** the finder looks it over briefly, then scans the way the shot came from for 6 s, then searches along that line for 15 s. A witness to a shot also searches toward the shooter.
+  - **Knifed body:** after 2.5 s the finder circles the area in search rings for 15 s.
+- **No takedown from the front.** A soldier who has WREN in his view cone can't be taken down, whatever his meter, so there's no crawling straight into a cone for the kill. Behind or beside him, it works as before.
+
+## Sound pass (owner request after playtest 6)
+
+- **Still fully synthesised**, with no sample files. The intro tune ('theme', which testers liked) and the Run & Gun pistol are unchanged.
+- **Song book** (`src/audio/music.js`): a title theme plus one tune per stage (Boot Camp, then missions 1–7), each with its own key, mode, tempo, drum kit and calm colour. Melodies are written in scale degrees, one token per 8th note, in an 8-bar A B A C phrase over an 8-bar chord progression. Voices are 8-bit: pulse waves at 12.5/25/50 %, a filtered saw bass, triangle pads and noise drums.
+- **Three moods follow the awareness meter:**
+  - **CALM:** melody, pads, a slow bass and plucked arpeggios or bells. Every other phrase drops the melody to leave room.
+  - **SUSPICIOUS:** 10 % faster; the melody becomes a staccato figure, each note leaning in from a semitone above, over a ticking arpeggio and light drums.
+  - **DETECTED:** 26 % faster; full kit, octave bass, the melody an octave up and doubled.
+  - The mood changes on 2-bar section lines, so the switch sounds musical.
+- **Effects:**
+  - A generated 2.6 s outdoor reverb, plus a soft clipper for blasts.
+  - **Rifle:** firing-pin tick, supersonic crack, boom, and two rolling echoes off the hills.
+  - **Bolt:** lift, draw back, the brass tinkling away, push home, lock.
+  - **Magazine reload:** release, out, pouch, in, a seated slap.
+  - **Takedown:** grab, the knife's hiss, a thud, a muffled grunt, the body set down.
+  - **Explosion:** crack, an overdriven boom, a sub-bass punch, falling debris and a valley echo.
+- **Footsteps** only where they tell you something: the low crawl, wading, deep snow and tall grass. They play on the music's own 8th-note grid (quarter notes when crawling) and are faintly tuned to the current chord, so they sit inside the groove instead of on top of it.
+- **Clean kill** (a player kill nobody witnessed, on an enemy that wasn't fighting back): a short fanfare in the key of the current tune, landing on the next 8th note.
+- **Sound lab:** `tools/art-lab/sound.html` plays every tune with an awareness slider, every effect and the footsteps.
+
 ## Hosting
 
 - **Cloudflare Workers (static assets)**: `wrangler.jsonc` in the repo; `npx wrangler deploy` runs `node tools/build-site.js`, which copies only `index.html`, `icon.svg`, `manifest.webmanifest` and `src/` into `dist/` (git-ignored), and only `dist/` is uploaded. Without a committed config, Wrangler's auto-setup served the repo root and tried to upload `node_modules/` (its own 128 MiB `workerd` binary → "Asset too large"); an allow-list also keeps tests, tools and docs off the site, and a separate folder stops `wrangler dev` from reload-looping on its own `.wrangler/` state. Still no bundling and no runtime dependencies; `npm run serve` keeps serving the source tree directly.
 
 ## Changelog
+- **Sound pass**: title theme and a tune per stage in three moods (tempo and melody follow awareness); new rifle, bolt, reload, takedown and explosion sounds with an outdoor reverb; crawl/water/snow/grass footsteps on the beat and in key; clean-kill fanfare; sound lab page.
+- **Playtest 6b**: suspicious soldiers stop and stare (≈2 s escape window), close-range fill boost, slow decay once wary; shot bodies → scan and search toward the shooter, knifed bodies → search rings; no takedowns from inside a view cone.
 - **Playtest 6**: takedown rings with crawl-to-takedown; auto RUN & GUN with shouts (setting); pistol held up front; crawl arms; grass hides feet; water ring at the waterline; no hunker in water.
 - **Playtest 5**: terrain relief rebuilt on a rounded height field (natural boulder faces that melt into their foot, tapering ramp walls, lighter-when-higher tones, 5-wide ramps), rounded shapes for every terrain type; 3×3 action grid with MEDKIT; RECON/STRIKE stay (greyed) when used up.
 - **Playtest 4**: satellite recon (from M2; rewards from M3; tactical strike rewards from M5); ramps as two-tile slopes with tapering boulder walls, carved 3-wide even at corners; boulder rock faces with rims and tufts.

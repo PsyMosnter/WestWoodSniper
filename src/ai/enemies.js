@@ -142,19 +142,18 @@ export class EnemySystem {
       else u.det = Math.min(1, u.det + fillRate(u, op, r.dist, r.vis, w) * dt);
       u.lastKnown = { x: op.x, y: op.y };
       if (u.det >= D.detected) this.enterCombat(u);
-      else if (u.det >= D.suspicious && (u.state === 'unaware' || u.state === 'returning' || u.state === 'investigating' || u.state === 'alerted')) {
+      else if (u.state === 'suspicious') {
+        // staring: the eyes stay on what they glimpsed (the patrol waits) — the stare lasts until stareTime after the last glimpse
+        u.stareAt = { x: op.x, y: op.y }; u.unseenT = 0;
+        if (!u.poiSoft) { u.poi = this.fuzzyPoint(u, op); u.poiSoft = true; }
+      } else if (u.det >= D.suspicious && (u.state === 'unaware' || u.state === 'returning' || u.state === 'investigating' || u.state === 'alerted')) {
         if (u.def.flees) startFlee(u, op.x, op.y);
-        else if (u.state === 'alerted' || u.state === 'investigating') {
-          if (!u.poiSoft || u.state === 'alerted') {
-            const p = this.fuzzyPoint(u, op);
-            u.poi = p; u.arrived = false; u.setState('investigating'); u.poiSoft = true;
-            u.goTo(Math.floor(p.x), Math.floor(p.y), 'walk');
-          }
-        }
-        else { const p = this.fuzzyPoint(u, op); makeSuspicious(u, p.x, p.y); u.poiSoft = true; }
-      } else if (u.state === 'suspicious' && !u.poiSoft) { u.poi = this.fuzzyPoint(u, op); u.poiSoft = true; }
+        else { const p = this.fuzzyPoint(u, op); makeSuspicious(u, p.x, p.y, op.x, op.y); u.poiSoft = true; }
+      }
     } else if (u.state !== 'combat') {
-      u.det = Math.max(0, u.det - D.decay * dt);
+      // once something has caught their eye the meter drains slowly: a second glimpse soon after escalates fast
+      const wary = u.state === 'suspicious' || u.state === 'investigating' || u.state === 'alerted';
+      u.det = Math.max(0, u.det - (wary ? D.decayAware : D.decay) * dt);
     }
   }
 
@@ -453,13 +452,19 @@ export class EnemySystem {
       if (u.alertGroup !== v.alertGroup) this.alerts.raise(u.alertGroup, 'caution', 'kill witnessed', u);
       if (u.def.flees) { startFlee(u, v.x, v.y); continue; }
       u.tag = { text: '!', t: 1.5 };
-      startSearch(u, v.x, v.y);
+      // a shot: they know roughly where it came from — search out along the shot line; otherwise round the body
+      const shot = cause.dir != null && (cause.by === 'rifle' || cause.by === 'pistol');
+      const t = shot ? w.map.nearestWalkable(v.x - Math.cos(cause.dir) * 6, v.y - Math.sin(cause.dir) * 6, 3) : null;
+      startSearch(u, t ? t.x + 0.5 : v.x, t ? t.y + 0.5 : v.y);
+      if (t) u.face(t.x + 0.5, t.y + 0.5);
       if (saw) {
         const corpse = w.corpses.find((c) => c.unit === v);
         if (corpse) corpse.discovered = true;
       }
     }
     if (witnessed) this.alerts.raise(v.alertGroup, 'caution', 'kill witnessed', v);
+    // nobody noticed (and it wasn't fighting back): a clean kill
+    else if (v.killedByPlayer && v.state !== 'combat' && cause.by !== 'explosion') w.events.emit('cleanKill', { unit: v, cause });
   }
 
   /** Unaware enemies whose LOS passes over a corpse discover it (once). */
@@ -476,6 +481,7 @@ export class EnemySystem {
         u.tag = { text: '!', t: 1.5 };
         u.bodyRadioT = BALANCE.ai.corpseRadioTime;
         investigate(u, c.x, c.y);
+        u.examine = c;
         break;
       }
     }

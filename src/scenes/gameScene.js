@@ -11,7 +11,7 @@ import { KEYS } from '../config/keys.js';
 import { C } from '../config/palette.js';
 import { drawText } from '../render/font.js';
 import { panel } from '../ui/widgets.js';
-import { TERRAIN, OVERLAY } from '../world/tiles.js';
+import { TERRAIN, OVERLAY, T as TT } from '../world/tiles.js';
 import { canSee } from '../world/los.js';
 import { Objectives } from '../missions/objectives.js';
 import '../render/spriteData/notUnits.js';
@@ -154,7 +154,7 @@ export class GameScene {
     step();
   }
   _start() {
-    this.app.audio?.music?.('mission');
+    this.app.audio?.music?.(this.missionId);   // each stage has its own tune (music.js)
     this.app.audio?.setIntensity?.(0);
     // New art style: pre-draw the frames this mission's infantry will use, a few per frame
     const NOT_POSES = [['idle', 1], ['walk', 4], ['run', 4], ['fire', 2], ['crouch', 1], ['dead', 4]];
@@ -169,6 +169,7 @@ export class GameScene {
     if (opening) this.hud.say(opening);   // (Boot Camp opens with Lt. Vale's own line)
     this.world.events.on('toast', (t) => this.hud.toast(t.text, t.color));
     this.world.events.on('runGunOff', () => this.hud.toast('RUN & GUN OFF'));
+    this.world.events.on('cleanKill', () => this.audio?.cleanKill?.());
     this.world.events.on('opDead', () => {
       this.engage.cancel();
       this.runner.lose('WREN is down. Mission failed.');
@@ -555,6 +556,14 @@ export class GameScene {
     // music follows the tension: calm when hidden, bass and arpeggio when suspicious, drums when spotted
     const aw = this.awareness?.state || 'hidden';
     if (aw !== this._lastAw) { if (aw === 'detected') this.audio?.play?.('spotted'); this._lastAw = aw; }
+    // footsteps worth hearing (on the music's beat): the low crawl, wading, deep snow, tall grass
+    const op = this.world.operative, m = this.world.map;
+    let mv = null;
+    if (op.moving && !op.dead && !this.scopeOpen && m.inb(op.tx, op.ty)) {
+      const tt = m.terrain[m.idx(op.tx, op.ty)];
+      mv = tt === TT.shallow ? 'water' : TERRAIN[tt]?.tracks ? 'snow' : op.mode === 'crawl' ? 'crawl' : tt === TT.tallgrass ? 'grass' : null;
+    }
+    this.audio?.setMove?.(mv, op.mode);
     this.audio?.setIntensity?.(aw === 'detected' ? 1 : aw === 'suspicious' ? 0.5 : this.world.alerts?.anyAlarm ? 0.45 : 0);
     if (this.pendingAutosave && (this.pendingAutosave.t -= dt) <= 0) { const k = this.pendingAutosave.key; this.pendingAutosave = null; this.saveCheckpoint(k); }
     this.gestures.update();

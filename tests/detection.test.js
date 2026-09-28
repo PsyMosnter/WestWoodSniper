@@ -21,7 +21,11 @@ test('fill formula: base × stance × terrain × light × proximity × difficult
   assert.ok(Math.abs(fillRate(o, t, dist, vis, w) - expect) < 1e-9);
   // night × 0.6, suspicious × 1.3
   assert.ok(Math.abs(fillRate(o, t, dist, vis, world(m, { timeOfDay: 'night' })) - expect * 0.6) < 1e-9);
-  assert.ok(Math.abs(fillRate(obs({ state: 'suspicious' }), t, dist, vis, w) - expect * 1.3) < 1e-9);
+  // suspicious (staring) × 1.3, but capped: there's always a window to slip out of the cone
+  assert.ok(Math.abs(fillRate(obs({ state: 'suspicious' }), t, dist, vis, w) - Math.min(expect * 1.3, BALANCE.detection.stareFillMax)) < 1e-9);
+  // close and in the cone: boosted (×2 at 1.5 tiles)
+  const near = tgt({ x: 2, stanceFactor: 0.6 }), e2 = 0.6 * (1 - 0.7 * (1.5 / 7)) * (1 + BALANCE.detection.closeK * 0.5);
+  assert.ok(Math.abs(fillRate(o, near, 1.5, vis, w) - e2) < 1e-9);
 });
 
 test('vehicles and turrets cannot detect a hunkered target at all', () => {

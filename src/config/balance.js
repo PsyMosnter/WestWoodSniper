@@ -75,6 +75,10 @@ export const BALANCE = {
 
   detection: {
     decay: 0.25,
+    decayAware: 0.08,     // playtest 6: once suspicious (staring, investigating, searching) the meter drains slowly — they don't forget
+    closeDist: 3, closeK: 2,   // in the cone and closer than 3 tiles: fill up to ×3 at contact (nobody walks past a man in front of them)
+    stareTime: 3,         // a '?' stops the patrol: they stare at the glimpse until 3 s after it was last seen, then go and look
+    stareFillMax: 0.3,    // while staring the meter can't climb faster than this (/s): a ~2 s window to slip out of the cone
     suspicious: 0.35,
     detected: 1.0,
     instantDist: 1.2,
@@ -99,8 +103,9 @@ export const BALANCE = {
   },
 
   ai: {
-    suspiciousToInvestigate: 2,
-    investigateLook: 5,
+    investigateLook: 7,
+    bodyStare: 6,         // a shot body: they turn and scan the way the shot came from (s), then search along it
+    bodySearch: 15,       // search time after a body (rings round a takedown, the shot line for a shot)
     corpseRadioTime: 3,
     cautionDecay: 90,
     cautionVision: 0.20,

@@ -10,7 +10,7 @@ const tut = (key, title, text) => ({ type: 'tutorial', key, title, text });
 const triggers = [
   { when: { type: 'timer', seconds: 1.2 }, do: [tut('move', 'Moving', 'Tap the ground to walk. Double-tap to run — fast, but loud. WREN crouches whenever he stops. Drag to look around; tap the minimap to jump there.')] },
   { when: { type: 'enterArea', area: 'tut_grass' }, do: [tut('grass', 'Tall grass & hunker', 'Tall grass hides you beyond 3 tiles. HUNKER goes flat: very hard to spot — vehicles and turrets cannot see you at all. Flat, a tap low-crawls: slow, but quiet enough to reach a sentry unseen.')] },
-  { when: { type: 'custom', fn: 'enemySeen' }, do: [tut('cones', 'Reading vision cones', 'The faint outer dots are as far as a NOT can see. The filled inner cone is how far it can spot you right now: it shrinks when you walk, crouch, crawl or hunker, and in tall grass. Inside it the ? meter fills; at ! you are detected.'), { type: 'say', text: 'Contact. Watch their cones.' }] },
+  { when: { type: 'custom', fn: 'enemySeen' }, do: [tut('cones', 'Reading vision cones', 'The faint outer dots are as far as a NOT unit can see. The filled inner cone is how far it can spot you right now: it shrinks when you walk, crouch, crawl or hunker, and in tall grass. Inside it the ? meter fills; at ! you are detected.'), { type: 'say', text: 'Contact. Watch their cones.' }] },
   { when: { type: 'enterArea', area: 'tut_knoll' }, do: [tut('highground', 'High ground', "From the hill you'll see them. They won't see you. Up here your rifle also reaches one tile further per level.")] },
   { when: { type: 'enterArea', area: 'tut_ford' }, do: [{ type: 'say', text: 'Lone sentry at the ford. Take him quietly.' }] },
   { when: { type: 'custom', fn: 'fordSentryVisible' }, do: [tut('scope', 'First shot', 'Tap the sentry: WREN picks a firing spot, crouches and opens the scope. Drag to aim and hold BREATH to steady; lift your finger to fire (click, or FIRE, with a mouse). Pinch or release on ✕ to lower the rifle. Headshots kill instantly.')] },
@@ -27,7 +27,7 @@ const triggers = [
 export default {
   ...data,
   triggers,
-  intel: 'Estimated 40 NOT east of the Varna: rifle patrols, grenadiers, two Wardens, a guard tower on Cherry Hill, Skitter buggies on the roads. The west bank is quiet — use its forests and tall grass. The ford is shallow but watched.',
+  intel: 'Estimated 40 NOT units east of the Varna: rifle patrols, grenadiers, two Wardens, a guard tower on Cherry Hill, Skitter buggies on the roads. The west bank is quiet — use its forests and tall grass. The ford is shallow but watched.',
   custom: {
     firedRifle(r) { return (r.world.stats.rifleShots || 0) > 0; },
     enemySeen(r) { return r.world.units.some((u) => !u.dead && u.kind !== 'structure' && r.world.fog.isVisible(u.tx, u.ty)); },

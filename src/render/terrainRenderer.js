@@ -1,4 +1,5 @@
 // @ts-check
+import { Art } from './artStyle.js';
 import { TERRAIN, OVERLAY, T, O } from '../world/tiles.js';
 import { buildTextures, BIOMES, TEX, EDGE_NOISE, EDGE_NOISE2 } from './tileArt.js';
 import { pack, shade, mix, unpack, packRgba, makeCanvas, Pix } from './pixel.js';
@@ -21,6 +22,7 @@ export class TerrainRenderer {
   constructor(map) {
     this.map = map;
     this.biome = BIOMES[map.biome] ? map.biome : 'temperate';
+    this.chibi = Art.style === 'chibi';
     this.B = BIOMES[this.biome];
     this.tex = buildTextures(this.biome);
     this.cw = Math.ceil(map.w / CH); this.ch = Math.ceil(map.h / CH);
@@ -214,7 +216,7 @@ export class TerrainRenderer {
       const e = m.elev[ti];
       const o = m.overlay[ti];
       const X = tx * TILE, Y = ty * TILE;
-      if (!inChunk) continue;
+      if (!inChunk) { if (m.cliff[ti]) this._cliff(P, tx, ty, e); continue; }
       if (o === O.forest || o === O.pine) {
         const floor = B.forestFloor.map((c) => pack(c));
         for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
@@ -223,6 +225,8 @@ export class TerrainRenderer {
           if (hash2(X + x, Y + y, 3) < 0.05) P.px(X + x, Y + y, floor[(hash2(X + x, Y + y, 4) * 3) | 0]);
         }
       }
+      // raised ground catches more light: a touch lighter per level
+      if (e > 0 && !m.cliff[ti]) for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) P.mulPx(X + x, Y + y, 1 + Math.min(2, e) * 0.07);
       // cliff faces
       if (m.cliff[ti]) this._cliff(P, tx, ty, e);
       // lips on N / W plateau edges and creases on the lower side
@@ -237,8 +241,8 @@ export class TerrainRenderer {
       if (s >= 0 && m.elev[s] > e && m.overlay[ti] !== O.ramp) for (let x = 0; x < 16; x++) { P.mulPx(X + x, Y + 15, 0.5); P.mulPx(X + x, Y + 14, 0.8); }
       if (ev >= 0 && m.elev[ev] > e && m.overlay[ti] !== O.ramp) for (let y = 0; y < 16; y++) { P.mulPx(X + 15, Y + y, 0.55); P.mulPx(X + 14, Y + y, 0.85); }
       // drop shadow SE from cliffs onto lower ground
-      if (n >= 0 && m.elev[n] > e && m.cliff[n]) for (let y = 0; y < 4; y++) for (let x = 0; x < 16; x++) P.mulPx(X + x, Y + y, 0.5 + y * 0.12);
-      if (wv >= 0 && m.elev[wv] > e && m.cliff[wv]) for (let x = 0; x < 3; x++) for (let y = 0; y < 16; y++) P.mulPx(X + x, Y + y, 0.58 + x * 0.13);
+      if (n >= 0 && m.elev[n] > e && m.cliff[n]) { const y0 = cliffExt(m.elev[n] - e) + 3; for (let y = 0; y < 4; y++) for (let x = 0; x < 16; x++) P.mulPx(X + x, Y + y0 + y, 0.55 + y * 0.12); }
+      if (wv >= 0 && m.elev[wv] > e && m.cliff[wv]) { const x0 = cliffExtE(m.elev[wv] - e) + 2; for (let x = 0; x < 3; x++) for (let y = 0; y < 16; y++) P.mulPx(X + x0 + x, Y + y, 0.6 + x * 0.13); }
       if (o === O.ramp) this._ramp(P, tx, ty, e);
     }
 
@@ -247,7 +251,9 @@ export class TerrainRenderer {
       const ti = ty * W + tx;
       const o = m.overlay[ti], t = m.terrain[ti];
       const X = tx * TILE, Y = ty * TILE;
-      if (o === O.none && !m.cliff[ti]) this._decorate(P, tx, ty, t);
+      const nUp = ty > 0 ? ti - W : -1, wUp = tx > 0 ? ti - 1 : -1;
+      const underRock = (nUp >= 0 && m.cliff[nUp] && m.elev[nUp] > m.elev[ti]) || (wUp >= 0 && m.cliff[wUp] && m.elev[wUp] > m.elev[ti]);
+      if (o === O.none && !m.cliff[ti] && !underRock) this._decorate(P, tx, ty, t);
       if (o === O.trees || o === O.forest || o === O.pine) {
         // tree shadow (baked)
         const jx = Math.round((hash2(tx, ty, 6) - 0.5) * (o === O.trees ? 6 : 4));
@@ -286,66 +292,93 @@ export class TerrainRenderer {
     return c;
   }
 
+  /**
+   * Rock faces: a south face runs from the plateau lip down into the tile below (so a one-level step reads as a
+   * thick wall, not a kerb), with a ragged foot, strata and cracks, rounded off where a face ends; east faces are
+   * seen side-on, narrower, and also spill over into the neighbouring tile.
+   */
   _cliff(P, tx, ty, e) {
     const m = this.map, W = m.w;
     const X = tx * TILE, Y = ty * TILE;
-    const s = ty + 1 < m.h ? (ty + 1) * W + tx : -1;
-    const ev = tx + 1 < W ? ty * W + tx + 1 : -1;
+    const at = (x, y) => (m.inb(x, y) ? y * W + x : -1);
+    const s = at(tx, ty + 1), ev = at(tx + 1, ty);
     const R = this.rock;
     const snowy = this.biome === 'alpine';
     const sDiff = s >= 0 ? e - m.elev[s] : 0;
     const eDiff = ev >= 0 ? e - m.elev[ev] : 0;
-    const grassDark = pack(this.B.groundDark);
+    const turf = snowy ? pack('#FFFFFF') : pack(this.B.groundDark);
+    const southAt = (x, y) => { const i = at(x, y), j = at(x, y + 1); return i >= 0 && j >= 0 && m.cliff[i] && m.elev[i] === e && m.elev[j] < e; };
+    const eastAt = (x, y) => { const i = at(x, y), j = at(x + 1, y); return i >= 0 && j >= 0 && m.cliff[i] && m.elev[i] === e && m.elev[j] < e; };
+    const ext = cliffExt(sDiff), extE = cliffExtE(eDiff);
     if (sDiff > 0) {
-      const faceH = sDiff >= 2 ? 15 : 13;
+      const topH = sDiff >= 2 ? 15 : 13;
+      const contL = southAt(tx - 1, ty) || southAt(tx - 1, ty + 1) || southAt(tx - 1, ty - 1);
+      const contR = southAt(tx + 1, ty) || southAt(tx + 1, ty + 1) || southAt(tx + 1, ty - 1) || eDiff > 0;
+      const vary = Math.round((hash2(tx, ty, 23) - 0.5) * 8);                // faces are not all the same height
       for (let x = 0; x < 16; x++) {
         const wx = X + x;
-        const jag = Math.round(EDGE_NOISE2[(Y & 63) * TEX + (wx & 63)] * 4 + EDGE_NOISE[(Y & 63) * TEX + (wx & 63)] * 1.5) - 2;
-        const top = 16 - faceH + jag;
+        const jag = Math.round(EDGE_NOISE2[(Y & 63) * TEX + (wx & 63)] * 6 + EDGE_NOISE[(Y & 63) * TEX + (wx & 63)] * 2) - 4;
+        const top = 16 - topH + jag;
+        let foot = 16 + ext + vary + Math.round(EDGE_NOISE[((Y + 29) & 63) * TEX + (wx & 63)] * 7) - 3;
+        if (!contL && x < 7) foot -= Math.round((7 - x) ** 2 / 3.2);
+        if (!contR && x > 8) foot -= Math.round((x - 8) ** 2 / 3.2);
+        const total = Math.max(1, foot - top);
         const crack = hash2(wx, ty, 11) < 0.16;
-        const band = hash2(wx >> 2, ty, 13);
-        for (let y = Math.max(0, top - 1); y < 16; y++) {
-          const wy = Y + y;
-          const k = y - top;
+        const band = (hash2(wx >> 3, ty, 21) * 3) | 0;
+        for (let y = Math.max(0, top - 1); y < foot; y++) {
+          const wy = Y + y, k = y - top;
           let c;
-          if (k === -1) c = snowy ? pack('#FFFFFF') : grassDark;          // overhanging turf
-          else if (k === 0) c = snowy ? pack('#EEF6FA') : R[4];          // lit rim
+          if (k === -1) c = turf;                                             // overhanging turf
+          else if (k === 0) c = snowy ? pack('#EEF6FA') : R[4];              // lit rim
+          else if (k === 1) c = R[3];
           else {
-            const depth = k / Math.max(1, 16 - top);
-            const ri = rockCell(wx, wy);
-            c = R[ri];
-            if (depth > 0.65 && ri > 1) c = R[ri - 1];
-            if (depth > 0.85) c = ri === 0 ? R[0] : R[1];
-            if (crack && k > 2 && ri < 2) c = R[0];
-            if (snowy && k === 1 && hash2(wx, wy, 14) < 0.6) c = pack('#C8D6DE');
+            // vertical ridges: each column has its own tone that drifts slowly down the face; light on top
+            const depth = k / total;
+            const ridge = EDGE_NOISE[(((wy >> 2) + ty * 5) & 63) * TEX + ((wx * 2) & 63)];
+            let ri = ridge > 0.7 ? 4 : ridge > 0.45 ? 3 : ridge > 0.22 ? 2 : 1;
+            if (depth < 0.18 && ri < 4) ri++;
+            if (depth > 0.5) ri--;
+            if (depth > 0.8) ri--;
+            c = R[Math.max(0, Math.min(4, ri))];
+            if ((wy + band) % 9 === 0 && hash2(wx >> 1, wy, 24) < 0.5 && ri > 1) c = R[ri - 1];   // a ledge now and then
+            if (y >= foot - 2) c = R[0];                                       // the dark foot
+            if (crack && k > 2 && ri < 3) c = R[0];
+            if (snowy && k === 2 && hash2(wx, wy, 14) < 0.6) c = pack('#C8D6DE');
             if (snowy && ri === 4 && hash2(wx, wy, 17) < 0.5) c = pack('#DDE8EE');
           }
           P.px(wx, wy, c);
         }
-        // scree at the foot of the cliff (on the tile below)
-        if (hash2(wx, ty, 15) < 0.35) { P.px(wx, Y + 16 + (hash2(wx, ty, 16) < 0.5 ? 0 : 1), R[2]); }
+        // scree and pebbles below the foot
+        if (hash2(wx, ty, 15) < 0.45) P.px(wx, Y + foot + (hash2(wx, ty, 16) < 0.5 ? 0 : 1), R[2]);
+        if (hash2(wx, ty, 18) < 0.14) { P.px(wx, Y + foot + 1, R[1]); P.px(wx + 1, Y + foot + 1, R[3]); P.px(wx, Y + foot + 2, R[0]); }
       }
     }
     if (eDiff > 0) {
       const faceW = eDiff >= 2 ? 8 : 6;
-      for (let y = 0; y < 16; y++) {
+      const contU = eastAt(tx, ty - 1) || eastAt(tx + 1, ty - 1) || eastAt(tx - 1, ty - 1) || southAt(tx + 1, ty - 1);
+      const contD = eastAt(tx, ty + 1) || eastAt(tx - 1, ty + 1) || eastAt(tx + 1, ty + 1);
+      const yEnd = sDiff > 0 ? 16 + Math.round(ext * 0.7) : 16;
+      for (let y = 0; y < yEnd; y++) {
         const wy = Y + y;
         const jag = Math.round(EDGE_NOISE2[(wy & 63) * TEX + (X & 63)] * 2);
         const left = 16 - faceW + jag - 1;
-        for (let x = Math.max(0, left - 1); x < 16; x++) {
-          const k = x - left;
-          const wx = X + x;
+        let right = 16 + extE + Math.round(EDGE_NOISE[(wy & 63) * TEX + ((X + 11) & 63)] * 3) - 1;
+        if (!contU && y < 6) right -= Math.round((6 - y) ** 2 / 3);
+        if (!contD && sDiff <= 0 && y > 9) right -= Math.round((y - 9) ** 2 / 3);
+        if (y >= 16) right -= Math.round((y - 15) ** 2 / 4);                    // round the SE corner off
+        for (let x = Math.max(0, left - 1); x < right; x++) {
+          const k = x - left, wx = X + x;
           let c;
-          if (k === -1) c = snowy ? pack('#FFFFFF') : grassDark;
+          if (k === -1) c = y < 16 ? turf : R[1];
           else if (k === 0) c = R[3];
           else {
             const n = EDGE_NOISE[((wy >> 1) & 63) * TEX + ((wx >> 1) & 63)];
             const ri = rockCell(wx, wy, 4, 6);
             c = R[Math.max(0, ri - 1)];
             if (n < 0.25) c = R[0];
-            if (x === 15) c = R[0];
+            if (x >= right - 1) c = R[0];
           }
-          if (sDiff > 0 && y >= 16 - (sDiff >= 2 ? 15 : 13) && k > 0) c = R[0];
+          if (sDiff > 0 && y >= 16 - (sDiff >= 2 ? 15 : 13) && y < 16 && k > 0 && x < 16) c = R[0];
           P.px(wx, wy, c);
         }
       }
@@ -357,32 +390,33 @@ export class TerrainRenderer {
     const d = m.rampDir[ty * W + tx];
     const X = tx * TILE, Y = ty * TILE;
     const R = this.rock;
-    const dirt = [pack('#5E4E36'), pack('#7A6646'), pack('#927C56')];
+    const earth = [pack('#5A452C'), pack('#7E6644'), pack('#9C8256'), pack('#BCA072')];
     const vertical = d === 0 || d === 2;
-    // side walls where the ramp is flanked by higher ground
-    const sideHigh = (sx, sy) => { const nx = tx + sx, ny = ty + sy; return m.inb(nx, ny) && m.elev[ny * W + nx] > e; };
-    const wallA = vertical ? sideHigh(-1, 0) : sideHigh(0, -1);
-    const wallB = vertical ? sideHigh(1, 0) : sideHigh(0, 1);
+    const nb = (sx, sy) => { const nx = tx + sx, ny = ty + sy; return m.inb(nx, ny) ? ny * W + nx : -1; };
+    const [a, b] = vertical ? [nb(-1, 0), nb(1, 0)] : [nb(0, -1), nb(0, 1)];
+    const rampA = a >= 0 && m.rampDir[a] === d, rampB = b >= 0 && m.rampDir[b] === d;
+    const wallA = a >= 0 && m.elev[a] > e, wallB = b >= 0 && m.elev[b] > e;
+    // a worn earth slope: darker at the foot, sunlit near the top, soft irregular treads, ragged edges that fade
+    // into the ground; where higher ground flanks it, a rock wedge shows the rise
     for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
       const along = d === 0 ? 1 - y / 15 : d === 2 ? y / 15 : d === 1 ? x / 15 : 1 - x / 15;
-      const across = vertical ? x : y;
-      const stepPos = vertical ? y : x;
-      let c = P.get(X + x, Y + y);
-      c = mix(c, dirt[1], 0.55);
-      if (hash2(X + x, Y + y, 190) < 0.12) c = dirt[2];
-      if (stepPos % 4 === 0) c = mix(c, dirt[0], 0.22);
-      c = shade(c, 0.9 + along * 0.2);
-      if ((across <= 1 && wallA) || (across >= 14 && wallB)) c = across === 0 || across === 15 ? R[0] : R[2];
-      P.px(X + x, Y + y, c);
-    }
-    // chevrons pointing uphill (subtle)
-    const cx = X + 8, cy = Y + 8;
-    const [dx, dy] = [[0, -1], [1, 0], [0, 1], [-1, 0]][d] || [0, -1];
-    for (let k = -2; k <= 2; k++) {
-      const px = cx + dx * (2 - Math.abs(k)) + (vertical ? k : 0), py = cy + dy * (2 - Math.abs(k)) + (vertical ? 0 : k);
-      P.px(px, py, dirt[2]);
+      const across = vertical ? x : y, wx = X + x, wy = Y + y;
+      const n = EDGE_NOISE[(wy & 63) * TEX + (wx & 63)];
+      const edgeA = rampA ? 99 : across, edgeB = rampB ? 99 : 15 - across, edge = Math.min(edgeA, edgeB);
+      const fade = edge < 3 ? edge / 3 + n * 0.3 : 1;                              // blend out at the outer edges
+      if (fade < 0.5 && hash2(wx, wy, 191) > fade * 1.6) continue;
+      let c = along > 0.72 ? earth[3] : along > 0.35 ? earth[2] : earth[1];
+      if (n < 0.28) c = earth[Math.max(0, (along > 0.35 ? 2 : 1) - 1)];
+      const tread = (along * 3 + n * 0.35) % 1;                                    // three soft treads, wavy
+      if (tread < 0.08) c = earth[0];
+      if (hash2(wx, wy, 190) < 0.06) c = earth[3];
+      const wedge = Math.round(along * 5);                                          // the rise: a wedge of rock
+      if ((wallA && !rampA && across < wedge) || (wallB && !rampB && 15 - across < wedge)) c = R[(across + wy) % 3 === 0 ? 1 : 2];
+      P.px(wx, wy, c);
     }
   }
+
+
 
   _decorate(P, tx, ty, t) {
     const h = hash2(tx, ty, 21);
@@ -477,6 +511,7 @@ export class TerrainRenderer {
     } else {
       bag(X, Y + 9, 6); bag(X + 5, Y + 9, 6); bag(X + 10, Y + 9, 6);
       bag(X + 2, Y + 6, 6); bag(X + 8, Y + 6, 6);
+      if (this.chibi) { bag(X, Y + 3, 6); bag(X + 5, Y + 3, 6); bag(X + 10, Y + 3, 6); bag(X + 3, Y, 6); bag(X + 8, Y, 6); }   // stacked high for chibi-sized soldiers
     }
   }
 
@@ -629,6 +664,10 @@ function rockCell(wx, wy, cw = 6, ch = 5) {
   const l = -(bx * 0.55 + by * 0.85) / cw;
   return l > 0.28 ? 4 : l > 0.02 ? 3 : l > -0.3 ? 2 : 1;
 }
+
+/** How far (px) a south rock face runs down into the tile below, and an east face into the tile beside it. */
+const cliffExt = (diff) => (diff >= 2 ? 18 : 11);
+const cliffExtE = (diff) => (diff >= 2 ? 8 : 5);
 
 /** Minimal painter on a chunk buffer using world px coordinates. */
 class ChunkPainter {

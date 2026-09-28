@@ -13,7 +13,7 @@ const triggers = [
   { when: { type: 'objectivesDone', ids: ['o3'] }, do: [{ type: 'revealObjective', id: 'o4' }, { type: 'say', text: 'Refinery destroyed. Boat\'s waiting on the south shore — move!', prio: true }] },
 ];
 
-export default { ...data, triggers, intel: '~70 NOT across five islands; channels crossable only at 3 rope bridges and 2 fords. Two Sniffer kennels walk the jungle paths. Jammer West sits on Monkey Hill; Jammer East inside the walled compound — the island Power Plant also feeds it.', custom: {
+export default { ...data, triggers, intel: '~70 NOT units across five islands; channels crossable only at 3 rope bridges and 2 fords. Two Sniffer kennels walk the jungle paths. Jammer West sits on Monkey Hill; Jammer East inside the walled compound — the island Power Plant also feeds it.', custom: {
   designatorSelected(r) { return r.game.mode === 'designator'; },
   jamEastDown(r) { const j = r.world.structures.find((s) => s.id === 'jamE'); return !!j && (j.dead || !!j.st.unpowered); },
 } };

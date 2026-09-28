@@ -1,6 +1,7 @@
 // @ts-check
 import { Pix } from '../pixel.js';
 import { Rng } from '../../core/rng.js';
+import { Art } from '../artStyle.js';
 
 /**
  * NOT structure sprites (SPEC §12.3), procedural 3/4-view art. A building of height Hb standing on a
@@ -26,6 +27,7 @@ class B {
   rect(x, y, w, h, c) { for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) this.px(x + i, y + j, c); }
   /** Box: roof rect (x,y,w,d) at sprite coords + south face of height hb below it, with bevels. */
   box(x, y, w, d, hb, roof, face, o = {}) {
+    (this.faces ||= []).push([y + d, y + d + hb, w]);
     for (let j = 0; j < d; j++) for (let i = 0; i < w; i++) {
       let c = roof[2];
       if (j === 0 || i === 0) c = roof[3];
@@ -246,14 +248,42 @@ const cache = new Map();
  * @returns {{canvas: HTMLCanvasElement, w:number, h:number, Hb:number, ox:number, zones:any[]}}
  */
 export function structureSprite(type, st = {}) {
-  const key = type + JSON.stringify(st);
+  const key = Art.style + type + JSON.stringify(st);
   let s = cache.get(key);
   if (s) return s;
   const d = STRUCT_DEFS[type];
   const b = new B(d.w, d.h, d.Hb, type === 'hiveSpire' ? 0 : 0);
   (PAINT[type] || PAINT.barracks)(b, st);
-  const pix = b.done();
-  s = { get canvas() { return this._c || (this._c = pix.toCanvas()); }, _c: null, w: pix.w, h: pix.h, Hb: d.Hb, ox: b.ox, zones: STRUCT_ZONES[type] || [{ name: 'hull', x: 0, y: 0, w: pix.w, h: pix.h, prio: 1 }], pix };
+  let pix = b.done(), Hb = d.Hb, zones = STRUCT_ZONES[type] || [{ name: 'hull', x: 0, y: 0, w: pix.w, h: pix.h, prio: 1 }];
+  if (Art.style === 'chibi' && d.w === 1 && d.h === 1) ({ pix, Hb, zones } = tallTower(pix, Hb, zones));
+  else if (Art.style === 'chibi' && b.faces?.length) ({ pix, Hb, zones } = tallWalls(pix, b.faces, Hb, zones));
+  s = { get canvas() { return this._c || (this._c = pix.toCanvas()); }, _c: null, w: pix.w, h: pix.h, Hb, ox: b.ox, zones, pix };
   cache.set(key, s);
   return s;
+}
+
+/**
+ * Chibi scale: the soldiers are big, so buildings get walls to match — the main south face is redrawn twice as
+ * tall (1.5× for already-tall faces), row by row, so doors and windows grow with it; the roof and anything above
+ * it stay as they are and the footprint (gameplay) does not change. Snipeable zones move with the wall.
+ */
+function tallWalls(pix, faces, Hb, zones) {
+  const [f0, f1] = faces.reduce((a, f) => (f[2] > a[2] || (f[2] === a[2] && f[1] > a[1]) ? f : a));
+  const fh = f1 - f0;
+  if (fh <= 0) return { pix, Hb, zones };
+  const k = fh <= 12 ? 3 : fh <= 16 ? 2.5 : fh <= 20 ? 2 : 1.5, grow = Math.round(fh * (k - 1));
+  const out = new Pix(pix.w, pix.h + grow);
+  const src = (y) => (y < f0 ? y : y < f0 + fh + grow ? f0 + Math.min(fh - 1, Math.floor((y - f0) / k)) : y - grow);
+  for (let y = 0; y < out.h; y++) { const sy = src(y); out.data.set(pix.data.subarray(sy * pix.w, sy * pix.w + pix.w), y * pix.w); }
+  const map = (y) => (y <= f0 ? y : y >= f1 ? y + grow : f0 + (y - f0) * k);
+  return { pix: out, Hb: Hb + grow, zones: zones.map((z) => { const y0 = map(z.y), y1 = map(z.y + z.h); return { ...z, y: Math.round(y0), h: Math.max(1, Math.round(y1 - y0)) }; }) };
+}
+
+/** Chibi scale for one-tile structures (towers, pylons, turrets, gates): everything above the ground tile ×1.8. */
+function tallTower(pix, Hb, zones) {
+  const f0 = 0, f1 = Math.max(1, pix.h - 16), fh = f1 - f0, k = 1.8, grow = Math.round(fh * (k - 1));
+  const out = new Pix(pix.w, pix.h + grow);
+  for (let y = 0; y < out.h; y++) { const sy = y < fh + grow ? Math.min(fh - 1, Math.floor(y / k)) : y - grow; out.data.set(pix.data.subarray(sy * pix.w, sy * pix.w + pix.w), y * pix.w); }
+  const map = (y) => (y >= f1 ? y + grow : y * k);
+  return { pix: out, Hb: Hb + grow, zones: zones.map((z) => { const y0 = map(z.y), y1 = map(z.y + z.h); return { ...z, y: Math.round(y0), h: Math.max(1, Math.round(y1 - y0)) }; }) };
 }

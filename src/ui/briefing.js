@@ -15,16 +15,18 @@ import { O, T } from '../world/tiles.js';
 export class BriefingScene extends MenuBase {
   enter(params) {
     this.missionId = params.mission;
-    this.app.audio?.music?.('theme');
+    this.review = !!params.review;                 // replayed from the pause menu: read it again, then back to the game
+    if (!this.review) this.app.audio?.music?.('theme');
     this.t = 0;
     this.data = null;
-    this.deploy = this.addButton('DEPLOY', () => this.app.scenes.go('game', { mission: this.missionId }), { color: C.uiAmber });
-    this.back = this.addButton('BACK', () => this.app.scenes.go(this.app.hasScene('campaign') ? 'campaign' : 'title', {}));
+    this.deploy = this.addButton(this.review ? 'RESUME' : 'DEPLOY', () => (this.review ? this.app.scenes.pop() : this.app.scenes.go('game', { mission: this.missionId })), { color: C.uiAmber });
+    this.back = this.addButton('BACK', () => (this.review ? this.app.scenes.pop() : this.app.scenes.go(this.app.hasScene('campaign') ? 'campaign' : 'title', {})));
     // the mission's intro cutscene plays every time the mission is picked (one tap skips it); SCENE replays it
     const toBriefing = () => this.app.scenes.go('briefing', { mission: this.missionId, fromCut: true });
     this.scene = this.addButton('SCENE', () => this.app.playCut(this.missionId, toBriefing));
-    this.cutPending = !params.fromCut && this.app.cutsOn?.() && this.missionId !== 'bc';   // Boot Camp has no intro scene
-    this.scene.visible = this.missionId !== 'bc';
+    this.cutPending = !params.fromCut && !this.review && this.app.cutsOn?.() && this.missionId !== 'bc';   // Boot Camp has no intro scene
+    this.scene.visible = this.missionId !== 'bc' && !this.review;
+    this.back.visible = !this.review;
     this.skip = false;
     this._load();
   }
@@ -44,7 +46,7 @@ export class BriefingScene extends MenuBase {
     this.t += dt;
   }
   onBackgroundDown() { this.t += 100; } // tap to finish the typewriter
-  onKeyDown(code) { if (code === 'Enter' || code === 'Space') this.app.scenes.go('game', { mission: this.missionId }); if (code === 'Escape') this.back.onPress(); }
+  onKeyDown(code) { if (code === 'Enter' || code === 'Space') this.deploy.onPress(); if (code === 'Escape') (this.review ? this.deploy : this.back).onPress(); }
   render(ctx) {
     const { W, H } = this.app.display;
     ctx.fillStyle = '#0B0E0C'; ctx.fillRect(0, 0, W, H);

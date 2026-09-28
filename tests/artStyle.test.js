@@ -6,7 +6,7 @@ import { DEFAULT_SETTINGS } from '../src/save.js';
 import { scopeSprite } from '../src/render/spriteData/scopeSprites.js';
 
 test('art style: New is the players\' default; the module starts Classic; New draws a redesign only where one is registered', () => {
-  assert.equal(DEFAULT_SETTINGS.artStyle, 'new', 'New is the default for players');
+  assert.equal(DEFAULT_SETTINGS.artStyle, 'chibi', 'Chibi is the default for players');
   assert.equal(Art.style, 'classic');
   const painter = () => ({ zones: [{ name: 'head', x: 0, y: 0, w: 1, h: 1, prio: 5 }], w: 1, h: 1, ax: 0, ay: 0 });
   Art.register('scopeUnit', 'testDummy', painter);

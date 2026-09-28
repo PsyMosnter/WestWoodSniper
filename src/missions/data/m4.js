@@ -243,6 +243,6 @@ export default {
   player: {"x":13,"y":31,"facing":"E","loadout":{"rifle":30,"c4":2,"medkit":1,"designator":0,"smoke":0}},
   objectives: [{"id":"o1","type":"ESCORT","units":["truck1","truck2","truck3"],"area":"fort","minCount":2,"primary":true,"text":"Escort at least 2 of 3 medical trucks to Fort Dawn"},{"id":"o2","type":"SURVIVE","seconds":60,"primary":true,"hidden":true,"text":"Hold the fort gate for 60 seconds"},{"id":"s1","type":"RESCUE","units":["pilot"],"primary":false,"text":"Rescue the downed pilot in the side canyon"},{"id":"s2","type":"CUSTOM","fn":"bruteClean","primary":false,"text":"Destroy the roadblock Brute before the convoy takes damage"}],
   triggers: [],
-  briefing: {"text":"Three medical trucks. One canyon. The NOT own the rims. You walk the high ground and keep them alive.","preview":{"x":64,"y":36,"zoom":0.25}},
+  briefing: {"text":"Three medical trucks. One canyon. NOT units own the rims. You walk the high ground and keep them alive.","preview":{"x":64,"y":36,"zoom":0.25}},
   par: 1100,
 };

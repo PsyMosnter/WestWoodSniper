@@ -15,7 +15,7 @@ const triggers = [
   { when: { type: 'unitDead', id: 'vrask' }, do: [{ type: 'revealObjective', id: 'o2' }, { type: 'say', text: 'Vrask is down. Get to the lake — the dropship is on its way.', prio: true }] },
 ];
 
-export default { ...data, triggers, intel: '~60 NOT on the pass. Vrask rides a Crawler between a Skitter lead and a Brute rear guard (~4 min loop), stops 30 s at each outpost to inspect. Crawler view slit: front only. The valley bridge can be demolished. Blizzards every 3 minutes.', custom: {
+export default { ...data, triggers, intel: '~60 NOT units on the pass. Vrask rides a Crawler between a Skitter lead and a Brute rear guard (~4 min loop), stops 30 s at each outpost to inspect. Crawler view slit: front only. The valley bridge can be demolished. Blizzards every 3 minutes.', custom: {
   blizzardOn(r) { return !!r.world.blizzard; },
   vraskDismounted(r) { const v = r.world.units.find((u) => u.id === 'vrask'); return !!v && !v.dead && !v.hidden && r.world.fog.isVisible(v.tx, v.ty); },
   pilotSeen(r) { const p = r.world.friendlies.find((f) => f.id === 'pilot'); return !!p && r.world.fog.isVisible(Math.floor(p.x), Math.floor(p.y)); },

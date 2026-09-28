@@ -13,7 +13,7 @@ const triggers = [
   { when: { type: 'custom', fn: 'nearCulvert' }, do: [{ type: 'say', text: 'The old sewer culvert. It comes out beyond the west wall — something\'s breathing down there.' }] },
 ];
 
-export default { ...data, triggers, intel: '~65 NOT in and around Saint Ives. Four searchlight towers, two MG nests on the gates. On Alarm: two Brutes and two Crawlers from the Vehicle Bay. The culvert under the west wall is a way out.', custom: {
+export default { ...data, triggers, intel: '~65 NOT units in and around Saint Ives. Four searchlight towers, two MG nests on the gates. On Alarm: two Brutes and two Crawlers from the Vehicle Bay. The culvert under the west wall is a way out.', custom: {
   firstFreed(r) { return r.world.friendlies.some((f) => f.type === 'scientist' && !f.captive); },
   startShiftChange(r) { r.flags.shiftAt = r.world.time + 60; r.game.countdown = { label: 'SHIFT CHANGE', until: r.world.time + 60 }; },
   shiftChangeDue(r) { return r.flags.shiftAt !== undefined && r.world.time >= r.flags.shiftAt; },

@@ -3,6 +3,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { CUTS, cutLength } from '../src/missions/story.js';
 import { CAST_OF, speakingAt, mouthAt, speakLen, figure } from '../src/scenes/cutStage.js';
+import { SHOTS as INK_SHOTS } from '../src/scenes/cutArt/shots.js';
 import { renderChibi, bustBox, figureBox, CUT_POSE_NAMES } from '../src/render/spriteData/chibiInfantry.js';
 
 const ACTED = new Set(['stage', 'closeup']);
@@ -27,7 +28,9 @@ test('every mission briefing is acted out: WREN in close-up, the voice on the ra
 
 test('the intro and the ending stage their scenes: HQ tent, the dock at dawn, the ride home', () => {
   const sets = (c) => c.shots.filter((s) => s.kind === 'stage').map((s) => s.set);
-  assert.deepEqual(sets(CUTS.intro), ['tent', 'dock']);
+  assert.deepEqual([...new Set(CUTS.intro.shots.filter((s) => s.kind === 'ink').map((s) => s.id))], ['meteors', 'tent', 'pin', 'dock'], 'the intro is hand-inked');
+  for (const s of CUTS.intro.shots.filter((x) => x.kind === 'ink')) assert.ok(INK_SHOTS[s.id], `ink shot ${s.id} exists`);
+  assert.ok(CUTS.intro.lines.some(([, who]) => who === 'SECRETARY') && CUTS.intro.lines.some(([, , l]) => /Global Operative Defences/.test(l)), 'the Colonel and his secretary explain GOD');
   assert.deepEqual(sets(CUTS.ending), ['cabin']);
   for (const c of Object.values(CUTS)) for (const s of c.shots.filter((x) => ACTED.has(x.kind))) {
     for (const who of [s.who, s.inset, ...(s.actors || []).map((a) => a.who)].filter(Boolean)) assert.ok(CAST_OF[who], `${who} is in the cast`);

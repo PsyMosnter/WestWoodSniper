@@ -34,13 +34,18 @@ export function supercover(x0, y0, x1, y1, fn) {
  * @param {any} map
  * @param {{radius?: number, elevO?: number}} [opts]
  */
+/** How far (tiles) someone standing on a ramp sees over its crest onto the level above. */
+export const RAMP_PEEK = 3;
+
 export function canSee(map, ox, oy, tx, ty, opts = {}) {
   const w = map.w;
   const dx = tx - ox, dy = ty - oy;
   const dist = Math.sqrt(dx * dx + dy * dy);
   if (opts.radius !== undefined && dist > opts.radius) return false;
   if (dist <= 1.5) return true; // adjacent tiles are always visible (includes the high-ground peek)
-  const eO = opts.elevO ?? map.elev[oy * w + ox];
+  // on a ramp you are half-way up: you see over the crest, up to RAMP_PEEK tiles, as if one level higher
+  const onRamp = map.rampDir?.[oy * w + ox] >= 0;
+  const eO = (opts.elevO ?? map.elev[oy * w + ox]) + (onRamp && dist <= RAMP_PEEK ? 1 : 0);
   const eT = map.elev[ty * w + tx];
   if (eT > eO && dist > 1.5) return false;
   const top = Math.max(eO, eT);
@@ -65,7 +70,7 @@ export function canSee(map, ox, oy, tx, ty, opts = {}) {
  */
 export function visibleTiles(map, ox, oy, radius, mark, elevO) {
   const { w, h } = map;
-  const eO = elevO ?? map.elev[oy * w + ox];
+  const e0 = elevO ?? map.elev[oy * w + ox], onRamp = map.rampDir?.[oy * w + ox] >= 0;
   const r = Math.ceil(radius);
   const r2 = radius * radius;
   mark(oy * w + ox);
@@ -83,7 +88,7 @@ export function visibleTiles(map, ox, oy, radius, mark, elevO) {
       const d2 = dx * dx + dy * dy;
       if (d2 > r2) return true;
       const i = y * w + x;
-      const e = map.elev[i];
+      const e = map.elev[i], eO = e0 + (onRamp && d2 <= RAMP_PEEK * RAMP_PEEK ? 1 : 0);
       if (e > eO) {
         if (d2 <= 2.25) mark(i); // adjacency peek
         return true;

@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Westwood Sniper — Illustrated cutscenes (study)</title>
+<style>
+  body { margin: 0; background: #0B0D0C; color: #CFE6C8; font: 13px/1.45 ui-monospace, Menlo, monospace; }
+  h1 { font-size: 16px; color: #FFB23A; margin: 14px 18px 4px; }
+  p { color: #7F957C; margin: 2px 18px 10px; max-width: 980px; }
+  .bar { display: flex; gap: 8px; margin: 0 18px 10px; flex-wrap: wrap; }
+  button { background: #1E2420; color: #CFE6C8; border: 1px solid #3A463C; padding: 6px 12px; font: inherit; cursor: pointer; }
+  button.on { background: #FFB23A; color: #111; border-color: #FFB23A; }
+  canvas { image-rendering: pixelated; display: block; margin: 0 18px; width: min(960px, calc(100vw - 36px)); aspect-ratio: 16 / 9; background: #000; }
+  .cap { color: #7F957C; margin: 6px 18px; }
+</style>
+</head>
+<body>
+<h1>Illustrated cutscenes — style study</h1>
+<p>Hand-inked vector art rasterised as crisp pixel art (no smoothing): flat cel colours with hard shadow shapes, black ink outlines and tapered brush lines, dithered skies and light. The same frames render in the game at the display's resolution. Speech appears above the speaker in their colour.</p>
+<div class="bar" id="bar"></div>
+<canvas id="c" width="480" height="270"></canvas>
+<div class="cap" id="cap"></div>
+<script type="module">
+import { Ink } from '../../src/render/ink.js';
+import { SHOTS } from '../../src/scenes/cutArt/shots.js';
+import { talkState } from '../../src/scenes/cutArt/talk.js';
+import { drawSpeech } from '../../src/scenes/cutStage.js';
+import { drawText } from '../../src/render/font.js';
+
+const LIST = [
+  ['tent', 'Intro — GOD field HQ, the general at the map table', 5.5],
+  ['dock', 'Intro — dawn on the Varna: WREN has gone fishing', 7.5],
+  ['vrask', 'M3 — cutaway: Overseer Vrask in the blizzard', 9],
+];
+const SPEAKER = { OVERWATCH: '#7CFF7A', WREN: '#FFE08A', 'GOD COMMAND': '#8FC2F0', 'DR. ADLER': '#C8A8FF' };
+const cv = document.getElementById('c'), ctx = cv.getContext('2d');
+const cap = document.getElementById('cap'), bar = document.getElementById('bar');
+let cur = 0, t0 = performance.now(), all = true;
+const buttons = LIST.map(([id, name], i) => { const b = document.createElement('button'); b.textContent = name.split(' — ')[1]; b.onclick = () => { cur = i; t0 = performance.now(); all = false; mark(); }; bar.appendChild(b); return b; });
+const allB = document.createElement('button'); allB.textContent = 'play all'; allB.onclick = () => { all = true; cur = 0; t0 = performance.now(); mark(); }; bar.appendChild(allB);
+function mark() { buttons.forEach((b, i) => b.classList.toggle('on', i === cur && !all)); allB.classList.toggle('on', all); cap.textContent = LIST[cur][1]; }
+mark();
+const img = ctx.createImageData(480, 270);
+// speech above the speaker; a voice with nobody on screen gets a subtitle line at the bottom
+function say(who, text, a) {
+  if (a) { drawSpeech(ctx, text, a[0], a[1], SPEAKER[who] || '#E8F0E0', 480, 27); return; }
+  ctx.fillStyle = 'rgba(4,6,5,0.72)'; ctx.fillRect(20, 214, 440, 26);
+  drawText(ctx, who + ':', 26, 218, { color: SPEAKER[who] || '#E8F0E0', shadow: '#000' });
+  drawSpeech(ctx, text, 290, 236, '#E8F0E0', 480, 27, 330);
+}
+function frame() {
+  const [id, , len] = LIST[cur], shot = SHOTS[id];
+  let t = (performance.now() - t0) / 1000;
+  if (t > len) { if (all) cur = (cur + 1) % LIST.length; t0 = performance.now(); t = 0; mark(); }
+  const k = new Ink(480, 270);
+  const st = talkState(shot.demo || [], t);
+  shot.draw(k, t, st);
+  img.data.set(new Uint8ClampedArray(k.pix.data.buffer));
+  ctx.putImageData(img, 0, 0);
+  // letterbox, then speech above the speaker
+  ctx.fillStyle = '#000'; ctx.fillRect(0, 0, 480, 27); ctx.fillRect(0, 243, 480, 27);
+  if (st.speaking) {
+    const [at, who, text] = shot.demo.find((l) => l[1] === st.speaking.who && t >= l[0] && t - l[0] < 99 && l[2] === st.speaking.text);
+    const shown = text.slice(0, Math.floor((t - at) * 45)), a = st.talkers?.[who];
+    say(who, shown, a);
+  } else {
+    // keep the last line up a moment after the mouth stops, like the game does
+    const last = [...(shot.demo || [])].reverse().find((l) => t >= l[0]);
+    if (last && t - last[0] < 1.6 + last[2].length * 0.05) say(last[1], last[2], st.talkers?.[last[1]]);
+  }
+  drawText(ctx, 'STUDY — NOT IN THE GAME YET', 474, 258, { font: '3x5', color: '#5A625C', align: 'right' });
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

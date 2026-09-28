@@ -173,8 +173,8 @@ export class StrikeSystem {
     this.craters.push({ x, y });
     for (let yy = cy - 3; yy <= cy + 3; yy++) for (let xx = cx - 3; xx <= cx + 3; xx++) {
       if (!m.inb(xx, yy)) continue;
-      if (Math.abs(xx - cx) <= 1 && Math.abs(yy - cy) <= 1) m.setBlocked(xx, yy, true);
-      else if (Math.hypot(xx - cx, yy - cy) <= 3 && m.cost[m.idx(xx, yy)] < Infinity && m.structure[m.idx(xx, yy)] < 0) m.setOverlay(xx, yy, 'u');
+      // the bowl is impassable; the crater decal does the drawing (tile-shaped rubble read as a square)
+      if (Math.hypot(xx - cx, yy - cy) <= 1.5) m.setBlocked(xx, yy, true);
       g.renderer?.terrain.invalidateTile(xx, yy);
     }
     g.renderer?.terrain.addDecal(craterDecal(x, y, 5, 99));

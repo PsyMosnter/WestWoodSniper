@@ -188,6 +188,7 @@ export const BALANCE = {
     wounded: { speedMult: 0.5 },
     limbSpeedMult: 0.5,
     vehicleStopShort: 3.5, dismountDelay: 2,
+    wreckLife: 60,        // s a burnt-out wreck stays; then it's hauled off the next time it's out of sight
     vehicleRoadMult: 1.3, vehicleShallowMult: 0.5,
     tallGrassFlatten: 30,
   },

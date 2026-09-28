@@ -29,6 +29,7 @@ function setup(o = {}) {
   return g;
 }
 const tick = (g, secs) => { for (let t = 0; t < secs; t += DT) { g.world.time += DT; g.world.operative.update(DT); g.enemies.update(DT); } };
+const until = (g, secs, fn) => { for (let t = 0; t < secs; t += DT) { tick(g, DT); if (fn()) return true; } return false; };
 const flat = (g) => { g.world.operative.toggleHunker(); tick(g, BALANCE.stances.hunker.enter + 0.1); };
 
 test('low crawl: a move order while hunkered keeps WREN flat, very slow, low-visibility and silent', () => {
@@ -146,4 +147,52 @@ test('a move ordered while WREN is getting up from hunker is carried out once he
   assert.ok(op.orderMove(15, 10, 'walk'), 'order accepted mid get-up');
   tick(g, BALANCE.stances.hunker.exit + 1.5);
   assert.ok(op.x > 6.5, `he walked off (x ${op.x.toFixed(2)})`);
+});
+
+test('playtest 6: crawling straight into a soldier\'s cone gets no takedown', () => {
+  const g = setup({ units: [{ id: 'h', type: 'husk', x: 12, y: 10, alertGroup: 'a', facing: 'W' }] }), op = g.world.operative;
+  const u = g.world.units[0];
+  flat(g);
+  op.orderMove(11, 10, 'crawl');
+  for (let t = 0; t < 40 && Math.hypot(u.x - op.x, u.y - op.y) > BALANCE.takedown.reach - 0.1; t += DT) tick(g, DT);
+  tick(g, 0.2);
+  assert.notEqual(g.takedown.blocker(u), null, 'facing him: they see you');
+  assert.equal(g.takedown.perform(u), false);
+});
+
+test('playtest 6: a glimpse stops the patrol — they stare, then go and look; the meter drains slowly', () => {
+  const g = setup({ px: 9, units: [{ id: 'h', type: 'husk', x: 12, y: 10, alertGroup: 'a', facing: 'W' }] }), op = g.world.operative;
+  const u = g.world.units[0];
+  for (let t = 0; t < 5 && u.state !== 'suspicious'; t += DT) tick(g, DT);
+  assert.equal(u.state, 'suspicious', 'caught his eye');
+  assert.ok(u.det < 1, 'not spotted yet: a window to get out of sight');
+  op.x = op.px = 3.5; op.y = op.py = 3.5;                        // out of the cone
+  tick(g, 2);
+  assert.equal(u.state, 'suspicious', 'still staring at the spot');
+  assert.equal(u.path.length, 0, 'patrol on hold');
+  assert.ok(u.det > 0.15, `remembers (${u.det.toFixed(2)})`);
+  tick(g, 1.5);
+  assert.equal(u.state, 'investigating', 'then goes to look');
+});
+
+test('playtest 6: a shot body — they scan the way the shot came from, then search that way; a knifed one — rings round it', () => {
+  const run = (by, dir) => {
+    const g = setup({ units: [{ id: 'v', type: 'husk', x: 20, y: 10, alertGroup: 'a', facing: 'E' }, { id: 'f', type: 'husk', x: 25, y: 10, alertGroup: 'b', facing: 'W' }] });
+    g.world.operative.x = g.world.operative.px = 2.5;
+    const [v, f] = g.world.units;
+    f.angle = f.targetAngle = 0; f.home.angle = 0;                // looking away: nobody sees it happen
+    g.combat.kill(v, { by, source: 'player', dir });
+    tick(g, 0.5);
+    f.angle = f.targetAngle = Math.PI; f.home.angle = Math.PI;    // then turns round and finds the body
+    return { g, f };
+  };
+  const shot = run('rifle', -Math.PI / 2);                        // fired from the south (source → body points north)
+  assert.ok(until(shot.g, 15, () => shot.f.state === 'investigating' && shot.f.arrived && shot.f.lookT > 2.5));
+  let a = shot.f.angle - Math.PI / 2; a = Math.atan2(Math.sin(a), Math.cos(a));
+  assert.ok(Math.abs(a) < 0.7, `looking south, the way the shot came (${shot.f.angle.toFixed(2)})`);
+  assert.ok(until(shot.g, 8, () => shot.f.state === 'alerted'));
+  assert.ok(shot.f.search.cy > 13, `searching along the shot line (${shot.f.search.cy.toFixed(1)})`);
+  const knife = run('knife', 0);
+  assert.ok(until(knife.g, 15, () => knife.f.state === 'alerted'));
+  assert.ok(Math.hypot(knife.f.search.cx - 20.5, knife.f.search.cy - 10.5) < 1.5, 'circling the body');
 });

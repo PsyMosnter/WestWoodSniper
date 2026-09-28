@@ -121,6 +121,7 @@ test('Boot Camp: a takedown from behind; shooting the dummy instead brings a fre
 test('Boot Camp: driver shot → C4 on the Skitter → C4 on the hut → course complete', () => {
   const g = boot(), op = g.world.operative, w = g.world;
   for (const id of ['b1', 'b2', 'b3', 'b4', 'b5']) g.objectives.complete(id);
+  const d3 = w.units.find((u) => u.id === 'd3'); d3.hidden = d3.retired = true;   // (taken down at station 5)
   tick(g, 2);
   const sk = w.units.find((u) => u.id === 'sk');
   op.x = op.px = 50.5; op.y = op.py = 27.5;
@@ -165,6 +166,7 @@ test('Boot Camp: the takedown lesson closes only after the lunge; the next tip w
 test('Boot Camp: blowing the Skitter up before its driver is shot brings a fresh one; the course still completes', () => {
   const g = boot(), w = g.world;
   for (const id of ['b1', 'b2', 'b3', 'b4', 'b5']) g.objectives.complete(id);
+  const d3 = w.units.find((u) => u.id === 'd3'); d3.hidden = d3.retired = true;   // (taken down at station 5)
   tick(g, 2);
   const sk = w.units.find((u) => u.id === 'sk');
   g.vehicles.hitZone(sk, 'jerrycan');

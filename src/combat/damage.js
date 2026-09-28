@@ -87,7 +87,8 @@ export function killUnit(sys, u, cause) {
     sys.particles.blood(u.x, u.y - 0.4, u.blood, cause.zone === 'head' ? 18 : 12, cause.dir ?? null, cause.zone === 'head' ? 1.3 : 1);
     const seed = (u.id.length * 31 + Math.floor(u.x * 7 + u.y * 13)) | 0;
     sys.game.renderer?.terrain.addDecal(bloodDecal(u.x + 0.1, u.y + 0.05, u.blood, cause.by === 'explosion' ? 1.6 : 1.2, seed));
-    w.corpses.push({ x: u.x, y: u.y, unit: u, discovered: false, t: w.time, byPlayer: u.killedByPlayer });
+    // how it died tells the finder where to look: a shot came from somewhere (dir: source → body), a knife was close by
+    w.corpses.push({ x: u.x, y: u.y, unit: u, discovered: false, t: w.time, byPlayer: u.killedByPlayer, by: cause.by, dir: cause.dir ?? null });
   }
   w.events.emit('unitKilled', { unit: u, cause });
   sys.enemies?.onKill(u, cause);

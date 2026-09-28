@@ -3,6 +3,8 @@ import { BALANCE } from '../config/balance.js';
 import { updateBehaviour } from './behaviours.js';
 import { canSee } from '../world/los.js';
 
+const D = BALANCE.detection;
+
 const A = BALANCE.ai;
 
 /**
@@ -38,15 +40,19 @@ export function updateAI(u, dt, sys) {
   }
 }
 
-/** Become suspicious of a stimulus point (face it, stop patrolling). */
-export function makeSuspicious(u, x, y) {
+/**
+ * Become suspicious (playtest 6): stop dead and stare at what caught the eye — (sx, sy), default the stimulus
+ * point — until stareTime after it was last seen, then go and look at (x, y).
+ */
+export function makeSuspicious(u, x, y, sx = x, sy = y) {
   if (u.dead || u.state === 'combat') return;
   if (u.def.flees) { startFlee(u, x, y); return; }
   u.poi = { x, y };
   u.poiSoft = false;
-  if (u.state === 'alerted') { startSearch(u, x, y); return; }
+  u.stareAt = { x: sx, y: sy }; u.unseenT = 0;
   if (u.state !== 'suspicious') { u.setState('suspicious'); u.path = []; }
-  u.face(x, y);
+  u.tag = { text: '?', t: 0.5 };
+  u.face(sx, sy);
 }
 
 export function investigate(u, x, y) {
@@ -59,8 +65,8 @@ export function investigate(u, x, y) {
   u.goTo(Math.floor(x), Math.floor(y), 'walk');
 }
 
-/** Search expanding rings (2,4,6 tiles) around a point for 30 s (SPEC §8.5). */
-export function startSearch(u, x, y) {
+/** Search expanding rings (2,4,6 tiles) around a point for 30 s (SPEC §8.5), or `dur` s. */
+export function startSearch(u, x, y, dur = BALANCE.detection.lkpSearchTime) {
   if (u.dead || u.state === 'combat') return;
   if (u.def.flees) { startFlee(u, x, y); return; }
   const pts = [];
@@ -76,15 +82,18 @@ export function startSearch(u, x, y) {
       if (t) pts.push(t);
     }
   }
-  u.search = { pts, i: 0, t: 0, waitT: 0, cx: x, cy: y };
+  u.search = { pts, i: 0, t: 0, waitT: 0, cx: x, cy: y, dur };
   u.setState('alerted');
   u.goTo(pts[0].x, pts[0].y, 'run');
 }
 
 function suspicious(u, dt, sys) {
   u.path = [];
-  if (u.poi) u.face(u.poi.x, u.poi.y);
-  if (u.stateT >= A.suspiciousToInvestigate) {
+  const s = u.stareAt || u.poi;
+  if (s) u.face(s.x, s.y);
+  if (!u.seesOp) u.unseenT = (u.unseenT || 0) + dt;
+  if ((u.unseenT || 0) >= D.stareTime) {
+    u.stareAt = null;
     const p = u.poi || { x: u.x, y: u.y };
     const soft = u.poiSoft;
     investigate(u, p.x, p.y);
@@ -107,8 +116,21 @@ function investigating(u, dt, sys) {
     return;
   }
   u.lookT += dt;
-  u.targetAngle = u.lookBase + Math.sin(u.lookT * 1.6) * 1.4;
-  if (u.examine) u.tag = { text: '?', t: 0.3 };
+  const c = u.examine, knifed = c?.by === 'knife', shot = c && !knifed && c.dir != null;
+  if (shot) {
+    // a shot body: a moment over it, then turn and scan the way the shot came from
+    u.targetAngle = u.lookT < 1.5 ? u.lookBase : c.dir + Math.PI + Math.sin(u.lookT * 1.2) * 0.45;
+  } else u.targetAngle = u.lookBase + Math.sin(u.lookT * 1.6) * 1.4;
+  if (c) u.tag = { text: '?', t: 0.3 };
+  if (c && u.lookT >= (knifed ? 2.5 : A.bodyStare)) {
+    // then search: along the shot line (toward the shooter), or in rings round the body (knifed, or no telling)
+    sys.alerts.raise(u.alertGroup, 'caution', 'body', u);
+    u.examine = null;
+    const m = u.world.map;
+    const t = shot ? m.nearestWalkable(c.x + Math.cos(c.dir + Math.PI) * 6, c.y + Math.sin(c.dir + Math.PI) * 6, 3) : null;
+    startSearch(u, t ? t.x + 0.5 : c.x, t ? t.y + 0.5 : c.y, A.bodySearch);
+    return;
+  }
   if (u.lookT >= A.investigateLook) {
     // found nothing (or examined a body): base goes to Caution
     sys.alerts.raise(u.alertGroup, 'caution', u.examine ? 'body' : 'investigated', u);
@@ -123,7 +145,7 @@ function alerted(u, dt, sys) {
   const s = u.search;
   if (!s) { u.setState('returning'); return; }
   s.t += dt;
-  if (s.t >= BALANCE.detection.lkpSearchTime) { u.search = null; u.setState('returning'); return; }
+  if (s.t >= (s.dur ?? BALANCE.detection.lkpSearchTime)) { u.search = null; u.setState('returning'); return; }
   if (u.path.length) return;
   if (s.waitT > 0) {
     s.waitT -= dt;

@@ -124,7 +124,7 @@ export class TitleScene extends MenuBase {
   enter() {
     this.t = 0;
     this.bg = null;
-    this.app.audio?.music?.('theme');
+    this.app.audio?.music?.('title');
     this.addButton('START', () => this.app.playCut('intro', () => this.app.startCampaign()));
     this.cont = this.addButton('CONTINUE', () => this.app.continueCampaign());
     this.cont.enabled = this.app.save.unlocked > 1 || Object.keys(this.app.save.resume || {}).length > 0;

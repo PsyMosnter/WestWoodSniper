@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Westwood Sniper — Sound Lab</title>
+<style>
+  :root { --bg: #101311; --panel: #1A1F1B; --text: #CFE6C8; --dim: #7F957C; --amber: #FFB23A; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 13px/1.45 ui-monospace, Menlo, monospace; }
+  header, section { padding: 10px 16px; }
+  h1 { font-size: 16px; margin: 0 0 4px; color: var(--amber); }
+  h2 { font-size: 13px; margin: 14px 0 6px; color: var(--amber); text-transform: uppercase; }
+  p { margin: 2px 0 8px; color: var(--dim); max-width: 760px; }
+  button { background: var(--panel); color: var(--text); border: 1px solid #2E3A2F; padding: 7px 10px; margin: 0 6px 6px 0; font: inherit; cursor: pointer; }
+  button.on { border-color: var(--amber); color: var(--amber); }
+  input[type=range] { width: 260px; vertical-align: middle; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Sound Lab</h1>
+  <p>Every tune and sound effect in the game, synthesised live (no sample files). Pick a tune, then slide the
+  awareness from CALM through SUSPICIOUS to DETECTED — the game drives this slider from the enemies' meters.</p>
+</header>
+<section>
+  <h2>Music</h2>
+  <div id="songs"></div>
+  <p>Awareness: <input id="lvl" type="range" min="0" max="1" step="0.05" value="0"> <span id="lv">CALM</span></p>
+  <h2>Footsteps (on the beat, in key — needs a tune playing)</h2>
+  <div id="steps"></div>
+  <h2>Effects</h2>
+  <div id="fx"></div>
+</section>
+<script type="module">
+import { Audio } from '../../src/audio/sfx.js';
+import { SONGS } from '../../src/audio/music.js';
+const a = new Audio();
+const mk = (parent, label, fn) => { const b = document.createElement('button'); b.textContent = label; b.onclick = () => { a.unlock(); fn(b); }; document.getElementById(parent).appendChild(b); return b; };
+const NAMES = { title: 'Title', theme: 'Intro (theme)', bc: 'Boot Camp', m1: '1 First Light', m2: '2 Blackout', m3: '3 Needle', m4: '4 Lifeline', m5: '5 Sunhammer', m6: '6 Ghost Walk', m7: '7 Hive Heart' };
+const songBtns = [];
+for (const id of ['title', 'theme', ...Object.keys(SONGS).filter((k) => k !== 'title')]) songBtns.push(mk('songs', NAMES[id] || id, (b) => { a.music(id); songBtns.forEach((x) => x.classList.toggle('on', x === b)); }));
+mk('songs', 'Stop', () => { a.music(null); songBtns.forEach((x) => x.classList.remove('on')); });
+const lvl = document.getElementById('lvl'), lv = document.getElementById('lv');
+lvl.oninput = () => { const x = +lvl.value; a.setIntensity(x); lv.textContent = x >= 0.8 ? 'DETECTED' : x >= 0.35 ? 'SUSPICIOUS' : 'CALM'; };
+const stepBtns = [];
+for (const [k, mode] of [['crawl', 'crawl'], ['water', 'walk'], ['snow', 'walk'], ['grass', 'walk'], ['snow', 'run']]) stepBtns.push(mk('steps', k + ' (' + mode + ')', (b) => { const on = !b.classList.contains('on'); stepBtns.forEach((x) => x.classList.remove('on')); b.classList.toggle('on', on); a.setMove(on ? k : null, mode); }));
+for (const fx of ['rifle', 'bolt', 'reload', 'reloadDone', 'pistol', 'headshot', 'takedown', 'explosion', 'nuke', 'enemyShot', 'rocket', 'plant', 'beep', 'alarm', 'spotted', 'objective', 'pickup', 'splash', 'scopeIn', 'scopeOut']) mk('fx', fx, () => a.play(fx));
+mk('fx', 'CLEAN KILL', () => a.cleanKill());
+mk('fx', 'win sting', () => a.sting('win')); mk('fx', 'fail sting', () => a.sting('fail'));
+</script>
+</body>
+</html>

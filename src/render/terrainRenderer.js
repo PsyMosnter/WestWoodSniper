@@ -1,7 +1,7 @@
 // @ts-check
 import { Art } from './artStyle.js';
 import { TERRAIN, OVERLAY, T, O } from '../world/tiles.js';
-import { buildTextures, BIOMES, TEX, EDGE_NOISE, EDGE_NOISE2 } from './tileArt.js';
+import { LEVEL_BRIGHT, buildTextures, BIOMES, TEX, EDGE_NOISE, EDGE_NOISE2 } from './tileArt.js';
 import { pack, shade, mix, unpack, packRgba, makeCanvas, Pix } from './pixel.js';
 import { hash2, valueNoise } from '../core/rng.js';
 import { floraSprite } from './spriteData/flora.js';
@@ -171,13 +171,16 @@ export class TerrainRenderer {
         pxT[(py + M) * PW + (px + M)] = t;
         if (px >= 0 && py >= 0 && px < CPX && py < CPX) {
           // the ground's tone follows the smooth height field: higher is lighter; ramps dither from one to the next
-          const lvl = Math.max(0, Math.min(3, lvAt(px, py))), l0 = Math.floor(lvl);
-          const e = Math.min(3, l0 + (lvl - l0 > BAYER4[((wy & 3) << 2) | (wx & 3)] ? 1 : 0));
+          const lvl = Math.max(0, Math.min(3, lvAt(px, py))), l0 = Math.floor(lvl), fr = lvl - l0;
+          const e = Math.min(3, l0);
+          const band = fr > 0.02 && fr < 0.98 ? Math.min(3, Math.floor(fr * 4) + 1) : 0;   // a ramp: 4 tone bands, low → high
           // anti-tiling: large noise regions sample the (tileable) texture at different offsets,
           // with dithered borders, so the 64-px period never lines up into a visible grid
           const rn = valueNoise(wx / 52, wy / 52, 91) + (EDGE_NOISE2[(wy & 63) * TEX + (wx & 63)] - 0.5) * 0.18;
           const sx = rn > 0.62 ? wx + 29 : rn < 0.36 ? wx + 47 : wx, sy = rn > 0.62 ? wy + 43 : rn < 0.36 ? wy + 17 : wy;
-          buf[py * CPX + px] = tex[t][e][(sy & 63) * TEX + (sx & 63)];
+          let c0 = tex[t][e][(sy & 63) * TEX + (sx & 63)];
+          if (band) c0 = shade(c0, 0.8 + band * 0.13);                                     // dark at the foot → lit at the crest
+          buf[py * CPX + px] = c0;
         }
       }
     }
@@ -356,19 +359,22 @@ export class TerrainRenderer {
         prev = q;
       }
       // side walls: a drop to the east (shaded) or west (sunlit), narrower than south faces
-      if (face < 0) {
+      if (face < 0 && Math.abs(L - Math.round(L)) < 0.03) {   // (a ramp's own surface grows no walls)
         let pe = L, pw = L, se = false, sw = false;
-        for (let j = 1; j <= 9 && !(se && sw); j++) {
+        for (let j = 1; j <= SIDE_E + 3 && !(se && sw); j++) {
           const qe = lvAt(px + j, py), qw = lvAt(px - j, py);
           if (!se && qe > pe + EDGE_STEP) se = true;
           if (!sw && qw > pw + EDGE_STEP) sw = true;
-          if (!se && qe < pe - EDGE_STEP) { if (j <= (L - qe) * 6) { face = 1; depth = j / ((L - qe) * 6); break; } se = true; }
-          if (!sw && qw < pw - EDGE_STEP) { if (j <= (L - qw) * 4) { face = 2; depth = j / ((L - qw) * 4); break; } sw = true; }
+          const wob = (EDGE_NOISE2[((wy >> 1) & 63) * TEX + ((wx >> 2) & 63)] - 0.5) * 4;
+          if (!se && qe < pe - EDGE_STEP) { const wd = (L - qe) * SIDE_E + wob; if (L - qe > 0.35 && j <= wd) { face = 1; depth = j / wd; break; } se = true; }
+          if (!sw && qw < pw - EDGE_STEP) { const wd = (L - qw) * SIDE_W + wob; if (L - qw > 0.35 && j <= wd) { face = 2; depth = j / wd; break; } sw = true; }
           pe = qe; pw = qw;
         }
       }
       if (face >= 0) {
-        let ri = rockCell(wx, wy, 9, 8);
+        const wpx = (EDGE_NOISE[(wy & 63) * TEX + ((wx * 3) & 63)] - 0.5) * 7, wpy = (EDGE_NOISE2[((wy * 3) & 63) * TEX + (wx & 63)] - 0.5) * 5;
+        const big = valueNoise(wx / 40, wy / 30, 55) > 0.5;
+        let ri = rockCell(Math.round(wx + wpx), Math.round(wy + wpy), big ? 13 : 7, big ? 10 : 6);
         if (face === 0) {
           // lit crown, mid-tone body, shaded base; now and then a deep vertical crack
           if (depth < 0.1) ri = 4;
@@ -378,11 +384,12 @@ export class TerrainRenderer {
             if (depth > 0.85 && ri > 0) ri--;
             if (depth > 0.25 && hash2(wx >> 1, Math.floor(wy / 12), 41) < 0.07) ri = 0;
           }
-        } else if (face === 1) ri = Math.max(0, ri - 1);
+        } else if (face === 1) ri = Math.max(0, ri - 1 - (depth > 0.6 ? 1 : 0));
+        else if (depth > 0.7 && ri > 0) ri--;
         let c = R[Math.max(0, Math.min(4, ri))];
         if (snowy && face === 0 && depth < 0.22) c = depth < 0.1 ? pack('#FFFFFF') : pack('#DCE8EE');
         // the foot melts into the ground below it
-        if (face === 0 && foot <= 3) { const g = buf[Math.min(CPX - 1, py + foot) * CPX + px]; c = mix(c, g, (4 - foot) * 0.2); }
+        if (face === 0 && foot <= 3) { const g = shade(buf[Math.min(CPX - 1, py + foot) * CPX + px], 0.62); c = mix(c, g, (4 - foot) * 0.22); }
         buf[i] = c;
         continue;
       }
@@ -400,9 +407,9 @@ export class TerrainRenderer {
         buf[i] = c;
         continue;
       }
-      // ramps: a few soft terrace lines across the slope
-      const frac = L - Math.floor(L);
-      if (frac > 0.06 && frac < 0.94 && (frac * 4) % 1 < 0.08) buf[i] = shade(buf[i], 0.88);
+      // ramps: at each band edge a lit step with a shadow under it, so the slope's direction reads
+      const frac = L - Math.floor(L), fb = lvAt(px, py + 1) - Math.floor(lvAt(px, py + 1));
+      if (frac > 0.02 && frac < 0.98 && Math.floor(frac * 4) !== Math.floor(fb * 4) && Math.abs(frac - fb) < 0.3) { buf[i] = shade(buf[i], frac > fb ? 1.3 : 0.7); if (py + 1 < CPX) buf[i + CPX] = shade(buf[i + CPX], frac > fb ? 0.75 : 1.2); }
     }
   }
 
@@ -656,7 +663,8 @@ function rockCell(wx, wy, cw = 6, ch = 5) {
 /** Relief: rock-face height per level (px) and the margin of height field a chunk needs around it. */
 const RELIEF_FACE = 22, RELIEF_MG = 50;
 const RAMP_FOOT = 0.4;
-const EDGE_STEP = 0.3;   // a drop this sudden between neighbouring pixels is an edge (a ramp climbs more gently)   // share of a ramp's climb drawn on the tile at its foot
+const EDGE_STEP = 0.3;
+const SIDE_E = 13, SIDE_W = 10;   // side-wall width per level (px): east-facing (shaded), west-facing (lit)   // a drop this sudden between neighbouring pixels is an edge (a ramp climbs more gently)   // share of a ramp's climb drawn on the tile at its foot
 const BAYER4 = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5].map((v) => (v + 0.5) / 16);
 
 /** Minimal painter on a chunk buffer using world px coordinates. */
